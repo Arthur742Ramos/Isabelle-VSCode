@@ -24,13 +24,16 @@ Implemented foundation:
   - `Isabelle: Discover Sessions`
   - `Isabelle: Refresh Sessions`
   - `Isabelle: Select Active Session`
+  - `Isabelle: Build Active Session`
+  - `Isabelle: Cancel Build`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
 - Conservative ROOT/ROOTS parser and workspace discovery for local sessions.
 - Explorer-side **Isabelle Sessions** tree with session, imported-session, theory, and document-file entries.
 - Active session persistence through `isabelle.session.active`.
-- Unit tests for protocol framing, request correlation, ROOT parsing, and workspace session discovery.
+- Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, and diagnostic parsing.
 
 This milestone does **not** implement PIDE document processing, live proof state, semantic markup, or Sledgehammer yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI.
 

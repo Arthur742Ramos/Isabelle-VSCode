@@ -1,16 +1,19 @@
 import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
+import { BuildService } from "./build/BuildService";
 import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 
 let backendManager: BackendManager | undefined;
+let buildService: BuildService | undefined;
 let sessionService: SessionService | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
   backendManager = new BackendManager(context, output);
+  buildService = new BuildService(output);
   sessionService = new SessionService(output);
   const sessionTree = new SessionTreeProvider(sessionService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -21,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     output,
     backendManager,
+    buildService,
     sessionService,
     sessionTree,
     statusBar,
@@ -31,6 +35,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
     vscode.commands.registerCommand("isabelle.openTheory", async (theoryPath?: string) => openTheory(theoryPath)),
+    vscode.commands.registerCommand("isabelle.buildActiveSession", async () => buildActiveSession(output)),
+    vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -44,6 +50,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   backendManager?.dispose();
   backendManager = undefined;
+  buildService?.dispose();
+  buildService = undefined;
   sessionService?.dispose();
   sessionService = undefined;
   statusBar?.dispose();
@@ -136,6 +144,50 @@ async function openTheory(theoryPath: string | undefined): Promise<void> {
   await vscode.window.showTextDocument(document);
 }
 
+async function buildActiveSession(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const service = requireSessionService();
+    const sessions = service.getSessions().length > 0 ? service.getSessions() : (await service.refresh()).sessions;
+    let session = service.getActiveSession();
+
+    if (!session && sessions.length === 1) {
+      session = sessions[0];
+      await vscode.workspace
+        .getConfiguration("isabelle")
+        .update("session.active", session.name, vscode.ConfigurationTarget.Workspace);
+      updateSessionStatus();
+    }
+
+    if (!session) {
+      session = await service.selectActiveSession();
+    }
+
+    if (!session) {
+      return;
+    }
+
+    const config = vscode.workspace.getConfiguration("isabelle");
+    const exitCode = await requireBuildService().runBuild(session, {
+      isabelleExecutablePath: getIsabelleExecutablePath(),
+      extraArgs: config.get<string[]>("build.extraArgs", [])
+    });
+
+    if (exitCode === 0) {
+      vscode.window.showInformationMessage(`Isabelle build succeeded: ${session.name}`);
+    } else {
+      vscode.window.showErrorMessage(`Isabelle build failed for ${session.name} with exit code ${exitCode}.`);
+    }
+  } catch (error) {
+    showBackendError("Unable to build Isabelle session", error, output);
+  }
+}
+
+function cancelBuild(): void {
+  if (!requireBuildService().cancelBuild()) {
+    vscode.window.showInformationMessage("No Isabelle build is running.");
+  }
+}
+
 function requireBackendManager(): BackendManager {
   if (!backendManager) {
     throw new Error("Isabelle extension is not activated.");
@@ -148,6 +200,13 @@ function requireSessionService(): SessionService {
     throw new Error("Isabelle session service is not activated.");
   }
   return sessionService;
+}
+
+function requireBuildService(): BuildService {
+  if (!buildService) {
+    throw new Error("Isabelle build service is not activated.");
+  }
+  return buildService;
 }
 
 function getIsabelleExecutablePath(): string {
