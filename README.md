@@ -31,6 +31,9 @@ Implemented foundation:
   - `Isabelle: Run Sledgehammer`
   - `Isabelle: Cancel Sledgehammer`
   - `Isabelle: Insert Sledgehammer Proof`
+  - `Isabelle: Create Checked Repair Request`
+  - `Isabelle: Preview Repair Patch`
+  - `Isabelle: Check Current Workspace for Repair`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
@@ -43,9 +46,21 @@ Implemented foundation:
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
 - Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
-- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, and semantic tokenization.
+- Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, semantic tokenization, repair request capture, and patch preview safety.
 
-This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, or automatic proof insertion from real suggestions yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders.
+This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The checked repair loop is local-only: it does not call external AI services and does not apply proposed edits automatically.
+
+## Checked repair workflow
+
+The checked repair commands provide a conservative local foundation for future proof-repair tooling:
+
+1. Run `Isabelle: Create Checked Repair Request` from an Isabelle theory. The extension captures the active document URI/path/version, cursor position, VS Code diagnostics, and the current proof-state response if the backend can provide one. It opens an untitled Markdown request that you can review and save manually.
+2. Save a proposed repair as a unified diff, then run `Isabelle: Preview Repair Patch`. The extension reads the patch locally, rejects unsafe shapes such as added/deleted files, renames, binary diffs, absolute paths, path traversal, unsupported newline markers, dirty target documents, and mismatched context, then opens readonly VS Code diff previews.
+3. If you trust a preview, apply the edit manually. The extension intentionally never writes patch contents for you.
+4. Run `Isabelle: Check Current Workspace for Repair`. This reruns the existing active-session build over the current workspace files. It does **not** validate a readonly preview unless you have manually applied those edits first.
+
+Repair requests may include source excerpts, diagnostics, and proof-state details. Review them before sharing outside your workspace.
 
 ## Development
 

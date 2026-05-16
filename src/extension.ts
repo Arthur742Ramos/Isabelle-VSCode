@@ -4,6 +4,8 @@ import { BuildService } from "./build/BuildService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
 import { ProofStatePanel } from "./proof/ProofStatePanel";
 import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
+import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
+import { RepairService } from "./repair/RepairService";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
@@ -17,6 +19,8 @@ let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
+let repairPreviewProvider: RepairPreviewProvider | undefined;
+let repairService: RepairService | undefined;
 let sessionService: SessionService | undefined;
 let sledgehammerPanel: SledgehammerPanel | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
@@ -29,6 +33,8 @@ export function activate(context: vscode.ExtensionContext): void {
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
   proofStatePanel = new ProofStatePanel(backendManager, output);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
+  repairPreviewProvider = new RepairPreviewProvider();
+  repairService = new RepairService(backendManager, output, repairPreviewProvider);
   const sessionTree = new SessionTreeProvider(sessionService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
@@ -41,6 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
     buildService,
     documentSyncService,
     proofStatePanel,
+    repairPreviewProvider,
     sessionService,
     sledgehammerPanel,
     sessionTree,
@@ -54,6 +61,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
     vscode.window.registerWebviewViewProvider("isabelle.sledgehammer", sledgehammerPanel),
+    vscode.workspace.registerTextDocumentContentProvider(REPAIR_PREVIEW_SCHEME, repairPreviewProvider),
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
@@ -67,6 +75,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.runSledgehammer", async () => sledgehammerPanel?.run()),
     vscode.commands.registerCommand("isabelle.cancelSledgehammer", async () => sledgehammerPanel?.cancel()),
     vscode.commands.registerCommand("isabelle.insertSledgehammerProof", async () => sledgehammerPanel?.insertFirstSuggestion()),
+    vscode.commands.registerCommand("isabelle.createRepairRequest", async () => repairService?.createRepairRequest()),
+    vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
+    vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -85,6 +96,9 @@ export function deactivate(): void {
   proofStatePanel = undefined;
   sledgehammerPanel?.dispose();
   sledgehammerPanel = undefined;
+  repairPreviewProvider?.dispose();
+  repairPreviewProvider = undefined;
+  repairService = undefined;
   backendManager?.dispose();
   backendManager = undefined;
   buildService?.dispose();

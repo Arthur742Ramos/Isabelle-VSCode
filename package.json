@@ -28,6 +28,9 @@
     "onCommand:isabelle.runSledgehammer",
     "onCommand:isabelle.cancelSledgehammer",
     "onCommand:isabelle.insertSledgehammerProof",
+    "onCommand:isabelle.createRepairRequest",
+    "onCommand:isabelle.previewRepairPatch",
+    "onCommand:isabelle.checkRepairWorkspace",
     "onView:isabelle.sessions",
     "onView:isabelle.proofState",
     "onView:isabelle.sledgehammer"
@@ -104,6 +107,18 @@
         "command": "isabelle.insertSledgehammerProof",
         "title": "Isabelle: Insert Sledgehammer Proof",
         "icon": "$(edit)"
+      },
+      {
+        "command": "isabelle.createRepairRequest",
+        "title": "Isabelle: Create Checked Repair Request"
+      },
+      {
+        "command": "isabelle.previewRepairPatch",
+        "title": "Isabelle: Preview Repair Patch"
+      },
+      {
+        "command": "isabelle.checkRepairWorkspace",
+        "title": "Isabelle: Check Current Workspace for Repair"
       }
     ],
     "views": {
