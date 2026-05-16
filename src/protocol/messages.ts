@@ -7,7 +7,9 @@ export type ServerMethod =
   | "document/openTheory"
   | "document/update"
   | "document/close"
-  | "proofState/get";
+  | "proofState/get"
+  | "sledgehammer/run"
+  | "sledgehammer/cancel";
 
 export interface ProtocolRequest<TParams = unknown> {
   jsonrpc: "2.0";
@@ -155,6 +157,46 @@ export interface ProofStateResult {
   goals: ProofStateGoal[];
   raw: string;
   message?: string;
+}
+
+export type SledgehammerStatus = "running" | "completed" | "unavailable" | "cancelled" | "failed";
+
+export interface SledgehammerRunParams {
+  requestId: string;
+  uri: string;
+  version: number;
+  position: ProtocolPosition;
+  session?: string;
+  isabelleExecutablePath?: string;
+}
+
+export interface SledgehammerSuggestion {
+  label?: string;
+  method?: string;
+  description?: string;
+  proofText: string;
+  score?: number;
+}
+
+export interface SledgehammerRunResult {
+  requestId: string;
+  uri: string;
+  version?: number;
+  status: SledgehammerStatus;
+  command?: CommandSpan;
+  suggestions: SledgehammerSuggestion[];
+  raw: string;
+  message?: string;
+}
+
+export interface SledgehammerCancelParams {
+  requestId?: string;
+}
+
+export interface SledgehammerCancelResult {
+  requestId?: string;
+  cancelled: boolean;
+  message: string;
 }
 
 export class ProtocolRequestError extends Error {

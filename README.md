@@ -28,6 +28,9 @@ Implemented foundation:
   - `Isabelle: Cancel Build`
   - `Isabelle: Resynchronize Open Theories`
   - `Isabelle: Refresh Proof State`
+  - `Isabelle: Run Sledgehammer`
+  - `Isabelle: Cancel Sledgehammer`
+  - `Isabelle: Insert Sledgehammer Proof`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
@@ -39,9 +42,10 @@ Implemented foundation:
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
+- Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
 - Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, and semantic tokenization.
 
-This milestone does **not** implement PIDE document processing, live proof state, semantic markup, or Sledgehammer yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI.
+This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, or automatic proof insertion from real suggestions yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders.
 
 ## Development
 
@@ -95,7 +99,7 @@ The high-level roadmap is:
 4. PIDE document connection: live edits, command spans, status updates, diagnostics.
 5. Semantic markup: hovers, navigation, semantic tokens, entity metadata.
 6. Proof state panel: cursor-aware structured goals/context.
-7. Sledgehammer panel: cancellable jobs, proof insertion, minimization.
+7. Sledgehammer workflow surface: typed run/cancel boundary and guarded proof insertion; PIDE-backed proof search and minimization remain future work.
 8. Theory graph and proof-engineering tools.
 9. Checked AI repair loop that only reports success after Isabelle verifies the patch.
 

@@ -86,6 +86,27 @@ object Main {
           character = position("character").num.toInt
         ))
 
+      case "sledgehammer/run" =>
+        val params = request.requiredParams
+        val position = params("position").obj
+        Protocol.success(request.id, documents.sledgehammer(
+          requestId = params("requestId").str,
+          uri = params("uri").str,
+          line = position("line").num.toInt,
+          character = position("character").num.toInt,
+          session = params.get("session").flatMap(_.strOpt),
+          isabelleExecutablePath = params.get("isabelleExecutablePath").flatMap(_.strOpt)
+        ))
+
+      case "sledgehammer/cancel" =>
+        val params = request.params.flatMap(_.objOpt)
+        val requestId = params.flatMap(_.get("requestId")).flatMap(_.strOpt)
+        Protocol.success(request.id, ujson.Obj(
+          "requestId" -> requestId.map(ujson.Str(_)).getOrElse(ujson.Null),
+          "cancelled" -> false,
+          "message" -> "No active Sledgehammer job is running; PIDE-backed Sledgehammer jobs are not implemented in this backend yet."
+        ))
+
       case other =>
         Protocol.error(request.id, -32601, s"Unsupported method: $other")
     }
