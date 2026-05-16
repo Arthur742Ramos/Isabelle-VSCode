@@ -66,8 +66,10 @@ export interface DiscoveredSession {
   name: string;
   parent?: string;
   rootDirectory: string;
+  sessionDirectory: string;
   theories: DiscoveredTheory[];
   importedSessions: string[];
+  directories: string[];
   documentFiles: string[];
 }
 

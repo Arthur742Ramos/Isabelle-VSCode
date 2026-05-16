@@ -17,7 +17,11 @@
     "onLanguage:isabelle",
     "onCommand:isabelle.showVersion",
     "onCommand:isabelle.checkBackendHealth",
-    "onCommand:isabelle.discoverSessions"
+    "onCommand:isabelle.discoverSessions",
+    "onCommand:isabelle.refreshSessions",
+    "onCommand:isabelle.selectSession",
+    "onCommand:isabelle.openTheory",
+    "onView:isabelle.sessions"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -46,8 +50,43 @@
       {
         "command": "isabelle.discoverSessions",
         "title": "Isabelle: Discover Sessions"
+      },
+      {
+        "command": "isabelle.refreshSessions",
+        "title": "Isabelle: Refresh Sessions",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.selectSession",
+        "title": "Isabelle: Select Active Session"
+      },
+      {
+        "command": "isabelle.openTheory",
+        "title": "Isabelle: Open Theory"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "isabelle.sessions",
+          "name": "Isabelle Sessions"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "isabelle.refreshSessions",
+          "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.selectSession",
+          "when": "view == isabelle.sessions",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Isabelle PIDE",
       "properties": {
@@ -92,6 +131,11 @@
           "type": "string",
           "default": "",
           "description": "Optional path to an AFP checkout for future session discovery."
+        },
+        "isabelle.session.active": {
+          "type": "string",
+          "default": "",
+          "description": "Active Isabelle session for the current workspace."
         }
       }
     }
