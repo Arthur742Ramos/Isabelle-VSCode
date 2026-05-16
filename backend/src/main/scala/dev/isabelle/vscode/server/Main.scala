@@ -54,7 +54,20 @@ object Main {
         ))
 
       case "session/discover" =>
-        Protocol.success(request.id, ujson.Obj("sessions" -> ujson.Arr()))
+        val params = request.params.flatMap(_.objOpt)
+        val workspaceFolders = params.flatMap(_.get("workspaceFolders"))
+          .flatMap(_.arrOpt)
+          .map(_.flatMap(_.strOpt).toSeq)
+          .getOrElse(Seq.empty)
+        val roots = params.flatMap(_.get("roots"))
+          .flatMap(_.arrOpt)
+          .map(_.flatMap(_.strOpt).toSeq)
+          .getOrElse(Seq.empty)
+        val afpPath = params.flatMap(_.get("afpPath")).flatMap(_.strOpt).filter(_.nonEmpty)
+        Protocol.success(
+          request.id,
+          SessionDiscovery.discover(SessionDiscoveryOptions(workspaceFolders, roots, afpPath))
+        )
 
       case "document/openTheory" =>
         val params = request.requiredParams

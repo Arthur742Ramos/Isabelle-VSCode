@@ -1,6 +1,10 @@
 import * as vscode from "vscode";
-import { DiscoverSessionsResult, DiscoveredSession } from "../protocol/messages";
-import { discoverWorkspaceSessions } from "./workspaceDiscovery";
+import { DiscoverSessionsParams, DiscoverSessionsResult, DiscoveredSession } from "../protocol/messages";
+import {
+  BackendSessionDiscover,
+  discoverSessionsWithBackendFallback,
+  formatDiscoveryError
+} from "./backendSessionDiscovery";
 
 export class SessionService implements vscode.Disposable {
   private readonly didChangeSessions = new vscode.EventEmitter<DiscoverSessionsResult>();
@@ -8,7 +12,10 @@ export class SessionService implements vscode.Disposable {
 
   public readonly onDidChangeSessions = this.didChangeSessions.event;
 
-  public constructor(private readonly output: vscode.OutputChannel) {}
+  public constructor(
+    private readonly output: vscode.OutputChannel,
+    private readonly backendDiscover?: BackendSessionDiscover
+  ) {}
 
   public getSessions(): DiscoveredSession[] {
     return this.sessions;
@@ -34,23 +41,31 @@ export class SessionService implements vscode.Disposable {
     }
 
     const config = vscode.workspace.getConfiguration("isabelle");
-    const extraRoots = config.get<string[]>("session.roots", []);
+    const roots = config.get<string[]>("session.roots", []);
     const afpPath = config.get<string>("session.afpPath", "").trim();
-    const result = await discoverWorkspaceSessions({
+    const params: DiscoverSessionsParams = {
       workspaceFolders,
-      extraRoots,
+      roots,
       afpPath: afpPath.length > 0 ? afpPath : undefined
-    });
-    this.sessions = result.sessions;
-    this.didChangeSessions.fire(result);
+    };
+    const discovery = await discoverSessionsWithBackendFallback(params, this.backendDiscover);
+    this.sessions = discovery.result.sessions;
+    this.didChangeSessions.fire(discovery.result);
 
-    this.output.appendLine(`Discovered ${result.sessions.length} Isabelle session(s).`);
-    for (const session of result.sessions) {
+    if (discovery.fallbackError) {
+      this.output.appendLine(
+        `Backend session discovery failed; using local workspace discovery: ${formatDiscoveryError(discovery.fallbackError)}`
+      );
+    }
+    this.output.appendLine(
+      `Discovered ${discovery.result.sessions.length} Isabelle session(s) via ${discovery.source} discovery.`
+    );
+    for (const session of discovery.result.sessions) {
       const parent = session.parent ? ` = ${session.parent}` : "";
       this.output.appendLine(`- ${session.name}${parent} (${session.sessionDirectory})`);
     }
 
-    return result;
+    return discovery.result;
   }
 
   public async selectActiveSession(): Promise<DiscoveredSession | undefined> {
