@@ -2,8 +2,16 @@ import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
+import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
+import {
+  findCommandSpanAtOrBefore,
+  nextCommandSpan,
+  previousCommandSpan,
+  ProofAction,
+  proofActionsForCommand
+} from "./proof/proofOutline";
 import { ProofStatePanel } from "./proof/ProofStatePanel";
-import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
+import { CommandSpan, HealthParams, HealthResult, ProtocolPosition, VersionParams, VersionResult } from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { RepairService } from "./repair/RepairService";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
@@ -20,6 +28,7 @@ import { formatUserVisibleError } from "./ui/errorMessages";
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
+let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
 let repairService: RepairService | undefined;
@@ -35,6 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
   sessionService = new SessionService(output);
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
   proofStatePanel = new ProofStatePanel(backendManager, output);
+  proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessionService);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider);
@@ -50,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
     backendManager,
     buildService,
     documentSyncService,
+    proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
     sessionService,
@@ -65,6 +76,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
+    vscode.window.registerTreeDataProvider("isabelle.proofOutline", proofOutlineProvider),
     vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
     vscode.window.registerWebviewViewProvider("isabelle.sledgehammer", sledgehammerPanel),
     vscode.workspace.registerTextDocumentContentProvider(REPAIR_PREVIEW_SCHEME, repairPreviewProvider),
@@ -77,7 +89,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.buildActiveSession", async () => buildActiveSession(output)),
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
+    vscode.commands.registerCommand("isabelle.refreshProofOutline", () => proofOutlineProvider?.refresh()),
     vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
+    vscode.commands.registerCommand("isabelle.nextCommand", async () => navigateCommand("next", output)),
+    vscode.commands.registerCommand("isabelle.previousCommand", async () => navigateCommand("previous", output)),
+    vscode.commands.registerCommand("isabelle.revealCurrentCommand", async () => revealCurrentCommand(output)),
+    vscode.commands.registerCommand("isabelle.showProofActions", async () => showProofActions(output)),
+    vscode.commands.registerCommand("isabelle.revealCommandSpan", async (uri: string, span: CommandSpan) => revealCommandSpan(uri, span)),
     vscode.commands.registerCommand("isabelle.runSledgehammer", async () => sledgehammerPanel?.run()),
     vscode.commands.registerCommand("isabelle.cancelSledgehammer", async () => sledgehammerPanel?.cancel()),
     vscode.commands.registerCommand("isabelle.insertSledgehammerProof", async () => sledgehammerPanel?.insertFirstSuggestion()),
@@ -98,6 +116,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   documentSyncService?.dispose();
   documentSyncService = undefined;
+  proofOutlineProvider?.dispose();
+  proofOutlineProvider = undefined;
   proofStatePanel?.dispose();
   proofStatePanel = undefined;
   sledgehammerPanel?.dispose();
@@ -261,6 +281,159 @@ async function refreshTheoryGraph(output: vscode.OutputChannel): Promise<void> {
   }
 }
 
+async function navigateCommand(direction: "next" | "previous", output: vscode.OutputChannel): Promise<void> {
+  try {
+    const context = getActiveCommandContext();
+    if (!context) {
+      return;
+    }
+
+    const position = protocolPosition(context.editor.selection.active);
+    const target = direction === "next"
+      ? nextCommandSpan(context.spans, position)
+      : previousCommandSpan(context.spans, position);
+
+    if (!target) {
+      vscode.window.showInformationMessage(`No ${direction} Isabelle command found.`);
+      return;
+    }
+
+    await revealCommandSpan(context.editor.document.uri.toString(), target);
+  } catch (error) {
+    showBackendError("Unable to navigate Isabelle command", error, output);
+  }
+}
+
+async function revealCurrentCommand(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const context = getActiveCommandContext();
+    if (!context) {
+      return;
+    }
+
+    const span = findCommandSpanAtOrBefore(context.spans, protocolPosition(context.editor.selection.active));
+    if (!span) {
+      vscode.window.showInformationMessage("No Isabelle command span at the current cursor position.");
+      return;
+    }
+
+    await revealCommandSpan(context.editor.document.uri.toString(), span);
+  } catch (error) {
+    showBackendError("Unable to reveal current Isabelle command", error, output);
+  }
+}
+
+async function showProofActions(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const context = getActiveCommandContext();
+    if (!context) {
+      return;
+    }
+
+    const span = findCommandSpanAtOrBefore(context.spans, protocolPosition(context.editor.selection.active));
+    const actions = proofActionsForCommand(span, sessionService?.getActiveSessionName());
+    const selected = await vscode.window.showQuickPick(
+      actions.map((action) => ({
+        label: action.label,
+        description: action.description,
+        action
+      })),
+      {
+        title: span ? `Isabelle Proof Actions: ${span.kind}${span.name ? ` ${span.name}` : ""}` : "Isabelle Proof Actions",
+        placeHolder: "Choose a conservative proof action"
+      }
+    );
+
+    if (!selected) {
+      return;
+    }
+
+    await runProofAction(selected.action, context.editor, output);
+  } catch (error) {
+    showBackendError("Unable to run Isabelle proof action", error, output);
+  }
+}
+
+async function runProofAction(
+  action: ProofAction,
+  editor: vscode.TextEditor,
+  output: vscode.OutputChannel
+): Promise<void> {
+  switch (action.kind) {
+    case "refreshProofState":
+      await proofStatePanel?.refresh();
+      return;
+    case "buildActiveSession":
+      await buildActiveSession(output);
+      return;
+    case "insertSorry":
+    case "insertOops":
+      if (!action.commandText) {
+        throw new Error(`Proof action ${action.kind} did not provide command text.`);
+      }
+      await insertProofCommand(editor, action.commandText);
+      return;
+  }
+}
+
+async function revealCommandSpan(uriString: string, span: CommandSpan): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriString));
+  const editor = await vscode.window.showTextDocument(document);
+  const range = vscodeRange(span);
+  editor.selection = new vscode.Selection(range.start, range.start);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+async function insertProofCommand(editor: vscode.TextEditor, command: string): Promise<void> {
+  const line = editor.document.lineAt(editor.selection.active.line);
+  const indentation = /^\s*/.exec(line.text)?.[0] ?? "";
+  const position = line.range.end;
+  const insertedLine = line.lineNumber + 1;
+
+  const edited = await editor.edit((edit) => {
+    edit.insert(position, `\n${indentation}${command}`);
+  });
+
+  if (!edited) {
+    throw new Error(`Unable to insert Isabelle proof command: ${command}`);
+  }
+
+  const cursor = new vscode.Position(insertedLine, indentation.length + command.length);
+  editor.selection = new vscode.Selection(cursor, cursor);
+}
+
+function getActiveCommandContext(): { editor: vscode.TextEditor; spans: CommandSpan[] } | undefined {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || !isTheoryDocument(editor.document)) {
+    vscode.window.showInformationMessage("Open an Isabelle theory to use proof-engineering tools.");
+    return undefined;
+  }
+
+  const spans = requireDocumentSyncService().getCommandSpans(editor.document);
+  if (spans.length === 0) {
+    vscode.window.showInformationMessage("No Isabelle command spans found in the active theory.");
+    return undefined;
+  }
+
+  return { editor, spans };
+}
+
+function protocolPosition(position: vscode.Position): ProtocolPosition {
+  return {
+    line: position.line,
+    character: position.character
+  };
+}
+
+function vscodeRange(span: CommandSpan): vscode.Range {
+  return new vscode.Range(
+    span.range.start.line,
+    span.range.start.character,
+    span.range.end.line,
+    span.range.end.character
+  );
+}
+
 function requireBackendManager(): BackendManager {
   if (!backendManager) {
     throw new Error("Isabelle extension is not activated.");
@@ -287,6 +460,13 @@ function requireTheoryGraphTree(): TheoryGraphTreeProvider {
     throw new Error("Isabelle theory graph tree is not activated.");
   }
   return theoryGraphTree;
+}
+
+function requireDocumentSyncService(): DocumentSyncService {
+  if (!documentSyncService) {
+    throw new Error("Isabelle document sync service is not activated.");
+  }
+  return documentSyncService;
 }
 
 function getIsabelleExecutablePath(): string {
@@ -323,4 +503,8 @@ function updateSessionStatus(): void {
   const active = sessionService.getActiveSessionName();
   statusBar.text = active ? `$(check) Isabelle: ${active}` : "$(symbol-namespace) Isabelle: No session";
   statusBar.tooltip = active ? "Active Isabelle session" : "Select an Isabelle session";
+}
+
+function isTheoryDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === "isabelle" || document.uri.fsPath.endsWith(".thy");
 }

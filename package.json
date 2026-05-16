@@ -44,7 +44,12 @@
     "onCommand:isabelle.buildActiveSession",
     "onCommand:isabelle.cancelBuild",
     "onCommand:isabelle.resyncOpenTheories",
+    "onCommand:isabelle.refreshProofOutline",
     "onCommand:isabelle.refreshProofState",
+    "onCommand:isabelle.nextCommand",
+    "onCommand:isabelle.previousCommand",
+    "onCommand:isabelle.revealCurrentCommand",
+    "onCommand:isabelle.showProofActions",
     "onCommand:isabelle.runSledgehammer",
     "onCommand:isabelle.cancelSledgehammer",
     "onCommand:isabelle.insertSledgehammerProof",
@@ -53,6 +58,7 @@
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
     "onView:isabelle.sessions",
+    "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
     "onView:isabelle.sledgehammer",
     "onView:isabelle.theoryGraph"
@@ -111,9 +117,30 @@
         "title": "Isabelle: Resynchronize Open Theories"
       },
       {
+        "command": "isabelle.refreshProofOutline",
+        "title": "Isabelle: Refresh Proof Outline",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "isabelle.refreshProofState",
         "title": "Isabelle: Refresh Proof State",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.nextCommand",
+        "title": "Isabelle: Go to Next Command"
+      },
+      {
+        "command": "isabelle.previousCommand",
+        "title": "Isabelle: Go to Previous Command"
+      },
+      {
+        "command": "isabelle.revealCurrentCommand",
+        "title": "Isabelle: Reveal Current Command"
+      },
+      {
+        "command": "isabelle.showProofActions",
+        "title": "Isabelle: Proof Actions"
       },
       {
         "command": "isabelle.runSledgehammer",
@@ -155,6 +182,10 @@
           "name": "Isabelle Sessions"
         },
         {
+          "id": "isabelle.proofOutline",
+          "name": "Isabelle Proof Outline"
+        },
+        {
           "id": "isabelle.proofState",
           "name": "Isabelle Proof State"
         },
@@ -183,6 +214,16 @@
         {
           "command": "isabelle.buildActiveSession",
           "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshProofOutline",
+          "when": "view == isabelle.proofOutline",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.showProofActions",
+          "when": "view == isabelle.proofOutline",
           "group": "navigation"
         },
         {
