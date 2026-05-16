@@ -34,6 +34,7 @@ Implemented foundation:
   - `Isabelle: Create Checked Repair Request`
   - `Isabelle: Preview Repair Patch`
   - `Isabelle: Check Current Workspace for Repair`
+  - `Isabelle: Refresh Theory Graph`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
@@ -47,9 +48,10 @@ Implemented foundation:
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
 - Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
 - Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
-- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, semantic tokenization, repair request capture, and patch preview safety.
+- Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, and patch preview safety.
 
-This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The checked repair loop is local-only: it does not call external AI services and does not apply proposed edits automatically.
+The theory graph is a local foundation that refreshes from session discovery and `.thy` headers; it is not live PIDE dependency markup yet. This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The checked repair loop is local-only: it does not call external AI services and does not apply proposed edits automatically.
 
 ## Checked repair workflow
 

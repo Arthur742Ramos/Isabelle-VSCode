@@ -14,6 +14,7 @@ import {
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
+import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 
 let backendManager: BackendManager | undefined;
@@ -25,6 +26,7 @@ let repairService: RepairService | undefined;
 let sessionService: SessionService | undefined;
 let sledgehammerPanel: SledgehammerPanel | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
+let theoryGraphTree: TheoryGraphTreeProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
@@ -37,6 +39,7 @@ export function activate(context: vscode.ExtensionContext): void {
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider);
   const sessionTree = new SessionTreeProvider(sessionService, async () => discoverSessions(output, { silent: true }));
+  theoryGraphTree = new TheoryGraphTreeProvider(sessionService, output);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
@@ -52,6 +55,7 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionService,
     sledgehammerPanel,
     sessionTree,
+    theoryGraphTree,
     statusBar,
     vscode.languages.registerDocumentSemanticTokensProvider(
       { language: "isabelle", scheme: "file" },
@@ -60,6 +64,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
+    vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
     vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
     vscode.window.registerWebviewViewProvider("isabelle.sledgehammer", sledgehammerPanel),
     vscode.workspace.registerTextDocumentContentProvider(REPAIR_PREVIEW_SCHEME, repairPreviewProvider),
@@ -79,6 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.createRepairRequest", async () => repairService?.createRepairRequest()),
     vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
     vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
+    vscode.commands.registerCommand("isabelle.refreshTheoryGraph", async () => refreshTheoryGraph(output)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -105,6 +111,8 @@ export function deactivate(): void {
   buildService = undefined;
   sessionService?.dispose();
   sessionService = undefined;
+  theoryGraphTree?.dispose();
+  theoryGraphTree = undefined;
   statusBar?.dispose();
   statusBar = undefined;
 }
@@ -239,6 +247,20 @@ function cancelBuild(): void {
   }
 }
 
+async function refreshTheoryGraph(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const service = requireSessionService();
+    if (service.getSessions().length === 0) {
+      await service.refresh();
+    }
+
+    await requireTheoryGraphTree().refresh();
+    vscode.window.showInformationMessage("Refreshed Isabelle theory graph.");
+  } catch (error) {
+    showBackendError("Unable to refresh Isabelle theory graph", error, output);
+  }
+}
+
 function requireBackendManager(): BackendManager {
   if (!backendManager) {
     throw new Error("Isabelle extension is not activated.");
@@ -258,6 +280,13 @@ function requireBuildService(): BuildService {
     throw new Error("Isabelle build service is not activated.");
   }
   return buildService;
+}
+
+function requireTheoryGraphTree(): TheoryGraphTreeProvider {
+  if (!theoryGraphTree) {
+    throw new Error("Isabelle theory graph tree is not activated.");
+  }
+  return theoryGraphTree;
 }
 
 function getIsabelleExecutablePath(): string {
