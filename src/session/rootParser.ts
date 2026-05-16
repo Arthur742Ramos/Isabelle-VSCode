@@ -33,7 +33,9 @@ export function parseRootFile(source: string, rootDirectory: string): Discovered
     if (tokens[index]?.value === "in") {
       const directory = tokens[index + 1]?.value;
       if (directory) {
-        sessionDirectory = path.resolve(rootDirectory, directory);
+        sessionDirectory = /^[A-Za-z]:/.test(rootDirectory)
+          ? path.win32.join(rootDirectory, directory)
+          : path.posix.join(rootDirectory, directory);
       }
       index += 2;
     }
