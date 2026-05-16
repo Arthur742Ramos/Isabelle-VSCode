@@ -1,0 +1,9 @@
+node_modules/
+out/
+*.vsix
+backend/target/
+backend/project/target/
+backend/project/project/
+.bsp/
+.metals/
+.vscode-test/

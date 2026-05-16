@@ -1,0 +1,113 @@
+{
+  "name": "isabelle-pide-vscode",
+  "displayName": "Isabelle PIDE",
+  "description": "A VS Code frontend foundation for Isabelle/PIDE with a Scala bridge backend.",
+  "version": "0.1.0",
+  "publisher": "arthur742ramos",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:isabelle",
+    "onCommand:isabelle.showVersion",
+    "onCommand:isabelle.checkBackendHealth",
+    "onCommand:isabelle.discoverSessions"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "isabelle",
+        "aliases": [
+          "Isabelle",
+          "isabelle"
+        ],
+        "extensions": [
+          ".thy"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "isabelle.showVersion",
+        "title": "Isabelle: Show Version"
+      },
+      {
+        "command": "isabelle.checkBackendHealth",
+        "title": "Isabelle: Check Backend Health"
+      },
+      {
+        "command": "isabelle.discoverSessions",
+        "title": "Isabelle: Discover Sessions"
+      }
+    ],
+    "configuration": {
+      "title": "Isabelle PIDE",
+      "properties": {
+        "isabelle.backend.command": {
+          "type": "string",
+          "default": "",
+          "description": "Command used to launch the Scala Isabelle VS Code backend. Empty uses ISABELLE_VSCODE_SERVER or isabelle-vscode-server from PATH."
+        },
+        "isabelle.backend.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Arguments passed to the Scala Isabelle VS Code backend command."
+        },
+        "isabelle.backend.cwd": {
+          "type": "string",
+          "default": "",
+          "description": "Working directory for the Scala backend. Empty uses the first workspace folder."
+        },
+        "isabelle.backend.requestTimeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 1000,
+          "description": "Timeout in milliseconds for backend protocol requests."
+        },
+        "isabelle.executablePath": {
+          "type": "string",
+          "default": "isabelle",
+          "description": "Path to the Isabelle executable used by the backend for CLI-backed milestone commands."
+        },
+        "isabelle.session.roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional workspace-relative directories to scan for Isabelle ROOT files."
+        },
+        "isabelle.session.afpPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to an AFP checkout for future session discovery."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "vitest run",
+    "check": "npm run compile && npm test",
+    "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
+    "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.5.3",
+    "vitest": "^4.1.6"
+  }
+}
