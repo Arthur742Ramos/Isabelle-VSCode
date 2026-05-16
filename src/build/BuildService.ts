@@ -4,6 +4,7 @@ import { DiscoveredSession } from "../protocol/messages";
 import { createBuildCommand } from "./buildArgs";
 import { resolveDiagnosticPath } from "./diagnosticPaths";
 import { BuildDiagnostic, parseBuildDiagnostics } from "./diagnostics";
+import { formatBuildSpawnError } from "./spawnErrors";
 
 export interface RunBuildOptions {
   isabelleExecutablePath: string;
@@ -63,9 +64,9 @@ export class BuildService implements vscode.Disposable {
         this.output.append(text);
       });
 
-      child.on("error", (error) => {
+      child.on("error", (error: NodeJS.ErrnoException) => {
         this.clearActiveProcess(child);
-        reject(error);
+        reject(formatBuildSpawnError(error, command.command));
       });
 
       child.on("close", (code) => {

@@ -12,10 +12,15 @@ type SessionTreeNode =
 export class SessionTreeProvider implements vscode.TreeDataProvider<SessionTreeNode>, vscode.Disposable {
   private readonly didChangeTreeData = new vscode.EventEmitter<SessionTreeNode | undefined>();
   private readonly subscriptions: vscode.Disposable[] = [];
+  private initialDiscovery: Promise<void> | undefined;
+  private hasAttemptedInitialDiscovery = false;
 
   public readonly onDidChangeTreeData = this.didChangeTreeData.event;
 
-  public constructor(private readonly sessions: SessionService) {
+  public constructor(
+    private readonly sessions: SessionService,
+    private readonly discoverSessions: () => Promise<void>
+  ) {
     this.subscriptions.push(
       this.sessions.onDidChangeSessions(() => this.didChangeTreeData.fire(undefined)),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -57,9 +62,9 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<SessionTreeN
     }
   }
 
-  public getChildren(element?: SessionTreeNode): SessionTreeNode[] {
+  public getChildren(element?: SessionTreeNode): vscode.ProviderResult<SessionTreeNode[]> {
     if (!element) {
-      return this.sessions.getSessions().map((session) => ({ kind: "session", session }));
+      return this.getRootChildren();
     }
 
     if (element.kind === "session") {
@@ -78,6 +83,30 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<SessionTreeN
       subscription.dispose();
     }
     this.didChangeTreeData.dispose();
+  }
+
+  private async getRootChildren(): Promise<SessionTreeNode[]> {
+    if (this.shouldDiscoverInitialSessions()) {
+      this.hasAttemptedInitialDiscovery = true;
+      this.initialDiscovery = this.discoverSessions().finally(() => {
+        this.initialDiscovery = undefined;
+      });
+    }
+
+    if (this.initialDiscovery) {
+      await this.initialDiscovery;
+    }
+
+    return this.sessions.getSessions().map((session) => ({ kind: "session", session }));
+  }
+
+  private shouldDiscoverInitialSessions(): boolean {
+    return (
+      this.sessions.getSessions().length === 0 &&
+      !this.hasAttemptedInitialDiscovery &&
+      !this.initialDiscovery &&
+      (vscode.workspace.workspaceFolders?.length ?? 0) > 0
+    );
   }
 
   private sessionItem(session: DiscoveredSession): vscode.TreeItem {
