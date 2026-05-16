@@ -48,4 +48,28 @@ describe("extractCommandSpans", () => {
     expect(spans.map((span) => span.kind)).toEqual(["text", "lemma", "sorry"]);
     expect(spans[1].name).toBe("kept");
   });
+
+  it("carries string and cartouche state across lines", () => {
+    const open = "\u2039";
+    const close = "\u203A";
+    const spans = extractCommandSpans(
+      "file:///Cartouche.thy",
+      [
+        `text ${open}`,
+        "lemma ignored_cartouche: True",
+        close,
+        "text \"",
+        "lemma ignored_string: True",
+        "\"",
+        "lemma kept: True"
+      ].join("\n"),
+      2
+    );
+
+    expect(spans.map((span) => [span.kind, span.name])).toEqual([
+      ["text", undefined],
+      ["text", undefined],
+      ["lemma", "kept"]
+    ]);
+  });
 });

@@ -46,6 +46,38 @@ describe("proof outline helpers", () => {
     ]);
   });
 
+  it("keeps the outer statement active across nested subproofs", () => {
+    const nestedSpans = extractCommandSpans(
+      "file:///Nested.thy",
+      [
+        "lemma outer: True",
+        "proof -",
+        "  have inner: True",
+        "  proof -",
+        "    show True by simp",
+        "  qed",
+        "  show True by fact",
+        "qed",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const outline = buildProofOutline(nestedSpans);
+    const lemma = outline.find((node) => node.span.kind === "lemma");
+
+    expect(outline.map((node) => node.span.kind)).toEqual(["lemma", "end"]);
+    expect(lemma?.children.map((node) => node.span.kind)).toEqual([
+      "proof",
+      "have",
+      "proof",
+      "show",
+      "qed",
+      "show",
+      "qed"
+    ]);
+  });
+
   it("finds current, previous, and next command spans", () => {
     const current = findCommandSpanAtOrBefore(spans, { line: 6, character: 8 });
     expect(current?.kind).toBe("have");

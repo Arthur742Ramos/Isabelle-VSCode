@@ -28,19 +28,28 @@ export interface ProofAction {
 export function buildProofOutline(spans: CommandSpan[]): ProofOutlineNode[] {
   const roots: ProofOutlineNode[] = [];
   let activeStatement: ProofOutlineNode | undefined;
+  let activeProofDepth = 0;
 
   for (const span of spans) {
     const node = outlineNode(span);
     if (isProofStatementCommand(span.kind)) {
       roots.push(node);
       activeStatement = node;
+      activeProofDepth = 0;
       continue;
     }
 
     if ((isProofStepCommand(span.kind) || isProofTerminalCommand(span.kind)) && activeStatement) {
       activeStatement.children.push(node);
-      if (isProofTerminalCommand(span.kind)) {
+      if (span.kind === "proof") {
+        activeProofDepth++;
+      } else if (isProofTerminalCommand(span.kind)) {
+        activeProofDepth--;
+      }
+
+      if (activeProofDepth <= 0 && isProofTerminalCommand(span.kind)) {
         activeStatement = undefined;
+        activeProofDepth = 0;
       }
       continue;
     }
@@ -48,6 +57,7 @@ export function buildProofOutline(spans: CommandSpan[]): ProofOutlineNode[] {
     roots.push(node);
     if (isTheoryStructureCommand(span.kind) || isDeclarationCommand(span.kind)) {
       activeStatement = undefined;
+      activeProofDepth = 0;
     }
   }
 

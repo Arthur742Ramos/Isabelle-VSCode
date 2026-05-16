@@ -10,20 +10,28 @@ interface ParsedCommandStart {
 
 interface LineScanResult {
   command?: Omit<ParsedCommandStart, "line">;
+  state: ScanState;
+}
+
+interface ScanState {
   commentDepth: number;
+  inString: boolean;
+  cartoucheDepth: number;
 }
 
 const WORD = /^[A-Za-z_][A-Za-z0-9_']*/;
 const IGNORED_DECLARATION_NAMES = new Set(["fixes", "assumes", "shows", "where", "if", "for"]);
+const CARTOUCHE_OPEN = "\u2039";
+const CARTOUCHE_CLOSE = "\u203A";
 
 export function extractCommandSpans(uri: string, text: string, version: number): CommandSpan[] {
   const lines = text.split("\n");
   const starts: ParsedCommandStart[] = [];
-  let commentDepth = 0;
+  let state: ScanState = { commentDepth: 0, inString: false, cartoucheDepth: 0 };
 
   for (let line = 0; line < lines.length; line++) {
-    const result = scanLineForCommand(lines[line], commentDepth);
-    commentDepth = result.commentDepth;
+    const result = scanLineForCommand(lines[line], state);
+    state = result.state;
     if (result.command) {
       starts.push({ ...result.command, line });
     }
@@ -64,9 +72,10 @@ function endsAfter(end: ProtocolPosition, position: ProtocolPosition): boolean {
   return end.line > position.line || (end.line === position.line && end.character > position.character);
 }
 
-function scanLineForCommand(line: string, initialCommentDepth: number): LineScanResult {
-  let commentDepth = initialCommentDepth;
-  let inString = false;
+function scanLineForCommand(line: string, initialState: ScanState): LineScanResult {
+  let commentDepth = initialState.commentDepth;
+  let inString = initialState.inString;
+  let cartoucheDepth = initialState.cartoucheDepth;
   let command: Omit<ParsedCommandStart, "line"> | undefined;
   let sawCode = false;
 
@@ -96,9 +105,35 @@ function scanLineForCommand(line: string, initialCommentDepth: number): LineScan
       continue;
     }
 
+    if (cartoucheDepth > 0) {
+      if (line.startsWith("\\<open>", index)) {
+        cartoucheDepth++;
+        index += "\\<open>".length;
+      } else if (line.startsWith("\\<close>", index)) {
+        cartoucheDepth = Math.max(0, cartoucheDepth - 1);
+        index += "\\<close>".length;
+      } else if (line[index] === CARTOUCHE_OPEN) {
+        cartoucheDepth++;
+        index++;
+      } else if (line[index] === CARTOUCHE_CLOSE) {
+        cartoucheDepth = Math.max(0, cartoucheDepth - 1);
+        index++;
+      } else {
+        index++;
+      }
+      continue;
+    }
+
     if (line.startsWith("(*", index)) {
       commentDepth++;
       index += 2;
+      continue;
+    }
+
+    if (line.startsWith("\\<open>", index)) {
+      sawCode = true;
+      cartoucheDepth++;
+      index += "\\<open>".length;
       continue;
     }
 
@@ -106,6 +141,13 @@ function scanLineForCommand(line: string, initialCommentDepth: number): LineScan
     if (character === "\"") {
       sawCode = true;
       inString = true;
+      index++;
+      continue;
+    }
+
+    if (character === CARTOUCHE_OPEN) {
+      sawCode = true;
+      cartoucheDepth++;
       index++;
       continue;
     }
@@ -130,7 +172,14 @@ function scanLineForCommand(line: string, initialCommentDepth: number): LineScan
     index++;
   }
 
-  return { command, commentDepth };
+  return {
+    command,
+    state: {
+      commentDepth,
+      inString,
+      cartoucheDepth
+    }
+  };
 }
 
 function commandNameAfter(line: string, offset: number): string | undefined {

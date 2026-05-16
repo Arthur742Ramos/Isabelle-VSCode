@@ -208,6 +208,31 @@ object CommandSpanParser {
   )
 
   private val IgnoredNames = Set("fixes", "assumes", "shows", "where", "if", "for")
+  private val NameDeclaringKeywords = Set(
+    "lemma",
+    "theorem",
+    "corollary",
+    "proposition",
+    "schematic_goal",
+    "definition",
+    "abbreviation",
+    "fun",
+    "function",
+    "primrec",
+    "inductive",
+    "datatype",
+    "record",
+    "locale",
+    "have",
+    "show",
+    "hence",
+    "thus",
+    "assume",
+    "presume",
+    "obtain",
+    "note",
+    "case"
+  )
 
   def parse(document: TheoryDocument): Vector[CommandSpan] = {
     val lines = document.text.split("\n", -1).toVector
@@ -249,7 +274,9 @@ object CommandSpanParser {
       return None
     }
 
-    val name = parts.lift(1).flatMap(cleanName)
+    val name =
+      if (NameDeclaringKeywords.contains(keyword)) parts.lift(1).flatMap(cleanName)
+      else None
     Some(ParsedCommand(keyword, name, leading))
   }
 
