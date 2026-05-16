@@ -11,7 +11,7 @@ Isabelle/PIDE
   -> the semantic source of truth
 ```
 
-The first milestone in this repository establishes the extension/backend boundary and keeps future PIDE work explicit instead of pretending it already exists.
+The current foundation establishes the extension/backend boundary and keeps future PIDE work explicit instead of pretending it already exists.
 
 ## Current milestone
 
@@ -76,6 +76,12 @@ Compile and test the extension code:
 npm run check
 ```
 
+Validate the VS Code extension package contents after compiling, testing, and packaging the bundled Scala backend jar:
+
+```powershell
+npm run package:validate
+```
+
 Compile the Scala backend if `sbt` is available:
 
 ```powershell
@@ -102,7 +108,7 @@ Then configure VS Code:
 }
 ```
 
-For a packaged extension, set `isabelle.backend.command` to a built backend launcher or place an `isabelle-vscode-server` launcher on `PATH`.
+For a packaged extension, `npm run package:validate` builds and includes `backend/dist/isabelle-vscode-server.jar`. You can still override `isabelle.backend.command` to use another backend launcher or place an `isabelle-vscode-server` launcher on `PATH`. The extension runs as a workspace extension so the backend starts near the workspace files in remote or container development.
 
 ## Roadmap
 

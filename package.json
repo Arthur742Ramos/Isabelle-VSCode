@@ -5,10 +5,30 @@
   "version": "0.1.0",
   "publisher": "arthur742ramos",
   "private": true,
+  "preview": true,
+  "qna": false,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arthur742Ramos/Isabelle-VSCode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Arthur742Ramos/Isabelle-VSCode/issues"
+  },
+  "homepage": "https://github.com/Arthur742Ramos/Isabelle-VSCode#readme",
+  "keywords": [
+    "isabelle",
+    "pide",
+    "proof-assistant",
+    "theorem-proving",
+    "vscode"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
+  "extensionKind": [
+    "workspace"
+  ],
   "categories": [
     "Programming Languages",
     "Other"
@@ -242,12 +262,15 @@
     "watch": "tsc -watch -p .",
     "test": "vitest run",
     "check": "npm run compile && npm test",
+    "package:validate": "npm run check && npm run backend:package && vsce ls --no-dependencies && vsce package --no-dependencies --out isabelle-pide-vscode.validation.vsix && node -e \"require('fs').rmSync('isabelle-pide-vscode.validation.vsix',{force:true})\"",
     "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
+    "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true package && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/scala-2.13/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
     "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.1",
     "typescript": "^5.5.3",
     "vitest": "^4.1.6"
   }

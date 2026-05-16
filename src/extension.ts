@@ -14,6 +14,7 @@ import {
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
+import { formatUserVisibleError } from "./ui/errorMessages";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
@@ -35,7 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider);
-  const sessionTree = new SessionTreeProvider(sessionService);
+  const sessionTree = new SessionTreeProvider(sessionService, async () => discoverSessions(output, { silent: true }));
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
@@ -86,7 +87,6 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   documentSyncService.start();
-  void discoverSessions(output, { silent: true });
 }
 
 export function deactivate(): void {
@@ -277,10 +277,13 @@ function formatIsabelleHealth(result: HealthResult): string {
 }
 
 function showBackendError(prefix: string, error: unknown, output: vscode.OutputChannel): void {
-  const message = error instanceof Error ? error.message : String(error);
-  output.appendLine(`${prefix}: ${message}`);
-  output.show(true);
-  vscode.window.showErrorMessage(`${prefix}: ${message}`);
+  const formatted = formatUserVisibleError(prefix, error);
+  output.appendLine(formatted.logMessage);
+  void vscode.window.showErrorMessage(formatted.notificationMessage, "Open Output").then((selection) => {
+    if (selection === "Open Output") {
+      output.show(true);
+    }
+  });
 }
 
 function updateSessionStatus(): void {

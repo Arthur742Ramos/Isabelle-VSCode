@@ -71,11 +71,20 @@ function resolveBackendLaunch(
     };
   }
 
-  const bundledJar = path.join(context.extensionPath, "backend", "target", "scala-2.13", "isabelle-vscode-server.jar");
+  const bundledJar = path.join(context.extensionPath, "backend", "dist", "isabelle-vscode-server.jar");
   if (fs.existsSync(bundledJar)) {
     return {
       command: "java",
       args: ["-jar", bundledJar, ...configuredArgs],
+      cwd
+    };
+  }
+
+  const developmentJar = path.join(context.extensionPath, "backend", "target", "scala-2.13", "isabelle-vscode-server.jar");
+  if (fs.existsSync(developmentJar)) {
+    return {
+      command: "java",
+      args: ["-jar", developmentJar, ...configuredArgs],
       cwd
     };
   }
