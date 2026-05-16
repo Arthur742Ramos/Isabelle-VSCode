@@ -4,6 +4,10 @@ object Protocol {
   val ProtocolVersion: Int = 1
 
   final case class Request(id: String, method: String, protocolVersion: Int, params: Option[ujson.Value])
+  {
+    def requiredParams =
+      params.map(_.obj).getOrElse(throw new IllegalArgumentException(s"Missing params for $method"))
+  }
 
   final case class Response(json: ujson.Value)
 

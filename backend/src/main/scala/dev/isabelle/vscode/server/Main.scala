@@ -5,6 +5,8 @@ import scala.sys.process.Process
 import scala.util.control.NonFatal
 
 object Main {
+  private val documents = new DocumentStore
+
   def main(args: Array[String]): Unit = {
     val in = new BufferedInputStream(System.in)
     val out = new BufferedOutputStream(System.out)
@@ -53,6 +55,27 @@ object Main {
 
       case "session/discover" =>
         Protocol.success(request.id, ujson.Obj("sessions" -> ujson.Arr()))
+
+      case "document/openTheory" =>
+        val params = request.requiredParams
+        Protocol.success(request.id, documents.open(
+          uri = params("uri").str,
+          text = params("text").str,
+          version = params("version").num.toInt,
+          session = params.get("session").flatMap(_.strOpt)
+        ))
+
+      case "document/update" =>
+        val params = request.requiredParams
+        Protocol.success(request.id, documents.update(
+          uri = params("uri").str,
+          text = params("text").str,
+          version = params("version").num.toInt
+        ))
+
+      case "document/close" =>
+        val params = request.requiredParams
+        Protocol.success(request.id, documents.close(params("uri").str))
 
       case other =>
         Protocol.error(request.id, -32601, s"Unsupported method: $other")

@@ -23,6 +23,7 @@
     "onCommand:isabelle.openTheory",
     "onCommand:isabelle.buildActiveSession",
     "onCommand:isabelle.cancelBuild",
+    "onCommand:isabelle.resyncOpenTheories",
     "onView:isabelle.sessions"
   ],
   "main": "./out/extension.js",
@@ -73,6 +74,10 @@
       {
         "command": "isabelle.cancelBuild",
         "title": "Isabelle: Cancel Build"
+      },
+      {
+        "command": "isabelle.resyncOpenTheories",
+        "title": "Isabelle: Resynchronize Open Theories"
       }
     ],
     "views": {

@@ -1,6 +1,12 @@
 export const PROTOCOL_VERSION = 1;
 
-export type ServerMethod = "server/health" | "isabelle/version" | "session/discover";
+export type ServerMethod =
+  | "server/health"
+  | "isabelle/version"
+  | "session/discover"
+  | "document/openTheory"
+  | "document/update"
+  | "document/close";
 
 export interface ProtocolRequest<TParams = unknown> {
   jsonrpc: "2.0";
@@ -75,6 +81,51 @@ export interface DiscoveredSession {
 
 export interface DiscoverSessionsResult {
   sessions: DiscoveredSession[];
+}
+
+export interface ProtocolPosition {
+  line: number;
+  character: number;
+}
+
+export interface ProtocolRange {
+  start: ProtocolPosition;
+  end: ProtocolPosition;
+}
+
+export interface CommandSpan {
+  id: string;
+  kind: string;
+  name?: string;
+  range: ProtocolRange;
+  status: "pending" | "running" | "finished" | "failed" | "unknown";
+}
+
+export interface OpenTheoryParams {
+  uri: string;
+  text: string;
+  version: number;
+  session?: string;
+}
+
+export interface UpdateTheoryParams {
+  uri: string;
+  text: string;
+  version: number;
+}
+
+export interface CloseTheoryParams {
+  uri: string;
+}
+
+export interface TheoryDocumentResult {
+  uri: string;
+  version: number;
+  commandSpans: CommandSpan[];
+}
+
+export interface CloseTheoryResult {
+  uri: string;
 }
 
 export class ProtocolRequestError extends Error {

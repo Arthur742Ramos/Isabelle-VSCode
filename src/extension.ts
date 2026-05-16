@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
+import { DocumentSyncService } from "./document/DocumentSyncService";
 import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
+let documentSyncService: DocumentSyncService | undefined;
 let sessionService: SessionService | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 
@@ -15,6 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
   backendManager = new BackendManager(context, output);
   buildService = new BuildService(output);
   sessionService = new SessionService(output);
+  documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
   const sessionTree = new SessionTreeProvider(sessionService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
@@ -25,6 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     backendManager,
     buildService,
+    documentSyncService,
     sessionService,
     sessionTree,
     statusBar,
@@ -37,6 +41,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.openTheory", async (theoryPath?: string) => openTheory(theoryPath)),
     vscode.commands.registerCommand("isabelle.buildActiveSession", async () => buildActiveSession(output)),
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
+    vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -44,10 +49,13 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  documentSyncService.start();
   void discoverSessions(output, { silent: true });
 }
 
 export function deactivate(): void {
+  documentSyncService?.dispose();
+  documentSyncService = undefined;
   backendManager?.dispose();
   backendManager = undefined;
   buildService?.dispose();
