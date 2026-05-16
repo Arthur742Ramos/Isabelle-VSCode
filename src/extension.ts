@@ -3,6 +3,11 @@ import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
 import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
+import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
+import {
+  ISABELLE_SEMANTIC_TOKENS_LEGEND,
+  IsabelleSemanticTokensProvider
+} from "./semantic/IsabelleSemanticTokensProvider";
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 
@@ -32,6 +37,12 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionService,
     sessionTree,
     statusBar,
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleSemanticTokensProvider(),
+      ISABELLE_SEMANTIC_TOKENS_LEGEND
+    ),
+    vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),

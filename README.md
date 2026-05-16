@@ -36,7 +36,8 @@ Implemented foundation:
 - Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
 - Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
-- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, and diagnostic parsing.
+- Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, and semantic tokenization.
 
 This milestone does **not** implement PIDE document processing, live proof state, semantic markup, or Sledgehammer yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI.
 
