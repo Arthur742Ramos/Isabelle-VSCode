@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as path from "path";
 import { DiscoveredSession } from "../protocol/messages";
 import { ProtocolRange } from "../protocol/messages";
@@ -87,9 +86,6 @@ export function resolveImportTargetPath(
     const discovered = byNormalizedPath.get(normalizePath(candidate));
     if (discovered) {
       return discovered.path;
-    }
-    if (fs.existsSync(candidate)) {
-      return candidate;
     }
   }
 

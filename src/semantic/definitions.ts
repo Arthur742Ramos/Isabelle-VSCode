@@ -1,4 +1,5 @@
 import { CommandSpan, ProtocolPosition } from "../protocol/messages";
+import { containsPosition } from "../document/commandSpans";
 import { getCommandInfo } from "./isabelleSyntax";
 
 const WORD = /[A-Za-z_][A-Za-z0-9_']*/g;
@@ -14,10 +15,9 @@ export function findDeclarationByName(
   position?: ProtocolPosition
 ): NamedDeclaration | undefined {
   const currentIndex = position ? spans.findIndex((span) => containsPosition(span, position)) : -1;
-  const beforeCurrent = currentIndex >= 0 ? spans.slice(0, currentIndex + 1).reverse() : [];
-  const afterCurrent = currentIndex >= 0 ? spans.slice(currentIndex + 1) : spans;
+  const candidates = currentIndex >= 0 ? spans.slice(0, currentIndex + 1).reverse() : spans;
 
-  const span = [...beforeCurrent, ...afterCurrent]
+  const span = candidates
     .filter(isNavigableDeclaration)
     .find((candidate) => candidate.name === name);
   return span ? { name, span } : undefined;
@@ -40,16 +40,4 @@ function isNavigableDeclaration(span: CommandSpan): boolean {
   }
   const category = getCommandInfo(span.kind)?.category;
   return category === "declaration" || category === "statement" || category === "context" || category === "proof";
-}
-
-function containsPosition(span: CommandSpan, position: ProtocolPosition): boolean {
-  return startsBeforeOrAt(span.range.start, position) && endsAfter(span.range.end, position);
-}
-
-function startsBeforeOrAt(start: ProtocolPosition, position: ProtocolPosition): boolean {
-  return start.line < position.line || (start.line === position.line && start.character <= position.character);
-}
-
-function endsAfter(end: ProtocolPosition, position: ProtocolPosition): boolean {
-  return end.line > position.line || (end.line === position.line && end.character > position.character);
 }

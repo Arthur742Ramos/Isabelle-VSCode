@@ -43,6 +43,24 @@ describe("findDeclarationByName", () => {
     expect(findDeclarationByName("foo'", spans)?.span.name).toBe("foo'");
     expect(findDeclarationByName("foo", spans)?.span.name).toBe("foo");
   });
+
+  it("does not resolve forward declarations for a positioned lookup", () => {
+    const spans = extractCommandSpans(
+      "file:///Forward.thy",
+      [
+        "theory Forward",
+        "imports Main",
+        "begin",
+        "lemma first: later",
+        "  sorry",
+        "definition later where \"later = True\"",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    expect(findDeclarationByName("later", spans, { line: 3, character: 13 })).toBeUndefined();
+  });
 });
 
 describe("wordAt", () => {
