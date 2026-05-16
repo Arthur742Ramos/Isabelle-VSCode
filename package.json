@@ -25,8 +25,12 @@
     "onCommand:isabelle.cancelBuild",
     "onCommand:isabelle.resyncOpenTheories",
     "onCommand:isabelle.refreshProofState",
+    "onCommand:isabelle.runSledgehammer",
+    "onCommand:isabelle.cancelSledgehammer",
+    "onCommand:isabelle.insertSledgehammerProof",
     "onView:isabelle.sessions",
-    "onView:isabelle.proofState"
+    "onView:isabelle.proofState",
+    "onView:isabelle.sledgehammer"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -85,6 +89,21 @@
         "command": "isabelle.refreshProofState",
         "title": "Isabelle: Refresh Proof State",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.runSledgehammer",
+        "title": "Isabelle: Run Sledgehammer",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "isabelle.cancelSledgehammer",
+        "title": "Isabelle: Cancel Sledgehammer",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "isabelle.insertSledgehammerProof",
+        "title": "Isabelle: Insert Sledgehammer Proof",
+        "icon": "$(edit)"
       }
     ],
     "views": {
@@ -96,6 +115,10 @@
         {
           "id": "isabelle.proofState",
           "name": "Isabelle Proof State"
+        },
+        {
+          "id": "isabelle.sledgehammer",
+          "name": "Isabelle Sledgehammer"
         }
       ]
     },
@@ -119,6 +142,21 @@
         {
           "command": "isabelle.refreshProofState",
           "when": "view == isabelle.proofState",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.runSledgehammer",
+          "when": "view == isabelle.sledgehammer",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.cancelSledgehammer",
+          "when": "view == isabelle.sledgehammer && isabelle.sledgehammerRunning",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.insertSledgehammerProof",
+          "when": "view == isabelle.sledgehammer && isabelle.sledgehammerHasSuggestion",
           "group": "navigation"
         }
       ]

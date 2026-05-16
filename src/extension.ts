@@ -11,12 +11,14 @@ import {
 } from "./semantic/IsabelleSemanticTokensProvider";
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
+import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let sessionService: SessionService | undefined;
+let sledgehammerPanel: SledgehammerPanel | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -26,6 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
   sessionService = new SessionService(output);
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
   proofStatePanel = new ProofStatePanel(backendManager, output);
+  sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
   const sessionTree = new SessionTreeProvider(sessionService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
@@ -39,6 +42,7 @@ export function activate(context: vscode.ExtensionContext): void {
     documentSyncService,
     proofStatePanel,
     sessionService,
+    sledgehammerPanel,
     sessionTree,
     statusBar,
     vscode.languages.registerDocumentSemanticTokensProvider(
@@ -49,6 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
+    vscode.window.registerWebviewViewProvider("isabelle.sledgehammer", sledgehammerPanel),
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
@@ -59,6 +64,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
     vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
+    vscode.commands.registerCommand("isabelle.runSledgehammer", async () => sledgehammerPanel?.run()),
+    vscode.commands.registerCommand("isabelle.cancelSledgehammer", async () => sledgehammerPanel?.cancel()),
+    vscode.commands.registerCommand("isabelle.insertSledgehammerProof", async () => sledgehammerPanel?.insertFirstSuggestion()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -75,6 +83,8 @@ export function deactivate(): void {
   documentSyncService = undefined;
   proofStatePanel?.dispose();
   proofStatePanel = undefined;
+  sledgehammerPanel?.dispose();
+  sledgehammerPanel = undefined;
   backendManager?.dispose();
   backendManager = undefined;
   buildService?.dispose();

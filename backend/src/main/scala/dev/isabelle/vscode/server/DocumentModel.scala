@@ -61,6 +61,57 @@ final class DocumentStore {
         )
     }
 
+  def sledgehammer(
+    requestId: String,
+    uri: String,
+    line: Int,
+    character: Int,
+    session: Option[String],
+    isabelleExecutablePath: Option[String]
+  ): ujson.Value =
+    documents.get(uri) match {
+      case None =>
+        ujson.Obj(
+          "requestId" -> requestId,
+          "uri" -> uri,
+          "status" -> "unavailable",
+          "suggestions" -> ujson.Arr(),
+          "raw" -> "Theory document is not synchronized with the backend.",
+          "message" -> "Synchronize the Isabelle theory before running Sledgehammer."
+        )
+
+      case Some(document) =>
+        val spans = CommandSpanParser.parse(document)
+        val command = spans.find(_.contains(line, character))
+          .orElse(spans.reverse.find(_.startsBeforeOrAt(line, character)))
+        val commandText = command
+          .map(span => s"Current command: ${span.kind}${span.name.map(name => s" $name").getOrElse("")}")
+          .getOrElse("No Isabelle command span at the current cursor position.")
+        val sessionText = session.orElse(document.session)
+          .map(value => s"Session: $value")
+          .getOrElse("No active Isabelle session was provided.")
+        val executableText = isabelleExecutablePath
+          .filter(_.nonEmpty)
+          .map(value => s"Isabelle executable: $value")
+          .getOrElse("No Isabelle executable path was provided.")
+
+        ujson.Obj(
+          "requestId" -> requestId,
+          "uri" -> uri,
+          "version" -> document.version,
+          "status" -> "unavailable",
+          "command" -> command.map(_.json).getOrElse(ujson.Null),
+          "suggestions" -> ujson.Arr(),
+          "raw" -> Vector(
+            commandText,
+            sessionText,
+            executableText,
+            "Sledgehammer proof search requires live Isabelle/PIDE proof context; this backend currently exposes only the typed workflow boundary."
+          ).mkString("\n"),
+          "message" -> "Sledgehammer workflow is wired, but proof search is unavailable until the Scala backend integrates with Isabelle/PIDE."
+        )
+    }
+
   private def documentResult(document: TheoryDocument): ujson.Value =
     ujson.Obj(
       "uri" -> document.uri,
