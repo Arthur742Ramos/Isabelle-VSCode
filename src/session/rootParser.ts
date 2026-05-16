@@ -1,3 +1,4 @@
+import * as path from "path";
 import { DiscoveredSession, DiscoveredTheory } from "../protocol/messages";
 
 const SECTION_KEYWORDS = new Set([
@@ -26,7 +27,16 @@ export function parseRootFile(source: string, rootDirectory: string): Discovered
     }
 
     index += 2;
+    index = skipBalancedGroups(tokens, index);
+
+    let sessionDirectory = rootDirectory;
     if (tokens[index]?.value === "in") {
+      const directory = tokens[index + 1]?.value;
+      if (directory) {
+        sessionDirectory = /^[A-Za-z]:/.test(rootDirectory)
+          ? path.win32.join(rootDirectory, directory)
+          : path.posix.join(rootDirectory, directory);
+      }
       index += 2;
     }
 
@@ -44,8 +54,10 @@ export function parseRootFile(source: string, rootDirectory: string): Discovered
       name,
       parent,
       rootDirectory,
+      sessionDirectory,
       theories: [],
       importedSessions: [],
+      directories: [],
       documentFiles: []
     };
 
@@ -55,6 +67,13 @@ export function parseRootFile(source: string, rootDirectory: string): Discovered
       if (token === "sessions") {
         const collected = collectSection(tokens, index + 1);
         session.importedSessions.push(...collected.values.map((value) => value.value));
+        index = collected.nextIndex;
+        continue;
+      }
+
+      if (token === "directories") {
+        const collected = collectSection(tokens, index + 1);
+        session.directories.push(...collected.values.map((value) => value.value));
         index = collected.nextIndex;
         continue;
       }
@@ -80,6 +99,24 @@ export function parseRootFile(source: string, rootDirectory: string): Discovered
   }
 
   return sessions;
+}
+
+function skipBalancedGroups(tokens: Token[], startIndex: number): number {
+  let index = startIndex;
+
+  while (tokens[index]?.value === "(") {
+    let depth = 0;
+    do {
+      if (tokens[index]?.value === "(") {
+        depth++;
+      } else if (tokens[index]?.value === ")") {
+        depth--;
+      }
+      index++;
+    } while (index < tokens.length && depth > 0);
+  }
+
+  return index;
 }
 
 export function parseRootsFile(source: string): string[] {

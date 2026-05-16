@@ -22,11 +22,24 @@ Implemented foundation:
   - `Isabelle: Show Version`
   - `Isabelle: Check Backend Health`
   - `Isabelle: Discover Sessions`
+  - `Isabelle: Refresh Sessions`
+  - `Isabelle: Select Active Session`
+  - `Isabelle: Build Active Session`
+  - `Isabelle: Cancel Build`
+  - `Isabelle: Resynchronize Open Theories`
+  - `Isabelle: Refresh Proof State`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
-- Conservative ROOT/ROOTS parser foundation for local session discovery.
-- Unit tests for protocol framing, request correlation, and ROOT parsing.
+- Conservative ROOT/ROOTS parser and workspace discovery for local sessions.
+- Explorer-side **Isabelle Sessions** tree with session, imported-session, theory, and document-file entries.
+- Active session persistence through `isabelle.session.active`.
+- Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
+- Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
+- Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
+- Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
+- Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, build command generation, diagnostic parsing, and semantic tokenization.
 
 This milestone does **not** implement PIDE document processing, live proof state, semantic markup, or Sledgehammer yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI.
 

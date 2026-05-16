@@ -17,7 +17,16 @@
     "onLanguage:isabelle",
     "onCommand:isabelle.showVersion",
     "onCommand:isabelle.checkBackendHealth",
-    "onCommand:isabelle.discoverSessions"
+    "onCommand:isabelle.discoverSessions",
+    "onCommand:isabelle.refreshSessions",
+    "onCommand:isabelle.selectSession",
+    "onCommand:isabelle.openTheory",
+    "onCommand:isabelle.buildActiveSession",
+    "onCommand:isabelle.cancelBuild",
+    "onCommand:isabelle.resyncOpenTheories",
+    "onCommand:isabelle.refreshProofState",
+    "onView:isabelle.sessions",
+    "onView:isabelle.proofState"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -46,8 +55,74 @@
       {
         "command": "isabelle.discoverSessions",
         "title": "Isabelle: Discover Sessions"
+      },
+      {
+        "command": "isabelle.refreshSessions",
+        "title": "Isabelle: Refresh Sessions",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.selectSession",
+        "title": "Isabelle: Select Active Session"
+      },
+      {
+        "command": "isabelle.openTheory",
+        "title": "Isabelle: Open Theory"
+      },
+      {
+        "command": "isabelle.buildActiveSession",
+        "title": "Isabelle: Build Active Session"
+      },
+      {
+        "command": "isabelle.cancelBuild",
+        "title": "Isabelle: Cancel Build"
+      },
+      {
+        "command": "isabelle.resyncOpenTheories",
+        "title": "Isabelle: Resynchronize Open Theories"
+      },
+      {
+        "command": "isabelle.refreshProofState",
+        "title": "Isabelle: Refresh Proof State",
+        "icon": "$(refresh)"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "isabelle.sessions",
+          "name": "Isabelle Sessions"
+        },
+        {
+          "id": "isabelle.proofState",
+          "name": "Isabelle Proof State"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "isabelle.refreshSessions",
+          "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.selectSession",
+          "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.buildActiveSession",
+          "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshProofState",
+          "when": "view == isabelle.proofState",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Isabelle PIDE",
       "properties": {
@@ -92,6 +167,19 @@
           "type": "string",
           "default": "",
           "description": "Optional path to an AFP checkout for future session discovery."
+        },
+        "isabelle.session.active": {
+          "type": "string",
+          "default": "",
+          "description": "Active Isabelle session for the current workspace."
+        },
+        "isabelle.build.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional arguments passed to `isabelle build` before the active session name."
         }
       }
     }

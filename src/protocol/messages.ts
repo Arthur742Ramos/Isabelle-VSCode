@@ -1,6 +1,13 @@
 export const PROTOCOL_VERSION = 1;
 
-export type ServerMethod = "server/health" | "isabelle/version" | "session/discover";
+export type ServerMethod =
+  | "server/health"
+  | "isabelle/version"
+  | "session/discover"
+  | "document/openTheory"
+  | "document/update"
+  | "document/close"
+  | "proofState/get";
 
 export interface ProtocolRequest<TParams = unknown> {
   jsonrpc: "2.0";
@@ -66,13 +73,88 @@ export interface DiscoveredSession {
   name: string;
   parent?: string;
   rootDirectory: string;
+  sessionDirectory: string;
   theories: DiscoveredTheory[];
   importedSessions: string[];
+  directories: string[];
   documentFiles: string[];
 }
 
 export interface DiscoverSessionsResult {
   sessions: DiscoveredSession[];
+}
+
+export interface ProtocolPosition {
+  line: number;
+  character: number;
+}
+
+export interface ProtocolRange {
+  start: ProtocolPosition;
+  end: ProtocolPosition;
+}
+
+export interface CommandSpan {
+  id: string;
+  kind: string;
+  name?: string;
+  range: ProtocolRange;
+  status: "pending" | "running" | "finished" | "failed" | "unknown";
+}
+
+export interface OpenTheoryParams {
+  uri: string;
+  text: string;
+  version: number;
+  session?: string;
+}
+
+export interface UpdateTheoryParams {
+  uri: string;
+  text: string;
+  version: number;
+}
+
+export interface CloseTheoryParams {
+  uri: string;
+}
+
+export interface TheoryDocumentResult {
+  uri: string;
+  version: number;
+  commandSpans: CommandSpan[];
+}
+
+export interface CloseTheoryResult {
+  uri: string;
+}
+
+export interface ProofStateParams {
+  uri: string;
+  version: number;
+  position: ProtocolPosition;
+}
+
+export interface ProofStateContextEntry {
+  kind: "fixed" | "assumption" | "fact";
+  name?: string;
+  value: string;
+}
+
+export interface ProofStateGoal {
+  index: number;
+  text: string;
+}
+
+export interface ProofStateResult {
+  uri: string;
+  version?: number;
+  status: "ready" | "unavailable";
+  command?: CommandSpan;
+  context: ProofStateContextEntry[];
+  goals: ProofStateGoal[];
+  raw: string;
+  message?: string;
 }
 
 export class ProtocolRequestError extends Error {

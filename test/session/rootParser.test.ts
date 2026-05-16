@@ -24,11 +24,33 @@ describe("parseRootFile", () => {
         name: "My_Session",
         parent: "HOL",
         rootDirectory: "C:\\work",
+        sessionDirectory: "C:\\work",
         theories: [{ name: "Foo" }, { name: "Bar.Baz" }],
         importedSessions: ["HOL-Library"],
+        directories: [],
         documentFiles: ["root.tex"]
       }
     ]);
+  });
+
+  it("extracts session directories and theory directories", () => {
+    const sessions = parseRootFile(
+      `
+      session Grouped (AFP) in "thys" = HOL +
+        directories "More"
+        theories Foo
+      `,
+      "C:\\work"
+    );
+
+    expect(sessions[0]).toMatchObject({
+      name: "Grouped",
+      parent: "HOL",
+      rootDirectory: "C:\\work",
+      sessionDirectory: "C:\\work\\thys",
+      directories: ["More"],
+      theories: [{ name: "Foo" }]
+    });
   });
 
   it("ignores nested Isabelle comments", () => {
