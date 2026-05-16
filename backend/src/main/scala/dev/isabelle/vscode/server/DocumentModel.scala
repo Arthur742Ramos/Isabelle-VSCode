@@ -25,6 +25,42 @@ final class DocumentStore {
     ujson.Obj("uri" -> uri)
   }
 
+  def proofState(uri: String, line: Int, character: Int): ujson.Value =
+    documents.get(uri) match {
+      case None =>
+        ujson.Obj(
+          "uri" -> uri,
+          "status" -> "unavailable",
+          "context" -> ujson.Arr(),
+          "goals" -> ujson.Arr(),
+          "raw" -> "",
+          "message" -> "Theory document is not synchronized with the backend."
+        )
+
+      case Some(document) =>
+        val spans = CommandSpanParser.parse(document)
+        val command = spans.find(_.contains(line, character))
+          .orElse(spans.reverse.find(_.startsBeforeOrAt(line, character)))
+
+        ujson.Obj(
+          "uri" -> uri,
+          "version" -> document.version,
+          "status" -> "unavailable",
+          "command" -> command.map(_.json).getOrElse(ujson.Null),
+          "context" -> ujson.Arr(),
+          "goals" -> ujson.Arr(
+            ujson.Obj(
+              "index" -> 1,
+              "text" -> "Live proof goals require Isabelle/PIDE proof-state integration."
+            )
+          ),
+          "raw" -> ujson.Str(command
+            .map(span => s"Current command: ${span.kind}${span.name.map(name => s" $name").getOrElse("")}")
+            .getOrElse("No Isabelle command span at the current cursor position.")),
+          "message" -> "Proof-state panel is connected; semantic goals/context are pending PIDE integration."
+        )
+    }
+
   private def documentResult(document: TheoryDocument): ujson.Value =
     ujson.Obj(
       "uri" -> document.uri,
@@ -42,6 +78,15 @@ final case class CommandSpan(
   endLine: Int,
   endCharacter: Int
 ) {
+  def contains(line: Int, character: Int): Boolean =
+    startsBeforeOrAt(line, character) && endsAfter(line, character)
+
+  def startsBeforeOrAt(line: Int, character: Int): Boolean =
+    startLine < line || (startLine == line && startCharacter <= character)
+
+  private def endsAfter(line: Int, character: Int): Boolean =
+    endLine > line || (endLine == line && endCharacter > character)
+
   def json: ujson.Value =
     ujson.Obj(
       "id" -> id,

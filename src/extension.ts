@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
+import { ProofStatePanel } from "./proof/ProofStatePanel";
 import { HealthParams, HealthResult, VersionParams, VersionResult } from "./protocol/messages";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import {
@@ -14,6 +15,7 @@ import { SessionTreeProvider } from "./session/SessionTreeProvider";
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
+let proofStatePanel: ProofStatePanel | undefined;
 let sessionService: SessionService | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 
@@ -23,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
   buildService = new BuildService(output);
   sessionService = new SessionService(output);
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
+  proofStatePanel = new ProofStatePanel(backendManager, output);
   const sessionTree = new SessionTreeProvider(sessionService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
@@ -34,6 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
     backendManager,
     buildService,
     documentSyncService,
+    proofStatePanel,
     sessionService,
     sessionTree,
     statusBar,
@@ -44,6 +48,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
+    vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
@@ -53,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.buildActiveSession", async () => buildActiveSession(output)),
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
+    vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -67,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   documentSyncService?.dispose();
   documentSyncService = undefined;
+  proofStatePanel?.dispose();
+  proofStatePanel = undefined;
   backendManager?.dispose();
   backendManager = undefined;
   buildService?.dispose();

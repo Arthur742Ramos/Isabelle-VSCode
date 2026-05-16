@@ -24,7 +24,9 @@
     "onCommand:isabelle.buildActiveSession",
     "onCommand:isabelle.cancelBuild",
     "onCommand:isabelle.resyncOpenTheories",
-    "onView:isabelle.sessions"
+    "onCommand:isabelle.refreshProofState",
+    "onView:isabelle.sessions",
+    "onView:isabelle.proofState"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -78,6 +80,11 @@
       {
         "command": "isabelle.resyncOpenTheories",
         "title": "Isabelle: Resynchronize Open Theories"
+      },
+      {
+        "command": "isabelle.refreshProofState",
+        "title": "Isabelle: Refresh Proof State",
+        "icon": "$(refresh)"
       }
     ],
     "views": {
@@ -85,6 +92,10 @@
         {
           "id": "isabelle.sessions",
           "name": "Isabelle Sessions"
+        },
+        {
+          "id": "isabelle.proofState",
+          "name": "Isabelle Proof State"
         }
       ]
     },
@@ -103,6 +114,11 @@
         {
           "command": "isabelle.buildActiveSession",
           "when": "view == isabelle.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshProofState",
+          "when": "view == isabelle.proofState",
           "group": "navigation"
         }
       ]

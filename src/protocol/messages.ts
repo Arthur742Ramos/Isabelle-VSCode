@@ -6,7 +6,8 @@ export type ServerMethod =
   | "session/discover"
   | "document/openTheory"
   | "document/update"
-  | "document/close";
+  | "document/close"
+  | "proofState/get";
 
 export interface ProtocolRequest<TParams = unknown> {
   jsonrpc: "2.0";
@@ -126,6 +127,34 @@ export interface TheoryDocumentResult {
 
 export interface CloseTheoryResult {
   uri: string;
+}
+
+export interface ProofStateParams {
+  uri: string;
+  version: number;
+  position: ProtocolPosition;
+}
+
+export interface ProofStateContextEntry {
+  kind: "fixed" | "assumption" | "fact";
+  name?: string;
+  value: string;
+}
+
+export interface ProofStateGoal {
+  index: number;
+  text: string;
+}
+
+export interface ProofStateResult {
+  uri: string;
+  version?: number;
+  status: "ready" | "unavailable";
+  command?: CommandSpan;
+  context: ProofStateContextEntry[];
+  goals: ProofStateGoal[];
+  raw: string;
+  message?: string;
 }
 
 export class ProtocolRequestError extends Error {

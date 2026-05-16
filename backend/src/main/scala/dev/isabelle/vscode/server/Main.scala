@@ -77,6 +77,15 @@ object Main {
         val params = request.requiredParams
         Protocol.success(request.id, documents.close(params("uri").str))
 
+      case "proofState/get" =>
+        val params = request.requiredParams
+        val position = params("position").obj
+        Protocol.success(request.id, documents.proofState(
+          uri = params("uri").str,
+          line = position("line").num.toInt,
+          character = position("character").num.toInt
+        ))
+
       case other =>
         Protocol.error(request.id, -32601, s"Unsupported method: $other")
     }
