@@ -51,9 +51,11 @@
     "onCommand:isabelle.createRepairRequest",
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
+    "onCommand:isabelle.refreshTheoryGraph",
     "onView:isabelle.sessions",
     "onView:isabelle.proofState",
-    "onView:isabelle.sledgehammer"
+    "onView:isabelle.sledgehammer",
+    "onView:isabelle.theoryGraph"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -139,6 +141,11 @@
       {
         "command": "isabelle.checkRepairWorkspace",
         "title": "Isabelle: Check Current Workspace for Repair"
+      },
+      {
+        "command": "isabelle.refreshTheoryGraph",
+        "title": "Isabelle: Refresh Theory Graph",
+        "icon": "$(refresh)"
       }
     ],
     "views": {
@@ -154,6 +161,10 @@
         {
           "id": "isabelle.sledgehammer",
           "name": "Isabelle Sledgehammer"
+        },
+        {
+          "id": "isabelle.theoryGraph",
+          "name": "Isabelle Theory Graph"
         }
       ]
     },
@@ -192,6 +203,11 @@
         {
           "command": "isabelle.insertSledgehammerProof",
           "when": "view == isabelle.sledgehammer && isabelle.sledgehammerHasSuggestion",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshTheoryGraph",
+          "when": "view == isabelle.theoryGraph",
           "group": "navigation"
         }
       ]
