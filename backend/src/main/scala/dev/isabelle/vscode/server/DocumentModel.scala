@@ -156,11 +156,18 @@ object CommandSpanParser {
     "theory",
     "imports",
     "begin",
+    "end",
+    "section",
+    "subsection",
+    "subsubsection",
+    "text",
     "lemma",
     "theorem",
     "corollary",
     "proposition",
+    "schematic_goal",
     "definition",
+    "abbreviation",
     "fun",
     "function",
     "primrec",
@@ -170,11 +177,61 @@ object CommandSpanParser {
     "locale",
     "context",
     "proof",
+    "apply",
+    "using",
+    "unfolding",
+    "from",
+    "with",
+    "then",
+    "have",
+    "show",
+    "hence",
+    "thus",
+    "fix",
+    "assume",
+    "presume",
+    "obtain",
+    "guess",
+    "let",
+    "note",
+    "case",
+    "next",
+    "also",
+    "moreover",
+    "ultimately",
+    "finally",
     "qed",
     "by",
-    "apply",
     "done",
-    "end"
+    "sorry",
+    "oops"
+  )
+
+  private val IgnoredNames = Set("fixes", "assumes", "shows", "where", "if", "for")
+  private val NameDeclaringKeywords = Set(
+    "lemma",
+    "theorem",
+    "corollary",
+    "proposition",
+    "schematic_goal",
+    "definition",
+    "abbreviation",
+    "fun",
+    "function",
+    "primrec",
+    "inductive",
+    "datatype",
+    "record",
+    "locale",
+    "have",
+    "show",
+    "hence",
+    "thus",
+    "assume",
+    "presume",
+    "obtain",
+    "note",
+    "case"
   )
 
   def parse(document: TheoryDocument): Vector[CommandSpan] = {
@@ -217,8 +274,17 @@ object CommandSpanParser {
       return None
     }
 
-    val name = parts.lift(1).filter(token => token.nonEmpty && !token.startsWith("\"") && token != "=" && token != "+")
+    val name =
+      if (NameDeclaringKeywords.contains(keyword)) parts.lift(1).flatMap(cleanName)
+      else None
     Some(ParsedCommand(keyword, name, leading))
+  }
+
+  private def cleanName(token: String): Option[String] = {
+    val cleaned = token.takeWhile(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'')
+    Option(cleaned)
+      .filter(_.nonEmpty)
+      .filterNot(IgnoredNames.contains)
   }
 
   private final case class ParsedCommand(keyword: String, name: Option[String], character: Int)

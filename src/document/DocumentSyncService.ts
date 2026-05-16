@@ -3,15 +3,21 @@ import { BackendManager } from "../backend/BackendManager";
 import {
   CloseTheoryParams,
   CloseTheoryResult,
+  CommandSpan,
   OpenTheoryParams,
   ServerMethod,
   TheoryDocumentResult,
   UpdateTheoryParams
 } from "../protocol/messages";
+import { extractCommandSpans } from "./commandSpans";
 
 export class DocumentSyncService implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly didChangeTheoryDocument = new vscode.EventEmitter<TheoryDocumentResult>();
+  private readonly syncedDocuments = new Map<string, TheoryDocumentResult>();
   private readonly syncedVersions = new Map<string, number>();
+
+  public readonly onDidChangeTheoryDocument = this.didChangeTheoryDocument.event;
 
   public constructor(
     private readonly backendManager: BackendManager,
@@ -53,6 +59,18 @@ export class DocumentSyncService implements vscode.Disposable {
         .catch((error) => this.reportSyncFailure("close", error));
     }
     this.syncedVersions.clear();
+    this.syncedDocuments.clear();
+    this.didChangeTheoryDocument.dispose();
+  }
+
+  public getCommandSpans(document: vscode.TextDocument): CommandSpan[] {
+    const uri = document.uri.toString();
+    const synced = this.syncedDocuments.get(uri);
+    if (synced?.version === document.version) {
+      return synced.commandSpans;
+    }
+
+    return extractCommandSpans(uri, document.getText(), document.version);
   }
 
   private async open(document: vscode.TextDocument): Promise<void> {
@@ -60,9 +78,11 @@ export class DocumentSyncService implements vscode.Disposable {
       return;
     }
 
-    this.syncedVersions.delete(document.uri.toString());
+    const uri = document.uri.toString();
+    this.syncedVersions.delete(uri);
+    this.syncedDocuments.delete(uri);
     const result = await this.request<TheoryDocumentResult, OpenTheoryParams>("document/openTheory", {
-      uri: document.uri.toString(),
+      uri,
       text: document.getText(),
       version: document.version,
       session: this.getActiveSessionName()
@@ -79,6 +99,7 @@ export class DocumentSyncService implements vscode.Disposable {
     if (this.syncedVersions.get(uri) === document.version) {
       return;
     }
+    this.syncedDocuments.delete(uri);
 
     const result = await this.request<TheoryDocumentResult, UpdateTheoryParams>("document/update", {
       uri,
@@ -96,6 +117,7 @@ export class DocumentSyncService implements vscode.Disposable {
     const uri = document.uri.toString();
     await this.request<CloseTheoryResult, CloseTheoryParams>("document/close", { uri });
     this.syncedVersions.delete(uri);
+    this.syncedDocuments.delete(uri);
     this.output.appendLine(`Document closed: ${uri}`);
   }
 
@@ -105,6 +127,8 @@ export class DocumentSyncService implements vscode.Disposable {
 
   private recordResult(result: TheoryDocumentResult, action: string): void {
     this.syncedVersions.set(result.uri, result.version);
+    this.syncedDocuments.set(result.uri, result);
+    this.didChangeTheoryDocument.fire(result);
     this.output.appendLine(
       `Document ${action}: ${result.uri} v${result.version}, ${result.commandSpans.length} command span(s)`
     );

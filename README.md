@@ -27,7 +27,12 @@ Implemented foundation:
   - `Isabelle: Build Active Session`
   - `Isabelle: Cancel Build`
   - `Isabelle: Resynchronize Open Theories`
+  - `Isabelle: Refresh Proof Outline`
   - `Isabelle: Refresh Proof State`
+  - `Isabelle: Go to Next Command`
+  - `Isabelle: Go to Previous Command`
+  - `Isabelle: Reveal Current Command`
+  - `Isabelle: Proof Actions`
   - `Isabelle: Run Sledgehammer`
   - `Isabelle: Cancel Sledgehammer`
   - `Isabelle: Insert Sledgehammer Proof`
@@ -46,12 +51,15 @@ Implemented foundation:
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
+- Explorer-side **Isabelle Proof Outline** view that follows the active theory and groups command spans with proof steps.
+- Command navigation helpers for moving to the next/previous Isabelle command and revealing the current command span.
+- Conservative proof action palette for refreshing the proof-state panel, building the active session, or explicitly inserting `sorry`/`oops` without claiming verification.
 - Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
 - Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
 - Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers.
-- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, and patch preview safety.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, and proof-outline helpers.
 
-The theory graph is a local foundation that refreshes from session discovery and `.thy` headers; it is not live PIDE dependency markup yet. This milestone does **not** implement PIDE document processing, live proof state, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The checked repair loop is local-only: it does not call external AI services and does not apply proposed edits automatically.
+The theory graph and proof outline are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency or semantic markup yet. This milestone does **not** implement PIDE document processing, live proof checking, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
 
 ## Checked repair workflow
 
