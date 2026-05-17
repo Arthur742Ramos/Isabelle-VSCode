@@ -11,9 +11,21 @@ import {
   proofActionsForCommand
 } from "./proof/proofOutline";
 import { ProofStatePanel } from "./proof/ProofStatePanel";
-import { CommandSpan, HealthParams, HealthResult, ProtocolPosition, VersionParams, VersionResult } from "./protocol/messages";
+import {
+  CommandSpan,
+  DiscoverSessionsParams,
+  DiscoverSessionsResult,
+  HealthParams,
+  HealthResult,
+  ProtocolPosition,
+  VersionParams,
+  VersionResult
+} from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { RepairService } from "./repair/RepairService";
+import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
+import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkProvider";
+import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
@@ -41,7 +53,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
   backendManager = new BackendManager(context, output);
   buildService = new BuildService(output);
-  sessionService = new SessionService(output);
+  sessionService = new SessionService(output, (params) =>
+    backendManager!.getClient().request<DiscoverSessionsResult, DiscoverSessionsParams>("session/discover", params)
+  );
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessionService);
@@ -74,6 +88,18 @@ export function activate(context: vscode.ExtensionContext): void {
       ISABELLE_SEMANTIC_TOKENS_LEGEND
     ),
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
+    vscode.languages.registerDocumentLinkProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleDocumentLinkProvider(sessionService)
+    ),
+    vscode.languages.registerDocumentSymbolProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleDocumentSymbolProvider(documentSyncService)
+    ),
+    vscode.languages.registerDefinitionProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleDefinitionProvider(documentSyncService)
+    ),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
     vscode.window.registerTreeDataProvider("isabelle.proofOutline", proofOutlineProvider),

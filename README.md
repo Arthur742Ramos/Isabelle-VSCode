@@ -42,14 +42,14 @@ Implemented foundation:
   - `Isabelle: Refresh Theory Graph`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
-- Scala backend skeleton with `server/health`, `isabelle/version`, and placeholder `session/discover`.
-- Conservative ROOT/ROOTS parser and workspace discovery for local sessions.
+- Scala backend skeleton with `server/health`, `isabelle/version`, and backend-backed `session/discover`.
+- Conservative ROOT/ROOTS parser and workspace discovery for local sessions, available through the Scala backend with TypeScript local fallback if backend startup fails.
 - Explorer-side **Isabelle Sessions** tree with session, imported-session, theory, and document-file entries.
 - Active session persistence through `isabelle.session.active`.
 - Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
 - Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
-- Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens and basic command/symbol hovers.
+- Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens, basic command/symbol hovers, document symbols, local import links, and in-file go-to-definition for locally parsed declarations.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
 - Explorer-side **Isabelle Proof Outline** view that follows the active theory and groups command spans with proof steps.
 - Command navigation helpers for moving to the next/previous Isabelle command and revealing the current command span.
@@ -59,7 +59,7 @@ Implemented foundation:
 - Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers.
 - Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, and proof-outline helpers.
 
-The theory graph and proof outline are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency or semantic markup yet. This milestone does **not** implement PIDE document processing, live proof checking, semantic markup, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
+The theory graph, proof outline, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency or semantic markup yet. This milestone does **not** implement PIDE document processing, live proof checking, PIDE semantic markup/entity metadata, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
 
 ## Checked repair workflow
 
@@ -127,8 +127,8 @@ The high-level roadmap is:
 1. Skeleton: extension activation, backend launch, health/version protocol.
 2. Session discovery: ROOT/ROOTS/AFP discovery, active session selection, theory tree.
 3. Build integration: `isabelle build`, streamed output, clickable diagnostics.
-4. PIDE document connection: live edits, command spans, status updates, diagnostics.
-5. Semantic markup: hovers, navigation, semantic tokens, entity metadata.
+4. PIDE document connection: live edits and local command spans exist; PIDE status updates and diagnostics remain future work.
+5. Semantic markup: local hovers, navigation, semantic tokens, and document symbols exist; PIDE entity metadata remains future work.
 6. Proof state panel: cursor-aware structured goals/context.
 7. Sledgehammer workflow surface: typed run/cancel boundary and guarded proof insertion; PIDE-backed proof search and minimization remain future work.
 8. Theory graph and proof-engineering tools.
