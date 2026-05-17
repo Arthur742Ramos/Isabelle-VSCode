@@ -8,7 +8,7 @@ import {
   State,
   TransportKind
 } from "vscode-languageclient/node";
-import { buildLanguageServerCommand } from "./languageServerArgs";
+import { buildLanguageServerCommand, resolveIsabelleCommand } from "./languageServerArgs";
 import { IsabelleLanguageServerState, IsabelleLanguageServerStatus } from "./lspTypes";
 
 const REACH_CHECK_TIMEOUT_MS = 10_000;
@@ -341,9 +341,10 @@ export class IsabelleLanguageClient implements vscode.Disposable {
 
   private runReachCheck(executablePath: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
+      const reachCheckCommand = resolveIsabelleCommand(executablePath, ["version"]);
       let child: ChildProcessWithoutNullStreams;
       try {
-        child = spawn(executablePath, ["version"], {
+        child = spawn(reachCheckCommand.command, reachCheckCommand.args, {
           stdio: "pipe",
           windowsHide: true
         });
