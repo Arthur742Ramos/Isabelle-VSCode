@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.languages.registerDefinitionProvider(
       { language: "isabelle", scheme: "file" },
-      new IsabelleDefinitionProvider(documentSyncService)
+      new IsabelleDefinitionProvider(documentSyncService, sessionService, output)
     ),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
