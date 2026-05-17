@@ -18,6 +18,10 @@ import {
   isTerminalSessionStatus
 } from "./lspSessionToRunResult";
 import { PideOutputNode } from "./pideSledgehammerOutput";
+import {
+  PideInsertPayload,
+  requestPideInsert
+} from "./pideSledgehammerInsert";
 import { PideSledgehammerProversCache } from "./PideSledgehammerProversCache";
 import { SledgehammerHistory, SledgehammerHistoryEntry } from "./sledgehammerHistory";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
@@ -146,6 +150,17 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       return;
     }
 
+    const proofText = normalizeProofText(suggestion);
+    if (!proofText) {
+      vscode.window.showWarningMessage("The Sledgehammer suggestion did not contain proof text.");
+      return;
+    }
+
+    if (this.shouldUseLspMode() && this.languageClient) {
+      await this.insertSuggestionViaLspSendback(this.lastResult.uri, this.lastResult.version, proofText);
+      return;
+    }
+
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.uri.toString() !== this.lastResult.uri) {
       vscode.window.showWarningMessage("Open the theory that produced the Sledgehammer suggestion before inserting it.");
@@ -154,12 +169,6 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
 
     if (this.lastResult.version !== undefined && editor.document.version !== this.lastResult.version) {
       vscode.window.showWarningMessage("The theory changed since Sledgehammer ran. Run Sledgehammer again before inserting.");
-      return;
-    }
-
-    const proofText = normalizeProofText(suggestion);
-    if (!proofText) {
-      vscode.window.showWarningMessage("The Sledgehammer suggestion did not contain proof text.");
       return;
     }
 
@@ -251,6 +260,71 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
 
   private shouldUseLspMode(): boolean {
     return this.languageClient?.getStatus().state === "running";
+  }
+
+  private async insertSuggestionViaLspSendback(
+    expectedUri: string,
+    expectedVersion: number | undefined,
+    proofText: string
+  ): Promise<void> {
+    if (!this.languageClient) {
+      return;
+    }
+    const result = await requestPideInsert(this.languageClient, proofText, {
+      uri: expectedUri
+    });
+    if (!result.ok) {
+      this.output.appendLine(`Sledgehammer LSP insert failed: ${result.reason}`);
+      vscode.window.showWarningMessage(`Sledgehammer insert failed: ${result.reason}`);
+      return;
+    }
+    await this.applyPideInsertEdit(result.payload, expectedVersion);
+  }
+
+  private async applyPideInsertEdit(
+    payload: PideInsertPayload,
+    expectedVersion: number | undefined
+  ): Promise<void> {
+    let document: vscode.TextDocument;
+    try {
+      const uri = vscode.Uri.parse(payload.uri, true);
+      document = await vscode.workspace.openTextDocument(uri);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(
+        `Sledgehammer LSP insert: unable to open ${payload.uri}: ${message}`
+      );
+      vscode.window.showWarningMessage(
+        `Sledgehammer insert failed: unable to open ${payload.uri}.`
+      );
+      return;
+    }
+
+    if (
+      expectedVersion !== undefined &&
+      document.version !== expectedVersion
+    ) {
+      vscode.window.showWarningMessage(
+        "The theory changed since Sledgehammer ran. Run Sledgehammer again before inserting."
+      );
+      return;
+    }
+
+    const editor = await vscode.window.showTextDocument(document);
+    const position = new vscode.Position(payload.line, payload.character);
+
+    const inserted = await editor.edit((edit) => {
+      edit.insert(position, payload.text);
+    });
+    if (inserted) {
+      vscode.window.showInformationMessage(
+        "Inserted Sledgehammer proof suggestion at the position computed by isabelle vscode_server."
+      );
+    } else {
+      vscode.window.showWarningMessage(
+        "Sledgehammer insert: VS Code rejected the workspace edit."
+      );
+    }
   }
 
   private executeLspRun(editor: vscode.TextEditor): void {
