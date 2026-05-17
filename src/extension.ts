@@ -5,6 +5,9 @@ import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
 import { DocumentStatusService } from "./document/DocumentStatusService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
+import { IsabelleLanguageClient } from "./lsp/IsabelleLanguageClient";
+import { LanguageServerStatusBar } from "./lsp/LanguageServerStatusBar";
+import { IsabelleLanguageServerStatus } from "./lsp/lspTypes";
 import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
 import {
   findCommandSpanAtOrBefore,
@@ -47,6 +50,8 @@ let buildService: BuildService | undefined;
 let commandSpanDecorationsService: CommandSpanDecorationsService | undefined;
 let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
+let languageClient: IsabelleLanguageClient | undefined;
+let languageServerStatusBar: LanguageServerStatusBar | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -80,6 +85,8 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
   statusBar.show();
+  languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
+  languageServerStatusBar = new LanguageServerStatusBar(languageClient);
 
   context.subscriptions.push(
     output,
@@ -88,6 +95,8 @@ export function activate(context: vscode.ExtensionContext): void {
     commandSpanDecorationsService,
     documentStatusService,
     documentSyncService,
+    languageClient,
+    languageServerStatusBar,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -153,9 +162,35 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.showTheoryDependents", async () => showTheoryDependents(output)),
     vscode.commands.registerCommand("isabelle.toggleTheoryGraphMode", () => toggleTheoryGraphMode()),
     vscode.commands.registerCommand("isabelle.refreshTheoryOutline", () => theoryOutlineTree?.refresh()),
+    vscode.commands.registerCommand("isabelle.startLanguageServer", async () => startLanguageServer(output)),
+    vscode.commands.registerCommand("isabelle.stopLanguageServer", async () => stopLanguageServer(output)),
+    vscode.commands.registerCommand("isabelle.restartLanguageServer", async () => restartLanguageServer(output)),
+    vscode.commands.registerCommand("isabelle.showLanguageServerStatus", () => showLanguageServerStatus()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
+      }
+      if (event.affectsConfiguration("isabelle.languageServer.enabled")) {
+        const enabled = vscode.workspace
+          .getConfiguration("isabelle")
+          .get<boolean>("languageServer.enabled", false);
+        if (enabled) {
+          void languageClient?.start().catch((error) => {
+            output.appendLine(
+              `Isabelle language server: start failed after configuration change: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          });
+        } else {
+          void languageClient?.stop().catch((error) => {
+            output.appendLine(
+              `Isabelle language server: stop failed after configuration change: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          });
+        }
       }
     })
   );
@@ -163,9 +198,26 @@ export function activate(context: vscode.ExtensionContext): void {
   documentSyncService.start();
   documentStatusService.start();
   commandSpanDecorationsService.start();
+
+  const initiallyEnabled = vscode.workspace
+    .getConfiguration("isabelle")
+    .get<boolean>("languageServer.enabled", false);
+  if (initiallyEnabled) {
+    void languageClient.start().catch((error) => {
+      output.appendLine(
+        `Isabelle language server: initial start failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    });
+  }
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
+  await languageClient?.shutdown();
+  languageClient = undefined;
+  languageServerStatusBar?.dispose();
+  languageServerStatusBar = undefined;
   documentSyncService?.dispose();
   documentSyncService = undefined;
   proofOutlineProvider?.dispose();
@@ -706,6 +758,81 @@ function updateSessionStatus(): void {
   const active = sessionService.getActiveSessionName();
   statusBar.text = active ? `$(check) Isabelle: ${active}` : "$(symbol-namespace) Isabelle: No session";
   statusBar.tooltip = active ? "Active Isabelle session" : "Select an Isabelle session";
+}
+
+async function startLanguageServer(output: vscode.OutputChannel): Promise<void> {
+  if (!languageClient) {
+    return;
+  }
+  try {
+    await vscode.workspace
+      .getConfiguration("isabelle")
+      .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
+    await languageClient.start();
+  } catch (error) {
+    showBackendError("Unable to start Isabelle language server", error, output);
+  }
+}
+
+async function stopLanguageServer(output: vscode.OutputChannel): Promise<void> {
+  if (!languageClient) {
+    return;
+  }
+  try {
+    await vscode.workspace
+      .getConfiguration("isabelle")
+      .update("languageServer.enabled", false, vscode.ConfigurationTarget.Workspace);
+    await languageClient.stop();
+  } catch (error) {
+    showBackendError("Unable to stop Isabelle language server", error, output);
+  }
+}
+
+async function restartLanguageServer(output: vscode.OutputChannel): Promise<void> {
+  if (!languageClient) {
+    return;
+  }
+  try {
+    await vscode.workspace
+      .getConfiguration("isabelle")
+      .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
+    await languageClient.restart();
+  } catch (error) {
+    showBackendError("Unable to restart Isabelle language server", error, output);
+  }
+}
+
+function showLanguageServerStatus(): void {
+  if (!languageClient) {
+    void vscode.window.showInformationMessage("Isabelle language server is not initialized.");
+    return;
+  }
+
+  const status = languageClient.getStatus();
+  void vscode.window.showInformationMessage(
+    formatLanguageServerStatus(status),
+    { modal: false }
+  );
+}
+
+function formatLanguageServerStatus(status: IsabelleLanguageServerStatus): string {
+  const parts: string[] = [`Isabelle language server: ${status.state}`];
+  if (status.commandLine) {
+    parts.push(`Command: ${status.commandLine}`);
+  }
+  if (status.isabelleVersion) {
+    parts.push(`Isabelle: ${status.isabelleVersion}`);
+  }
+  if (status.lastStartedAt) {
+    parts.push(`Last started: ${status.lastStartedAt}`);
+  }
+  if (status.lastStoppedAt) {
+    parts.push(`Last stopped: ${status.lastStoppedAt}`);
+  }
+  if (status.lastError) {
+    parts.push(`Last error: ${status.lastError}`);
+  }
+  return parts.join(" \u00b7 ");
 }
 
 function isTheoryDocument(document: vscode.TextDocument): boolean {

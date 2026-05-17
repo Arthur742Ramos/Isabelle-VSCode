@@ -46,6 +46,10 @@ Implemented foundation:
   - `Isabelle: Show Theory Dependents`
   - `Isabelle: Toggle Theory Graph Direction`
   - `Isabelle: Refresh Theory Outline`
+  - `Isabelle: Start Language Server`
+  - `Isabelle: Stop Language Server`
+  - `Isabelle: Restart Language Server`
+  - `Isabelle: Show Language Server Status`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and backend-backed `session/discover`.
@@ -66,7 +70,8 @@ Implemented foundation:
 - Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
 - Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers, with a view-mode toggle that switches each theory between its forward `imports` and the local reverse `imported by` list, plus a `Show Theory Dependents` quick-pick driven from the active editor for local impact navigation.
 - Explorer-side **Isabelle Theory Outline** tree that groups locally extracted theory entities (theorems, lemmas, definitions, datatypes, locales, etc.) for the active `.thy` editor, refreshes as command spans change, and reuses the existing reveal-command navigation. This is local syntax-only extraction from synchronized command spans and does **not** consume PIDE entity metadata.
-- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, document status summaries, and proof-outline helpers.
+- Optional Isabelle language server (experimental): the extension can spawn Isabelle's bundled `isabelle vscode_server` as an LSP child and route VS Code's standard PIDE-flavoured features (diagnostics, hover, definition, completion, document symbols) through it. Opt-in via `isabelle.languageServer.enabled`. Cross-platform (Linux, macOS, Windows wherever Isabelle runs). Reachability is verified before spawn; failures surface in the status bar and a dedicated output channel.
+- Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, document status summaries, language-server command construction, and proof-outline helpers.
 
 The theory graph, theory outline, proof outline, document status surface, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency, diagnostics, or semantic markup yet. The theory-graph reverse navigation is derived from the same parsed `.thy` headers and only reports importers that were locally discovered. This milestone does **not** implement PIDE document processing, live proof checking, PIDE semantic markup/entity metadata, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
 
@@ -80,6 +85,30 @@ The checked repair commands provide a conservative local foundation for future p
 4. Run `Isabelle: Check Current Workspace for Repair` or the exact build command shown in the verification plan. This reruns the existing active-session build over the current workspace files. It does **not** validate a readonly preview unless you have manually applied those edits first, and the extension does not report a repair as checked until that Isabelle build succeeds.
 
 Repair requests may include source excerpts, diagnostics, and proof-state details. Review them before sharing outside your workspace.
+
+## Isabelle language server
+
+The extension can optionally relay an Isabelle session through Isabelle's own bundled language server, `isabelle vscode_server`. This is an opt-in seam toward milestones 4/5/7 (live PIDE document status, PIDE-flavoured semantic markup, and proof tooling): when enabled, the extension spawns the language server as a child process and routes LSP traffic (diagnostics, hover, definition, completion, document symbols) through `vscode-languageclient`.
+
+Prerequisites:
+
+- Isabelle 2019 or newer installed, with `isabelle` on `PATH` or set via `isabelle.executablePath`. The language server entry point is part of every supported Isabelle distribution (Linux, macOS, Windows via the bundled Cygwin layer).
+- A workspace that contains `.thy` files with `language: isabelle` (the default for this extension).
+
+To enable:
+
+1. Set `"isabelle.languageServer.enabled": true` (or run `Isabelle: Start Language Server`, which sets the workspace setting and starts the client).
+2. The extension first runs `isabelle version` with a 10 s timeout to verify reachability. On failure (Isabelle missing, path wrong, timeout), the language client transitions to a `failed` state and surfaces the error in the `Isabelle Language Server` output channel and the status bar; no LSP child is spawned.
+3. On success, the LSP child is started over stdio. Its connection state appears as a status-bar item (`Isabelle LSP: starting / running / stopping / failed`). Click it to see the latest snapshot, including the command line, Isabelle version line, and last error.
+4. To stop, run `Isabelle: Stop Language Server` or set `"isabelle.languageServer.enabled": false`. `Isabelle: Restart Language Server` performs a clean stop/start cycle.
+
+Settings:
+
+- `isabelle.languageServer.enabled` — opt in to the language server (default: `false`).
+- `isabelle.languageServer.extraArgs` — extra arguments passed to `isabelle vscode_server` (for example `["-L", "./isabelle.log"]`).
+- `isabelle.languageServer.logVerbose` — when `true`, full LSP traffic is logged to a separate `Isabelle Language Server Trace` output channel (helpful for debugging; noisy).
+
+Honest disclaimer: when the language server is enabled, VS Code aggregates results from **both** the LSP-provided features and the extension's existing local syntax-only providers (semantic tokens, hover, document symbols, in-file definitions, document links, theory outline, status decorations, etc.). The local foundation is intentionally left in place so the existing milestone-3/5/7 behavior remains the default whenever the language server is off or unavailable. Live PIDE-backed document status, structured proof state, Sledgehammer proof search, and AI repair verification still require the Scala backend work outlined in the roadmap.
 
 ## Development
 
