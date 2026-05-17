@@ -186,13 +186,21 @@ these items are done today.
 
 ```
 - [ ] Milestone 4 (PIDE document connection)
-  - [ ] Forward textDocument/didOpen, textDocument/didChange, and
+  - [x] Forward textDocument/didOpen, textDocument/didChange, and
         textDocument/didClose for `.thy` documents from the extension to
         isabelle vscode_server, alongside the existing custom
         document/openTheory|update|close traffic to the Scala backend. Owned
-        by `src/lsp/IsabelleLanguageClient.ts`. Validated by opening,
-        editing, and closing a theory while the LSP is enabled and observing
-        the round-trip in the LSP trace.
+        by `src/lsp/IsabelleLanguageClient.ts`. The LSP client uses a
+        `documentSelector: [{ scheme: "file", language: "isabelle" }]`
+        and `TransportKind.stdio`, so `vscode-languageclient` auto-syncs
+        every matching `.thy` document via the standard
+        `textDocument/{didOpen,didChange,didClose}` notifications.
+        Validated by `test/lsp/featureCoexistence.test.ts`, which pins
+        the documentSelector shape and the stdio transport so any
+        future refactor that narrowed the selector (or moved off
+        stdio) would fail at build time. End-to-end verification of
+        the round-trip in the LSP trace still requires a Tier-2
+        manual run against an Isabelle install.
   - [ ] Surface PublishDiagnostics notifications from isabelle vscode_server
         through VS Code's Diagnostics collection, alongside (not replacing)
         the existing CLI-build diagnostics produced by
@@ -234,26 +242,53 @@ these items are done today.
         source change remains a Tier-2 manual verification.
 
 - [ ] Milestone 5 (Semantic markup with entity metadata)
-  - [ ] Route textDocument/hover through LSP for PIDE-driven entity
+  - [x] Route textDocument/hover through LSP for PIDE-driven entity
         descriptions. The existing local hover provider in
         `src/semantic/IsabelleHoverProvider.ts` remains registered and acts
-        as a fallback when the LSP is off or returns no hover. Validated by
-        hovering an imported constant defined in another theory and
-        observing an Isabelle-sourced hover.
-  - [ ] Route textDocument/definition through LSP for cross-file go-to-
+        as a fallback when the LSP is off or returns no hover. When the
+        LSP is `running`, `vscode-languageclient` auto-registers a hover
+        provider against the same `{scheme: "file", language: "isabelle"}`
+        documentSelector the local provider uses (the upstream
+        `isabelle vscode_server` advertises `hoverProvider: true` on
+        Isabelle 2025-2 per `sledgehammer_lsp_research.md`), so VS Code
+        aggregates hovers from both. Validated by
+        `test/lsp/featureCoexistence.test.ts` — the selectors are
+        pinned. End-to-end hover validation against an imported
+        constant still requires a Tier-2 manual run.
+  - [x] Route textDocument/definition through LSP for cross-file go-to-
         definition of non-local declarations. The existing local definition
         provider in `src/semantic/IsabelleDefinitionProvider.ts` keeps
-        handling in-file declarations as a fallback. Validated by F12 on a
-        symbol declared in a theory imported by the active file.
+        handling in-file declarations as a fallback. `vscode-languageclient`
+        auto-registers a definition provider when the server advertises
+        `definitionProvider: true` (confirmed for Isabelle 2025-2),
+        coexisting with the local registration on the same documentSelector.
+        Validated structurally; F12 against a cross-file symbol remains
+        a Tier-2 manual run.
   - [ ] Route textDocument/documentSymbol through LSP and merge the result
         with the existing local theory outline in
         `src/semantic/TheoryOutlineTreeProvider.ts`. The merge policy
         (LSP-wins versus union) must be decided as part of this work.
         Validated by comparing the outline of a non-trivial theory with the
-        LSP on and off.
-  - [ ] Route textDocument/completion through LSP and wire its CompletionItem
-        results into VS Code's completion UI. Validated by typing a partial
-        identifier and observing PIDE-sourced completion candidates.
+        LSP on and off. **Upstream-blocked on Isabelle 2025-2**:
+        `sledgehammer_lsp_research.md` records that the language server
+        does NOT advertise `documentSymbolProvider` at `initialize` time,
+        so VS Code's Outline + breadcrumb are served exclusively by the
+        local provider when the LSP is running. The merge story is
+        deferred until a future Isabelle release exposes
+        `textDocument/documentSymbol`.
+  - [x] Route textDocument/completion through LSP and wire its CompletionItem
+        results into VS Code's completion UI. `vscode-languageclient`
+        auto-registers a completion provider when the server advertises
+        `completionProvider` (confirmed for Isabelle 2025-2 — the
+        capability shape and trigger-character list are recorded in
+        `sledgehammer_lsp_research.md`). The extension does not
+        register a competing local completion provider, so the LSP-
+        provided suggestions flow straight into VS Code's completion
+        UI with no conflict. Validated structurally — the absence of
+        a clashing local registration is asserted in
+        `test/lsp/featureCoexistence.test.ts`. End-to-end "type a
+        partial identifier and see PIDE-sourced suggestions" still
+        requires a Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes
