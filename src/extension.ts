@@ -4,6 +4,13 @@ import {
   createIsabellePideExtensionApi,
   IsabellePideExtensionApi
 } from "./api/IsabellePideExtensionApi";
+import { PideDocumentationCache } from "./api/PideDocumentationCache";
+import {
+  browseIsabelleDocumentation,
+  SHOW_DOCUMENTATION_COMMAND_ID,
+  ShowDocumentationQuickPickItem,
+  ShowDocumentationUi
+} from "./api/browseIsabelleDocumentation";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
@@ -68,6 +75,7 @@ let pideQuiescenceTracker: PideQuiescenceTracker | undefined;
 let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let pideDecorationOverlayService: PideDecorationOverlayService | undefined;
 let pideAbbrevsCache: PideAbbrevsCache | undefined;
+let pideDocumentationCache: PideDocumentationCache | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -97,6 +105,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
   pideDecorationOverlayService = new PideDecorationOverlayService(languageClient, output);
   pideAbbrevsCache = new PideAbbrevsCache(languageClient, output);
+  pideDocumentationCache = new PideDocumentationCache(languageClient, output);
   proofStatePanel = new ProofStatePanel(backendManager, output, languageClient);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(
@@ -162,6 +171,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     pideSledgehammerProversCache,
     pideDecorationOverlayService,
     pideAbbrevsCache,
+    pideDocumentationCache,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -237,6 +247,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.stopLanguageServer", async () => stopLanguageServer(output)),
     vscode.commands.registerCommand("isabelle.restartLanguageServer", async () => restartLanguageServer(output)),
     vscode.commands.registerCommand("isabelle.showLanguageServerStatus", () => showLanguageServerStatus()),
+    vscode.commands.registerCommand(SHOW_DOCUMENTATION_COMMAND_ID, () => browseDocumentationCommand(output)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -292,6 +303,8 @@ export async function deactivate(): Promise<void> {
   pideSledgehammerProversCache = undefined;
   pideAbbrevsCache?.dispose();
   pideAbbrevsCache = undefined;
+  pideDocumentationCache?.dispose();
+  pideDocumentationCache = undefined;
   pideQuiescenceTracker?.dispose();
   pideQuiescenceTracker = undefined;
   await languageClient?.shutdown();
@@ -978,6 +991,52 @@ function showLanguageServerStatus(): void {
   void vscode.window.showInformationMessage(
     formatLanguageServerStatus(status),
     { modal: false }
+  );
+}
+
+async function browseDocumentationCommand(output: vscode.OutputChannel): Promise<void> {
+  if (!languageClient || !pideDocumentationCache) {
+    await vscode.window.showInformationMessage(
+      "Isabelle documentation is not initialized yet."
+    );
+    return;
+  }
+  const ui: ShowDocumentationUi = {
+    showQuickPick: async (items, options) => {
+      const picked = await vscode.window.showQuickPick(
+        items.map((item) => ({
+          label: item.label,
+          description: item.description,
+          detail: item.detail,
+          entry: item.entry
+        })),
+        {
+          placeHolder: options?.placeHolder,
+          matchOnDescription: options?.matchOnDescription,
+          matchOnDetail: options?.matchOnDetail
+        }
+      );
+      return picked
+        ? ({
+            label: picked.label,
+            description: picked.description,
+            detail: picked.detail,
+            entry: picked.entry
+          } as ShowDocumentationQuickPickItem)
+        : undefined;
+    },
+    showInformationMessage: async (message) =>
+      vscode.window.showInformationMessage(message),
+    showWarningMessage: async (message) =>
+      vscode.window.showWarningMessage(message),
+    openExternalFile: async (platformPath) =>
+      vscode.env.openExternal(vscode.Uri.file(platformPath))
+  };
+  await browseIsabelleDocumentation(
+    pideDocumentationCache,
+    languageClient,
+    output,
+    ui
   );
 }
 

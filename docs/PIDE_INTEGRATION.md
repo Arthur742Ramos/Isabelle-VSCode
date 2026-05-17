@@ -341,6 +341,32 @@ these items are done today.
         (10 structural pins). End-to-end "type `\<lam` in a `.thy`
         with the LSP enabled and accept the `λ` suggestion" remains
         a Tier-2 manual run.
+  - [x] Surface upstream `PIDE/documentation_response` as an
+        in-editor command. Owned by
+        `src/api/PideDocumentationCache.ts` (subscriber + parser +
+        quickpick flattener) and
+        `src/api/browseIsabelleDocumentation.ts` (vscode-free
+        command implementation against an injectable `ShowDocumentationUi`
+        shape). The `Isabelle: Browse Isabelle Documentation`
+        command dispatches `PIDE/documentation_request` on every
+        fresh `running` transition, caches the resulting sections
+        (Tutorial, Isar-Ref, Sledgehammer, etc.), surfaces them in a
+        quick-pick where Isabelle's own `important` sections are
+        listed first (each marked with a `★` glyph) and entries are
+        keyed off `print_html` after stripping basic markup, then
+        opens the selected entry's `platform_path` via
+        `vscode.env.openExternal`. When the LSP is not `running` the
+        command surfaces an informational message instead of opening
+        anything; when the cache is empty under a running LSP it
+        triggers a refresh request and tells the user to retry.
+        Validated by
+        `test/api/pideDocumentationCache.test.ts` (19 cases on the
+        parser, quickpick flattener, html stripper, and full cache
+        lifecycle) and
+        `test/api/browseIsabelleDocumentation.test.ts` (8 cases on
+        the command flow against an in-memory UI). End-to-end "with
+        the LSP enabled, open the Tutorial PDF from the command
+        palette" remains a Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes

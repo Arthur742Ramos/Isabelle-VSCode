@@ -19,13 +19,13 @@ single page to read for "what is shipped, what is still open, why."
 | 2 Session discovery (ROOT/ROOTS/AFP, active session, theory tree) | ✅ Done |
 | 3 Build integration (`isabelle build`, streamed output, diagnostics) | ✅ Done |
 | 4 PIDE document connection | ✅ Done (Tier-2 manual still recommended) |
-| 5 Semantic markup | ✅ 5 of 6 — `documentSymbol` upstream-blocked; PIDE/decoration overlay + PIDE/abbrevs completion shipped |
+| 5 Semantic markup | ✅ 6 of 7 — `documentSymbol` upstream-blocked; PIDE/decoration overlay + PIDE/abbrevs completion + PIDE/documentation browser shipped |
 | 6 Proof state panel | ✅ 2 of 2 — LSP-backed via PIDE state-panel + dynamic_output |
 | 7 Sledgehammer workflow | ✅ 6 of 7 — minimization upstream-blocked |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
 
-Vitest baseline: **499 cases, all green**.
+Vitest baseline: **526 cases, all green**.
 
 ## What is fully shipped
 
@@ -86,11 +86,15 @@ every `running` transition, cache the resulting
 `PIDE/abbrevs_response` table (pairs like `\<lambda>` → `λ`),
 and surface it as a VS Code completion provider that walks
 backward from the cursor to find the longest matching prefix. The
-only outstanding capability is the `textDocument/documentSymbol`
-merge — Isabelle 2025-2 does NOT advertise
-`documentSymbolProvider`, so VS Code's Outline + breadcrumb stay
-on the local provider. Documented as upstream-blocked in
-`PIDE_INTEGRATION.md`.
+new `PideDocumentationCache` + `Isabelle: Browse Isabelle
+Documentation` command dispatch `PIDE/documentation_request`, cache
+the response, and surface the available Isabelle manuals
+(Tutorial, Isar-Ref, Sledgehammer, etc.) as a quick-pick that
+opens the selected entry with the OS default. The only outstanding
+capability is the `textDocument/documentSymbol` merge — Isabelle
+2025-2 does NOT advertise `documentSymbolProvider`, so VS Code's
+Outline + breadcrumb stay on the local provider. Documented as
+upstream-blocked in `PIDE_INTEGRATION.md`.
 
 ### Milestone 6 — Proof state panel
 The panel branches on `IsabelleLanguageClient.getStatus().state ===
