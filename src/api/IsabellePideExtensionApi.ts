@@ -29,6 +29,7 @@ import type {
   RepairAiProvider,
   RepairAiProviderRegistry
 } from "../repair/repairAiProvider";
+import type { RepairAiSecretStore } from "../repair/RepairAiSecretStore";
 
 /** Disposable contract — structurally compatible with vscode.Disposable. */
 export interface IsabellePideApiDisposable {
@@ -60,6 +61,13 @@ export interface IsabellePideExtensionApiV1 {
    * surface which providers are available.
    */
   listRepairAiProviderIds(): readonly string[];
+  /**
+   * Get the credential store keyed by provider id. Providers should
+   * use `await api.getRepairAiSecretStore().get(provider.id)` rather
+   * than reading workspace settings, so secrets never land in
+   * settings.json. See docs/AI_REPAIR.md.
+   */
+  getRepairAiSecretStore(): RepairAiSecretStore;
 }
 
 /** Re-exported here for typed-consumer convenience. */
@@ -74,7 +82,8 @@ export type IsabellePideExtensionApi = IsabellePideExtensionApiV1;
  * shape against a stub registry without spinning up vscode.
  */
 export function createIsabellePideExtensionApi(
-  registry: RepairAiProviderRegistry
+  registry: RepairAiProviderRegistry,
+  secretStore: RepairAiSecretStore
 ): IsabellePideExtensionApi {
   return {
     version: "1",
@@ -83,6 +92,9 @@ export function createIsabellePideExtensionApi(
     },
     listRepairAiProviderIds() {
       return registry.listIds();
+    },
+    getRepairAiSecretStore() {
+      return secretStore;
     }
   };
 }
