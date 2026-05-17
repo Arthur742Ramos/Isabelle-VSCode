@@ -3,7 +3,12 @@ import * as vscode from "vscode";
 import { DiscoveredSession } from "../protocol/messages";
 import { createBuildCommand } from "./buildArgs";
 import { resolveDiagnosticPath } from "./diagnosticPaths";
-import { BuildDiagnostic, parseBuildDiagnostics } from "./diagnostics";
+import {
+  BUILD_DIAGNOSTIC_COLLECTION_NAME,
+  BUILD_DIAGNOSTIC_SOURCE,
+  BuildDiagnostic,
+  parseBuildDiagnostics
+} from "./diagnostics";
 import { formatBuildSpawnError } from "./spawnErrors";
 
 export interface RunBuildOptions {
@@ -17,7 +22,7 @@ export class BuildService implements vscode.Disposable {
   private activeSessionName: string | undefined;
 
   public constructor(private readonly output: vscode.OutputChannel) {
-    this.diagnostics = vscode.languages.createDiagnosticCollection("isabelle-build");
+    this.diagnostics = vscode.languages.createDiagnosticCollection(BUILD_DIAGNOSTIC_COLLECTION_NAME);
   }
 
   public isRunning(): boolean {
@@ -125,7 +130,7 @@ export class BuildService implements vscode.Disposable {
           ? vscode.DiagnosticSeverity.Warning
           : vscode.DiagnosticSeverity.Error
       );
-      vscodeDiagnostic.source = "isabelle build";
+      vscodeDiagnostic.source = BUILD_DIAGNOSTIC_SOURCE;
 
       const filePath = resolveDiagnosticPath(diagnostic.filePath, baseDirectory);
       const existing = byFile.get(filePath) ?? [];

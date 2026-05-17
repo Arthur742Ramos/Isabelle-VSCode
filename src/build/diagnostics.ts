@@ -10,6 +10,27 @@ export interface BuildDiagnostic {
   endCharacter: number;
 }
 
+/**
+ * `source` string applied to every `vscode.Diagnostic` published by the
+ * CLI-build runner. Surfaced in the Problems panel "Source" column so users
+ * can distinguish CLI-build diagnostics from diagnostics owned by other
+ * providers (notably the opt-in Isabelle language server, whose source label
+ * is supplied by Isabelle's `vscode_server`).
+ */
+export const BUILD_DIAGNOSTIC_SOURCE = "isabelle build";
+
+/**
+ * Name of the `vscode.DiagnosticCollection` owned by `BuildService`. Each
+ * VS Code diagnostic collection has its own "owner" identity, so a separate
+ * collection (such as one created by the Isabelle LSP client) does not
+ * overwrite or replace CLI-build diagnostics for the same file — VS Code
+ * aggregates the per-owner diagnostics in the Problems panel.
+ *
+ * This name must remain distinct from any collection name a future LSP
+ * client setup might claim; see `test/lsp/diagnosticsCoexistence.test.ts`.
+ */
+export const BUILD_DIAGNOSTIC_COLLECTION_NAME = "isabelle-build";
+
 const COLON_LOCATION = /^(.+?\.thy):(\d+):(\d+):\s*(error|warning):\s*(.+)$/i;
 const ISABELLE_FILE_LOCATION = /^File "(.+?\.thy)", line (\d+)(?:, characters (\d+)-(\d+))?:\s*$/;
 
