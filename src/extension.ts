@@ -9,6 +9,7 @@ import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
 import { DocumentStatusService } from "./document/DocumentStatusService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
+import { PideDecorationOverlayService } from "./document/PideDecorationOverlayService";
 import { IsabelleLanguageClient } from "./lsp/IsabelleLanguageClient";
 import { LanguageServerStatusBar } from "./lsp/LanguageServerStatusBar";
 import { IsabelleLanguageServerStatus } from "./lsp/lspTypes";
@@ -63,6 +64,7 @@ let languageClient: IsabelleLanguageClient | undefined;
 let languageServerStatusBar: LanguageServerStatusBar | undefined;
 let pideQuiescenceTracker: PideQuiescenceTracker | undefined;
 let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
+let pideDecorationOverlayService: PideDecorationOverlayService | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -90,6 +92,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
   pideQuiescenceTracker = new PideQuiescenceTracker(vscode.workspace);
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
+  pideDecorationOverlayService = new PideDecorationOverlayService(languageClient, output);
   proofStatePanel = new ProofStatePanel(backendManager, output, languageClient);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(
@@ -153,6 +156,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     languageServerStatusBar,
     pideQuiescenceTracker,
     pideSledgehammerProversCache,
+    pideDecorationOverlayService,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -259,6 +263,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   documentSyncService.start();
   documentStatusService.start();
   commandSpanDecorationsService.start();
+  pideDecorationOverlayService.start();
 
   const initiallyEnabled = vscode.workspace
     .getConfiguration("isabelle")
@@ -306,6 +311,8 @@ export async function deactivate(): Promise<void> {
   documentStatusService = undefined;
   commandSpanDecorationsService?.dispose();
   commandSpanDecorationsService = undefined;
+  pideDecorationOverlayService?.dispose();
+  pideDecorationOverlayService = undefined;
   sessionService?.dispose();
   sessionService = undefined;
   theoryGraphTree?.dispose();
