@@ -72,6 +72,7 @@
     "onCommand:isabelle.stopLanguageServer",
     "onCommand:isabelle.restartLanguageServer",
     "onCommand:isabelle.showLanguageServerStatus",
+    "onCommand:isabelle.browseDocumentation",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -251,6 +252,10 @@
       {
         "command": "isabelle.showLanguageServerStatus",
         "title": "Isabelle: Show Language Server Status"
+      },
+      {
+        "command": "isabelle.browseDocumentation",
+        "title": "Isabelle: Browse Isabelle Documentation"
       }
     ],
     "views": {
