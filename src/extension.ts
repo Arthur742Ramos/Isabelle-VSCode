@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
+import { createBuildCommand } from "./build/buildArgs";
 import { DocumentStatusService } from "./document/DocumentStatusService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
 import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
@@ -24,6 +25,7 @@ import {
 } from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { RepairService } from "./repair/RepairService";
+import { RepairVerificationContext } from "./repair/verificationPlan";
 import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
 import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkProvider";
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
@@ -65,7 +67,7 @@ export function activate(context: vscode.ExtensionContext): void {
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
   repairPreviewProvider = new RepairPreviewProvider();
-  repairService = new RepairService(backendManager, output, repairPreviewProvider);
+  repairService = new RepairService(backendManager, output, repairPreviewProvider, createRepairVerificationContext);
   const sessionTree = new SessionTreeProvider(sessions, async () => discoverSessions(output, { silent: true }));
   theoryGraphTree = new TheoryGraphTreeProvider(sessions, output);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -294,6 +296,53 @@ async function buildActiveSession(output: vscode.OutputChannel): Promise<void> {
   } catch (error) {
     showBackendError("Unable to build Isabelle session", error, output);
   }
+}
+
+async function createRepairVerificationContext(): Promise<RepairVerificationContext | undefined> {
+  const service = requireSessionService();
+  const sessions = service.getSessions().length > 0 ? service.getSessions() : (await service.refresh()).sessions;
+  let session = service.getActiveSession();
+
+  if (!session && sessions.length === 1) {
+    session = sessions[0];
+    await vscode.workspace
+      .getConfiguration("isabelle")
+      .update("session.active", session.name, vscode.ConfigurationTarget.Workspace);
+    updateSessionStatus();
+  }
+
+  if (!session && sessions.length > 1) {
+    session = await service.selectActiveSession();
+  }
+
+  if (!session) {
+    vscode.window.showWarningMessage(
+      "No active Isabelle session was selected; the repair verification plan will include generic check instructions."
+    );
+    return undefined;
+  }
+
+  const config = vscode.workspace.getConfiguration("isabelle");
+  const build = createBuildCommand({
+    isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionName: session.name,
+    rootDirectories: [session.rootDirectory, session.sessionDirectory],
+    extraArgs: config.get<string[]>("build.extraArgs", [])
+  });
+
+  return {
+    session: {
+      name: session.name,
+      parent: session.parent,
+      rootDirectory: session.rootDirectory,
+      sessionDirectory: session.sessionDirectory
+    },
+    build: {
+      command: build.command,
+      args: build.args,
+      workingDirectory: session.sessionDirectory
+    }
+  };
 }
 
 function cancelBuild(): void {
