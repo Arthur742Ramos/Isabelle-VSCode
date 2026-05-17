@@ -28,6 +28,7 @@ import {
   VersionResult
 } from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
+import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
 import { RepairService } from "./repair/RepairService";
 import { RepairVerificationContext } from "./repair/verificationPlan";
 import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
@@ -59,6 +60,7 @@ let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
+let repairAiProviderRegistry: RepairAiProviderRegistry | undefined;
 let repairService: RepairService | undefined;
 let sessionService: SessionService | undefined;
 let sledgehammerPanel: SledgehammerPanel | undefined;
@@ -92,7 +94,14 @@ export function activate(context: vscode.ExtensionContext): void {
     pideQuiescenceTracker
   );
   repairPreviewProvider = new RepairPreviewProvider();
-  repairService = new RepairService(backendManager, output, repairPreviewProvider, createRepairVerificationContext);
+  repairAiProviderRegistry = new RepairAiProviderRegistry();
+  repairService = new RepairService(
+    backendManager,
+    output,
+    repairPreviewProvider,
+    createRepairVerificationContext,
+    repairAiProviderRegistry
+  );
   const sessionTree = new SessionTreeProvider(sessions, async () => discoverSessions(output, { silent: true }));
   theoryGraphTree = new TheoryGraphTreeProvider(sessions, output);
   theoryOutlineTree = new TheoryOutlineTreeProvider(documentSyncService);
@@ -172,6 +181,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("isabelle.clearSledgehammerHistory", () => sledgehammerPanel?.clearHistory()),
     vscode.commands.registerCommand("isabelle.createRepairRequest", async () => repairService?.createRepairRequest()),
+    vscode.commands.registerCommand("isabelle.copyRepairRequestToClipboard", async () => repairService?.copyRepairRequestToClipboard()),
+    vscode.commands.registerCommand("isabelle.requestAiRepairSuggestion", async () => repairService?.requestAiRepairSuggestion()),
     vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
     vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
     vscode.commands.registerCommand("isabelle.refreshTheoryGraph", async () => refreshTheoryGraph(output)),
@@ -249,6 +260,7 @@ export async function deactivate(): Promise<void> {
   repairPreviewProvider?.dispose();
   repairPreviewProvider = undefined;
   repairService = undefined;
+  repairAiProviderRegistry = undefined;
   backendManager?.dispose();
   backendManager = undefined;
   buildService?.dispose();

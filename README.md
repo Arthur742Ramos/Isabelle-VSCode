@@ -41,6 +41,8 @@ Implemented foundation:
   - `Isabelle: Replay Sledgehammer Run`
   - `Isabelle: Clear Sledgehammer History`
   - `Isabelle: Create Checked Repair Request`
+  - `Isabelle: Copy Checked Repair Request to Clipboard`
+  - `Isabelle: Request AI Repair Suggestion (Experimental)`
   - `Isabelle: Preview Repair Patch`
   - `Isabelle: Check Current Workspace for Repair`
   - `Isabelle: Refresh Theory Graph`
@@ -86,6 +88,11 @@ The checked repair commands provide a conservative local foundation for future p
 4. Run `Isabelle: Check Current Workspace for Repair` or the exact build command shown in the verification plan. This reruns the existing active-session build over the current workspace files. It does **not** validate a readonly preview unless you have manually applied those edits first, and the extension does not report a repair as checked until that Isabelle build succeeds.
 
 Repair requests may include source excerpts, diagnostics, and proof-state details. Review them before sharing outside your workspace.
+
+Two additional, additive entry points sit on top of the same local request bundle:
+
+- `Isabelle: Copy Checked Repair Request to Clipboard` puts the same Markdown bundle on the clipboard so you can paste it into any AI tool you already trust. No network call is made.
+- `Isabelle: Request AI Repair Suggestion (Experimental)` delegates the bundle to an extension-registered AI provider. The extension ships **no default provider**. Even when a provider is registered, the command refuses to call it until both `isabelle.repair.aiProvider` and `isabelle.repair.aiAcknowledgedSharing` are set — the second is the explicit acknowledgement that the provider will receive the full repair request. Any patch a provider returns is opened for review and still has to go through `Isabelle: Preview Repair Patch` before any edit is applied. See [docs/AI_REPAIR.md](docs/AI_REPAIR.md) for the full safety contract and provider registration shape.
 
 ## Isabelle language server
 

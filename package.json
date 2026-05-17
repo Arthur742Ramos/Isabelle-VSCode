@@ -58,6 +58,8 @@
     "onCommand:isabelle.replaySledgehammerRun",
     "onCommand:isabelle.clearSledgehammerHistory",
     "onCommand:isabelle.createRepairRequest",
+    "onCommand:isabelle.copyRepairRequestToClipboard",
+    "onCommand:isabelle.requestAiRepairSuggestion",
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
@@ -188,6 +190,14 @@
       {
         "command": "isabelle.createRepairRequest",
         "title": "Isabelle: Create Checked Repair Request"
+      },
+      {
+        "command": "isabelle.copyRepairRequestToClipboard",
+        "title": "Isabelle: Copy Checked Repair Request to Clipboard"
+      },
+      {
+        "command": "isabelle.requestAiRepairSuggestion",
+        "title": "Isabelle: Request AI Repair Suggestion (Experimental)"
       },
       {
         "command": "isabelle.previewRepairPatch",
@@ -422,6 +432,16 @@
           "minimum": 0,
           "maximum": 30000,
           "description": "Optional quiescence delay (in milliseconds) the panel enforces before dispatching `PIDE/sledgehammer_request` in LSP mode, applied as `max(0, delay - timeSinceLastEdit)` so the wait only happens when a recent edit means the language server may still be reprocessing the theory. Set higher (for example 3000-5000) if you reproducibly see `<error_message>Unknown proof context</error_message>` from the server; set to 0 to disable and dispatch immediately. The setting has no effect when the LSP relay is not in use."
+        },
+        "isabelle.repair.aiProvider": {
+          "type": "string",
+          "default": "",
+          "description": "Optional id of a registered AI repair provider that the `Isabelle: Request AI Repair Suggestion` command will delegate to. Empty (the default) means no provider is selected; the command refuses to call anything until both this setting and `isabelle.repair.aiAcknowledgedSharing` are set. No provider ships with the extension by default — see docs/AI_REPAIR.md for the registration contract."
+        },
+        "isabelle.repair.aiAcknowledgedSharing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Safety gate for the AI repair seam. When false (the default), the `Isabelle: Request AI Repair Suggestion` command refuses to invoke any registered provider, even if `isabelle.repair.aiProvider` is set. Setting this to true acknowledges that the provider will receive the full checked-repair request, which may include source code, diagnostics, and proof state — read docs/AI_REPAIR.md before enabling."
         }
       }
     }

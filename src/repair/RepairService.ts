@@ -3,7 +3,11 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { BackendManager } from "../backend/BackendManager";
 import { ProofStateParams, ProofStateResult } from "../protocol/messages";
-import { buildRepairRequestMarkdown, RepairDiagnosticSnapshot } from "./repairRequest";
+import {
+  RepairAiProviderRegistry,
+  runRepairAi
+} from "./repairAiProvider";
+import { buildRepairRequestMarkdown, RepairDiagnosticSnapshot, RepairRequestSnapshot } from "./repairRequest";
 import { RepairPreviewProvider } from "./RepairPreviewProvider";
 import { applyUnifiedDiffPatch, parseUnifiedDiff, RepairPatchError } from "./unifiedDiff";
 import {
@@ -19,18 +23,106 @@ export class RepairService {
     private readonly backendManager: BackendManager,
     private readonly output: vscode.OutputChannel,
     private readonly previewProvider: RepairPreviewProvider,
-    private readonly createVerificationContext?: RepairVerificationContextProvider
+    private readonly createVerificationContext?: RepairVerificationContextProvider,
+    private readonly aiProviderRegistry?: RepairAiProviderRegistry
   ) {}
 
   public async createRepairRequest(): Promise<void> {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor || !isTheoryDocument(editor.document)) {
-      vscode.window.showWarningMessage("Open an Isabelle theory before creating a checked repair request.");
+    const captured = await this.captureRepairRequest();
+    if (!captured) {
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument({
+      content: captured.markdown,
+      language: "markdown"
+    });
+    await vscode.window.showTextDocument(document, { preview: false });
+    vscode.window.showInformationMessage("Created a local checked repair request. No external AI service was called.");
+  }
+
+  /**
+   * Copy the same checked-repair-request markdown bundle to the user's
+   * clipboard so they can paste it into any AI tool they trust. Strictly
+   * local — no provider is involved.
+   */
+  public async copyRepairRequestToClipboard(): Promise<void> {
+    const captured = await this.captureRepairRequest();
+    if (!captured) {
+      return;
+    }
+    await vscode.env.clipboard.writeText(captured.markdown);
+    vscode.window.showInformationMessage(
+      "Copied the checked repair request to the clipboard. No external service was called."
+    );
+  }
+
+  /**
+   * Delegate the captured repair request to the user-configured AI
+   * provider, then route the returned unified diff through the
+   * existing version-validated preview command. Guarded by the
+   * acknowledged-sharing policy gate in `repairAiSettings.ts`.
+   *
+   * Refuses cleanly with a descriptive warning if no provider is
+   * configured, the user has not acknowledged the sharing policy,
+   * or the registry has no provider matching the configured id.
+   */
+  public async requestAiRepairSuggestion(): Promise<void> {
+    if (!this.aiProviderRegistry) {
+      vscode.window.showWarningMessage(
+        "AI repair seam is not wired into this build of the extension."
+      );
+      return;
+    }
+    const captured = await this.captureRepairRequest();
+    if (!captured) {
+      return;
+    }
+    const result = await runRepairAi(
+      this.aiProviderRegistry,
+      vscode.workspace.getConfiguration("isabelle"),
+      {
+        requestMarkdown: captured.markdown,
+        documentUri: captured.snapshot.documentUri,
+        documentVersion: captured.snapshot.documentVersion,
+        capturedAt: captured.snapshot.capturedAt
+      }
+    );
+    if (!result.ok) {
+      this.output.appendLine(`AI repair refused: ${result.reason}`);
+      vscode.window.showWarningMessage(`AI repair refused: ${result.reason}`);
       return;
     }
 
+    // Write the proposed patch into a temp file so the existing
+    // `previewRepairPatch` command can validate + open it. The user
+    // still has to confirm via the standard preview workflow before
+    // any edit is applied — there is no auto-apply path.
+    try {
+      const tmpDir = await fs.promises.mkdtemp(path.join(require("os").tmpdir(), "isabelle-ai-repair-"));
+      const patchPath = path.join(tmpDir, "proposed.patch");
+      await fs.promises.writeFile(patchPath, result.patchText, "utf8");
+      this.output.appendLine(`AI repair: provider returned a patch (${result.patchText.length} bytes); saved to ${patchPath}.`);
+      const patchUri = vscode.Uri.file(patchPath);
+      const document = await vscode.workspace.openTextDocument(patchUri);
+      await vscode.window.showTextDocument(document, { preview: false });
+      vscode.window.showInformationMessage(
+        "AI repair provider returned a patch. Review it, then run `Isabelle: Preview Repair Patch` to validate and preview before applying."
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`AI repair: failed to stage patch: ${message}`);
+      vscode.window.showErrorMessage(`AI repair: failed to stage patch: ${message}`);
+    }
+  }
+
+  private async captureRepairRequest(): Promise<{ snapshot: RepairRequestSnapshot; markdown: string } | undefined> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || !isTheoryDocument(editor.document)) {
+      vscode.window.showWarningMessage("Open an Isabelle theory before creating a checked repair request.");
+      return undefined;
+    }
     const proofState = await this.captureProofState(editor);
-    const markdown = buildRepairRequestMarkdown({
+    const snapshot: RepairRequestSnapshot = {
       capturedAt: new Date().toISOString(),
       documentUri: editor.document.uri.toString(),
       documentPath: editor.document.uri.fsPath,
@@ -41,14 +133,11 @@ export class RepairService {
       },
       diagnostics: vscode.languages.getDiagnostics(editor.document.uri).map(toRepairDiagnostic),
       proofState
-    });
-
-    const document = await vscode.workspace.openTextDocument({
-      content: markdown,
-      language: "markdown"
-    });
-    await vscode.window.showTextDocument(document, { preview: false });
-    vscode.window.showInformationMessage("Created a local checked repair request. No external AI service was called.");
+    };
+    return {
+      snapshot,
+      markdown: buildRepairRequestMarkdown(snapshot)
+    };
   }
 
   public async previewRepairPatch(): Promise<void> {
