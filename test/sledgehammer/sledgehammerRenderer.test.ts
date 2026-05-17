@@ -114,4 +114,55 @@ describe("renderSledgehammerHtml", () => {
     expect(html).toContain("user cancelled");
     expect(html).toContain("PIDE-backed proof search remains future work");
   });
+
+  it("renders the LSP-mode 'Prover output' section when outputNodes are supplied", () => {
+    // When the panel is in LSP mode, the renderer prefers the parsed
+    // PIDE output tree over the plain-text 'raw' field for the
+    // bottom panel section. The 'raw' field is still surfaced as a
+    // small status caption above the parsed output.
+    const html = renderSledgehammerHtml(
+      {
+        requestId: "sledgehammer-lsp-1",
+        uri: "file:///A.thy",
+        status: "running",
+        suggestions: [],
+        raw: "Sledgehammering ..."
+      },
+      [],
+      [
+        {
+          kind: "information",
+          children: [
+            { kind: "text", text: "Try this: " },
+            { kind: "sendback", text: "by auto" }
+          ]
+        }
+      ]
+    );
+
+    expect(html).toContain("Prover output");
+    expect(html).not.toContain("Backend boundary");
+    expect(html).toContain('class="pide-sledgehammer-message pide-sledgehammer-information"');
+    expect(html).toContain('class="pide-sledgehammer-text"');
+    expect(html).toContain('data-pide-sendback="by auto"');
+    // Status caption still surfaces the upstream status string.
+    expect(html).toContain("Sledgehammering ...");
+  });
+
+  it("falls back to the 'Backend boundary' section when outputNodes is empty", () => {
+    const html = renderSledgehammerHtml(
+      {
+        requestId: "sledgehammer-1",
+        uri: "file:///A.thy",
+        status: "completed",
+        suggestions: [],
+        raw: "done"
+      },
+      [],
+      []
+    );
+
+    expect(html).toContain("Backend boundary");
+    expect(html).not.toContain("Prover output");
+  });
 });

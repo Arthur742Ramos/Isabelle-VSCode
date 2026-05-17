@@ -80,7 +80,13 @@ export function activate(context: vscode.ExtensionContext): void {
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
-  sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
+  sledgehammerPanel = new SledgehammerPanel(
+    backendManager,
+    output,
+    () => sessions.getActiveSessionName(),
+    languageClient,
+    pideSledgehammerProversCache
+  );
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider, createRepairVerificationContext);
   const sessionTree = new SessionTreeProvider(sessions, async () => discoverSessions(output, { silent: true }));

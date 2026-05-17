@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { BackendManager } from "../backend/BackendManager";
+import { IsabelleLanguageClient } from "../lsp/IsabelleLanguageClient";
+import { IsabelleLanguageServerStatus } from "../lsp/lspTypes";
 import {
   SledgehammerCancelParams,
   SledgehammerCancelResult,
@@ -7,8 +9,19 @@ import {
   SledgehammerRunResult,
   SledgehammerSuggestion
 } from "../protocol/messages";
+import {
+  LspSledgehammerSession,
+  SessionUpdate
+} from "./LspSledgehammerSession";
+import {
+  convertSessionUpdateToRunResult,
+  isTerminalSessionStatus
+} from "./lspSessionToRunResult";
+import { PideOutputNode } from "./pideSledgehammerOutput";
+import { PideSledgehammerProversCache } from "./PideSledgehammerProversCache";
 import { SledgehammerHistory, SledgehammerHistoryEntry } from "./sledgehammerHistory";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
+import { readSledgehammerSettings } from "./sledgehammerSettings";
 
 interface ExecuteRunOverrides {
   sessionName?: string;
@@ -20,15 +33,32 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
   private readonly history = new SledgehammerHistory();
   private view: vscode.WebviewView | undefined;
   private lastResult: SledgehammerRunResult | undefined;
-  private activeRequestId: string | undefined;
+  private lastOutputNodes: readonly PideOutputNode[] = [];
+  private activeBackendRequestId: string | undefined;
+  private activeLspSession: LspSledgehammerSession | undefined;
+  private activeLspRequestId: string | undefined;
   private nextRequestNumber = 1;
+  private readonly lspStatusSubscription: vscode.Disposable | undefined;
 
   public constructor(
     private readonly backendManager: BackendManager,
     private readonly output: vscode.OutputChannel,
-    private readonly getActiveSessionName: () => string | undefined
+    private readonly getActiveSessionName: () => string | undefined,
+    private readonly languageClient?: IsabelleLanguageClient,
+    private readonly proversCache?: PideSledgehammerProversCache
   ) {
     this.updateContexts();
+    if (this.languageClient) {
+      // If the LSP stops mid-run (user disabled it, transport died,
+      // child crashed) the active session would otherwise hang in
+      // "running" forever — its only signals are LSP notifications.
+      // Tear it down and surface a failed result so the user can
+      // retry.
+      this.lspStatusSubscription = this.languageClient.onStatusChange((status) =>
+        this.handleLspStatusChange(status)
+      );
+      this.disposables.push(this.lspStatusSubscription);
+    }
   }
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -38,7 +68,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
   }
 
   public async run(): Promise<void> {
-    if (this.activeRequestId) {
+    if (this.hasActiveRun()) {
       vscode.window.showInformationMessage("A Sledgehammer job is already running.");
       return;
     }
@@ -54,22 +84,35 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
         raw: message,
         message
       };
+      this.lastOutputNodes = [];
       this.render();
       this.updateContexts();
       vscode.window.showWarningMessage(message);
       return;
     }
 
-    await this.executeRun(editor);
+    if (this.shouldUseLspMode()) {
+      this.executeLspRun(editor);
+    } else {
+      await this.executeBackendRun(editor);
+    }
   }
 
   public async cancel(): Promise<void> {
-    if (!this.activeRequestId) {
+    if (this.activeLspSession) {
+      this.activeLspSession.cancel();
+      vscode.window.showInformationMessage(
+        "Sledgehammer cancel sent to isabelle vscode_server."
+      );
+      return;
+    }
+
+    if (!this.activeBackendRequestId) {
       vscode.window.showInformationMessage("No Sledgehammer job is running.");
       return;
     }
 
-    const requestId = this.activeRequestId;
+    const requestId = this.activeBackendRequestId;
     try {
       const result = await this.backendManager.getClient().request<SledgehammerCancelResult, SledgehammerCancelParams>(
         "sledgehammer/cancel",
@@ -85,7 +128,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
           raw: result.message
         };
         this.history.recordCancellation(requestId, result.message, new Date().toISOString());
-        this.activeRequestId = undefined;
+        this.activeBackendRequestId = undefined;
         this.render();
         this.updateContexts();
       }
@@ -135,7 +178,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       return;
     }
 
-    if (this.activeRequestId) {
+    if (this.hasActiveRun()) {
       vscode.window.showInformationMessage("A Sledgehammer job is already running.");
       return;
     }
@@ -168,10 +211,18 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       return;
     }
 
-    await this.executeRun(editor, {
-      sessionName: entry.sessionName,
-      isabelleExecutablePath: entry.isabelleExecutablePath
-    });
+    if (this.shouldUseLspMode()) {
+      // The LSP-mode dispatch derives everything from the live editor:
+      // the historical sessionName / isabelleExecutablePath are not
+      // used because LSP-mode runs go through isabelle vscode_server,
+      // not the Scala backend's `sledgehammer/run`.
+      this.executeLspRun(editor);
+    } else {
+      await this.executeBackendRun(editor, {
+        sessionName: entry.sessionName,
+        isabelleExecutablePath: entry.isabelleExecutablePath
+      });
+    }
   }
 
   public clearHistory(): void {
@@ -185,13 +236,160 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
   }
 
   public dispose(): void {
+    this.activeLspSession?.dispose();
+    this.activeLspSession = undefined;
+    this.activeLspRequestId = undefined;
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
     this.disposables.length = 0;
   }
 
-  private async executeRun(editor: vscode.TextEditor, overrides?: ExecuteRunOverrides): Promise<void> {
+  private hasActiveRun(): boolean {
+    return this.activeBackendRequestId !== undefined || this.activeLspSession !== undefined;
+  }
+
+  private shouldUseLspMode(): boolean {
+    return this.languageClient?.getStatus().state === "running";
+  }
+
+  private executeLspRun(editor: vscode.TextEditor): void {
+    if (!this.languageClient) {
+      // Defensive: shouldUseLspMode would have returned false, so we
+      // never reach here in practice. Keep the early-return so the
+      // assertion is documented in code rather than relying on call-site
+      // ordering.
+      return;
+    }
+
+    const requestId = `sledgehammer-lsp-${this.nextRequestNumber++}`;
+    const uri = editor.document.uri.toString();
+    const version = editor.document.version;
+    const settings = readSledgehammerSettings(vscode.workspace.getConfiguration("isabelle"));
+    const fallbackProvers = this.proversCache?.getProvers() ?? "";
+    const startedAt = new Date().toISOString();
+
+    this.activeLspRequestId = requestId;
+    this.lastResult = {
+      requestId,
+      uri,
+      version,
+      status: "running",
+      suggestions: [],
+      raw: "Dispatching Sledgehammer request via isabelle vscode_server (LSP mode).",
+      message: "Sledgehammer request dispatched to isabelle vscode_server."
+    };
+    this.lastOutputNodes = [];
+    this.history.recordStart({
+      requestId,
+      uri,
+      version,
+      sessionName: this.getActiveSessionName(),
+      isabelleExecutablePath: undefined,
+      startedAt
+    });
+    this.render();
+    this.updateContexts();
+
+    this.activeLspSession = new LspSledgehammerSession(
+      this.languageClient,
+      this.output,
+      {
+        uri,
+        position: {
+          line: editor.selection.active.line,
+          character: editor.selection.active.character
+        },
+        settings,
+        fallbackProvers
+      },
+      (update) => this.handleLspUpdate(requestId, uri, version, update)
+    );
+  }
+
+  private handleLspUpdate(
+    requestId: string,
+    uri: string,
+    documentVersion: number,
+    update: SessionUpdate
+  ): void {
+    // Late deliveries after the caller moved on or the session was
+    // superseded are dropped — only the live request id consumes
+    // updates.
+    if (this.activeLspRequestId !== requestId) {
+      return;
+    }
+
+    const result = convertSessionUpdateToRunResult(update, {
+      requestId,
+      uri,
+      documentVersion
+    });
+    this.lastResult = result;
+    this.lastOutputNodes = update.outputNodes;
+
+    if (isTerminalSessionStatus(update.status)) {
+      const finishedAt = new Date().toISOString();
+      if (update.status === "cancelled") {
+        this.history.recordCancellation(requestId, result.message ?? "Cancelled", finishedAt);
+      } else if (update.status === "errored") {
+        this.history.recordFailure(requestId, result.message ?? "Errored", finishedAt);
+      } else {
+        this.history.recordResult(requestId, result, finishedAt);
+      }
+      this.activeLspSession?.dispose();
+      this.activeLspSession = undefined;
+      this.activeLspRequestId = undefined;
+      this.output.appendLine(
+        `Sledgehammer (LSP) ${result.status}: ${result.message ?? result.raw}`
+      );
+      if (result.status === "completed" && result.suggestions.length > 0) {
+        vscode.window.showInformationMessage(
+          result.message ?? `Sledgehammer found ${result.suggestions.length} proof suggestion(s).`
+        );
+      } else if (result.message) {
+        vscode.window.showInformationMessage(result.message);
+      }
+    }
+
+    this.render();
+    this.updateContexts();
+  }
+
+  private handleLspStatusChange(status: IsabelleLanguageServerStatus): void {
+    if (!this.activeLspSession || !this.activeLspRequestId) {
+      return;
+    }
+    if (status.state === "running") {
+      return;
+    }
+    // The LSP left the running state while a session was in flight.
+    // The session itself can't observe this — its only inputs are
+    // notifications — so we abort it here, mark the run as failed,
+    // and surface a message so the user knows to retry.
+    const requestId = this.activeLspRequestId;
+    const reason = status.lastError
+      ? `Isabelle language server left running state (${status.state}): ${status.lastError}`
+      : `Isabelle language server left running state (${status.state}).`;
+    this.activeLspSession.dispose();
+    this.activeLspSession = undefined;
+    this.activeLspRequestId = undefined;
+    if (this.lastResult && this.lastResult.requestId === requestId) {
+      this.lastResult = {
+        ...this.lastResult,
+        status: "failed",
+        message: reason,
+        raw: reason
+      };
+    }
+    this.history.recordFailure(requestId, reason, new Date().toISOString());
+    this.output.appendLine(`Sledgehammer (LSP) aborted: ${reason}`);
+    vscode.window.showWarningMessage(reason);
+    this.render();
+    this.updateContexts();
+  }
+
+  private async executeBackendRun(editor: vscode.TextEditor, overrides?: ExecuteRunOverrides): Promise<void> {
     const requestId = `sledgehammer-${this.nextRequestNumber++}`;
     const uri = editor.document.uri.toString();
     const version = editor.document.version;
@@ -200,7 +398,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       ?? vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle");
     const startedAt = new Date().toISOString();
 
-    this.activeRequestId = requestId;
+    this.activeBackendRequestId = requestId;
     this.lastResult = {
       requestId,
       uri,
@@ -210,6 +408,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       raw: "Waiting for the Isabelle backend to evaluate the Sledgehammer request.",
       message: "Sledgehammer request sent to the backend."
     };
+    this.lastOutputNodes = [];
     this.history.recordStart({
       requestId,
       uri,
@@ -261,8 +460,8 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       this.output.appendLine(`Sledgehammer request failed: ${message}`);
       vscode.window.showErrorMessage(`Sledgehammer request failed: ${message}`);
     } finally {
-      if (this.activeRequestId === requestId) {
-        this.activeRequestId = undefined;
+      if (this.activeBackendRequestId === requestId) {
+        this.activeBackendRequestId = undefined;
       }
       this.render();
       this.updateContexts();
@@ -271,13 +470,21 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
 
   private render(): void {
     if (this.view) {
-      this.view.webview.html = renderSledgehammerHtml(this.lastResult, this.history.list());
+      this.view.webview.html = renderSledgehammerHtml(
+        this.lastResult,
+        this.history.list(),
+        this.lastOutputNodes
+      );
     }
   }
 
   private updateContexts(): void {
     const hasSuggestion = (this.lastResult?.suggestions.length ?? 0) > 0;
-    void vscode.commands.executeCommand("setContext", "isabelle.sledgehammerRunning", this.activeRequestId !== undefined);
+    void vscode.commands.executeCommand(
+      "setContext",
+      "isabelle.sledgehammerRunning",
+      this.hasActiveRun()
+    );
     void vscode.commands.executeCommand("setContext", "isabelle.sledgehammerHasSuggestion", hasSuggestion);
   }
 }
