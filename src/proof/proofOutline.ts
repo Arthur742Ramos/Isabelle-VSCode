@@ -6,7 +6,9 @@ import {
   isProofTerminalCommand,
   isTheoryStructureCommand
 } from "../semantic/isabelleSyntax";
-import { containsPosition, startsAfter, startsBeforeOrAt } from "../document/commandSpans";
+import { findCommandSpanAtOrBefore, startsAfter, startsBeforeOrAt } from "../document/commandSpans";
+
+export { findCommandSpanAtOrBefore } from "../document/commandSpans";
 
 export interface ProofOutlineNode {
   id: string;
@@ -66,14 +68,6 @@ export function buildProofOutline(spans: CommandSpan[]): ProofOutlineNode[] {
 
 export function flattenProofOutline(nodes: ProofOutlineNode[]): ProofOutlineNode[] {
   return nodes.flatMap((node) => [node, ...flattenProofOutline(node.children)]);
-}
-
-export function findCommandSpanAtOrBefore(
-  spans: CommandSpan[],
-  position: ProtocolPosition
-): CommandSpan | undefined {
-  return spans.find((span) => containsPosition(span, position))
-    ?? findLast(spans, (span) => startsBeforeOrAt(span.range.start, position));
 }
 
 export function nextCommandSpan(spans: CommandSpan[], position: ProtocolPosition): CommandSpan | undefined {
