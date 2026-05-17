@@ -107,6 +107,12 @@ Compile the Scala backend if `sbt` is available:
 npm run backend:compile
 ```
 
+Run the Scala backend unit tests if `sbt` is available:
+
+```powershell
+npm run backend:test
+```
+
 Run the backend during extension development:
 
 ```powershell
@@ -146,3 +152,5 @@ The high-level roadmap is:
 Motto: VS Code for UI, Isabelle/Scala for semantics, Isabelle/ML for truth.
 
 The Scala backend exposes a `PideBridge` trait (with a default `LocalSyntaxPideBridge` that preserves today's command-span-and-disclaimer behavior) so milestones 4, 5, and 7's PIDE-backed document status, entity metadata, structured proof state, and Sledgehammer proof search plug into a clear interface without changing the JSON-RPC protocol or the VS Code extension.
+
+A second bridge, `ScalaIsabellePideBridge`, is scaffolded behind the same seam and ships with this milestone as a deliberately conservative step toward live PIDE: the backend now depends on [`de.unruh:scala-isabelle`](https://github.com/dominique-unruh/scala-isabelle) so future PRs can call into Isabelle/PIDE directly. The bridge is **not wired in by default** and intentionally does not start an Isabelle process yet; it delegates `documentResult` to the fallback so document synchronization stays byte-identical, and reports `status: "unavailable"` for `proofState`/`sledgehammer` with explicit scaffold messaging. Follow-up PRs will add the TypeScript-side configuration plumbing to opt into this bridge and then wire real `scala-isabelle` calls. Runtime requirements once that lands: Linux or macOS, Java 11+, and a local Isabelle 2019+ installation (scala-isabelle does not support Windows at runtime).
