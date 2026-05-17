@@ -6,15 +6,23 @@ export const DOCUMENT_STATUS_SOURCE_LABEL = "Local command spans (syntax-only)";
 export const DOCUMENT_STATUS_DISCLAIMER =
   "Local syntax-only status from synchronized command spans; not PIDE diagnostics, proof checking, or Isabelle processing.";
 
-type CommandStatus = CommandSpan["status"];
+export type DocumentCommandStatus = CommandSpan["status"];
 
 export interface DocumentStatusCommand {
   id: string;
   label: string;
   kind: string;
   name?: string;
-  status: CommandStatus;
+  status: DocumentCommandStatus;
   range: ProtocolRange;
+}
+
+export interface DocumentStatusSnapshot {
+  uri: string;
+  version: number;
+  spans: readonly CommandSpan[];
+  commandCount: number;
+  statusCounts: Record<DocumentCommandStatus, number>;
 }
 
 export interface DocumentStatusSummary {
@@ -29,28 +37,54 @@ export interface DocumentStatusSummary {
     reason: string;
   };
   commandCount: number;
-  statusCounts: Record<CommandStatus, number>;
+  statusCounts: Record<DocumentCommandStatus, number>;
   currentCommand?: DocumentStatusCommand;
 }
 
 export interface BuildDocumentStatusParams {
   uri: string;
   version: number;
-  spans: CommandSpan[];
+  spans: readonly CommandSpan[];
   position?: ProtocolPosition;
 }
 
-const COMMAND_STATUSES: CommandStatus[] = ["pending", "running", "finished", "failed", "unknown"];
+export interface BuildDocumentStatusSnapshotParams {
+  uri: string;
+  version: number;
+  spans: readonly CommandSpan[];
+}
+
+const COMMAND_STATUSES: DocumentCommandStatus[] = ["pending", "running", "finished", "failed", "unknown"];
 const DIAGNOSTIC_REASON = "This local status surface does not publish Isabelle diagnostics.";
 
 export function buildDocumentStatusSummary(params: BuildDocumentStatusParams): DocumentStatusSummary {
-  const current = params.position
-    ? findCommandSpanAtOrBefore(params.spans, params.position)
-    : undefined;
+  return buildDocumentStatusSummaryFromSnapshot(
+    buildDocumentStatusSnapshot(params),
+    params.position
+  );
+}
 
+export function buildDocumentStatusSnapshot(params: BuildDocumentStatusSnapshotParams): DocumentStatusSnapshot {
   return {
     uri: params.uri,
     version: params.version,
+    spans: params.spans,
+    commandCount: params.spans.length,
+    statusCounts: countStatuses(params.spans)
+  };
+}
+
+export function buildDocumentStatusSummaryFromSnapshot(
+  snapshot: DocumentStatusSnapshot,
+  position?: ProtocolPosition
+): DocumentStatusSummary {
+  const current = position
+    ? findCommandSpanAtOrBefore(snapshot.spans, position)
+    : undefined;
+
+  return {
+    uri: snapshot.uri,
+    version: snapshot.version,
     source: DOCUMENT_STATUS_SOURCE,
     sourceLabel: DOCUMENT_STATUS_SOURCE_LABEL,
     disclaimer: DOCUMENT_STATUS_DISCLAIMER,
@@ -59,8 +93,8 @@ export function buildDocumentStatusSummary(params: BuildDocumentStatusParams): D
       source: "none",
       reason: DIAGNOSTIC_REASON
     },
-    commandCount: params.spans.length,
-    statusCounts: countStatuses(params.spans),
+    commandCount: snapshot.commandCount,
+    statusCounts: { ...snapshot.statusCounts },
     currentCommand: current ? statusCommand(current) : undefined
   };
 }
@@ -114,8 +148,8 @@ export function formatDocumentStatusDetails(summary: DocumentStatusSummary): str
   return lines.join("\n");
 }
 
-function countStatuses(spans: CommandSpan[]): Record<CommandStatus, number> {
-  const counts = Object.fromEntries(COMMAND_STATUSES.map((status) => [status, 0])) as Record<CommandStatus, number>;
+function countStatuses(spans: readonly CommandSpan[]): Record<DocumentCommandStatus, number> {
+  const counts = Object.fromEntries(COMMAND_STATUSES.map((status) => [status, 0])) as Record<DocumentCommandStatus, number>;
 
   for (const span of spans) {
     counts[span.status]++;
@@ -135,7 +169,7 @@ function statusCommand(span: CommandSpan): DocumentStatusCommand {
   };
 }
 
-function formatStatusCounts(counts: Record<CommandStatus, number>): string {
+function formatStatusCounts(counts: Record<DocumentCommandStatus, number>): string {
   return COMMAND_STATUSES
     .filter((status) => counts[status] > 0)
     .map((status) => `${status} ${counts[status]}`)

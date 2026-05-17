@@ -61,7 +61,7 @@ export function containsPosition(span: CommandSpan, position: ProtocolPosition):
 }
 
 export function findCommandSpanAtOrBefore(
-  spans: CommandSpan[],
+  spans: readonly CommandSpan[],
   position: ProtocolPosition
 ): CommandSpan | undefined {
   return spans.find((span) => containsPosition(span, position))
@@ -80,7 +80,7 @@ function endsAfter(end: ProtocolPosition, position: ProtocolPosition): boolean {
   return end.line > position.line || (end.line === position.line && end.character > position.character);
 }
 
-function findLast<T>(items: T[], predicate: (item: T) => boolean): T | undefined {
+function findLast<T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined {
   for (let index = items.length - 1; index >= 0; index--) {
     if (predicate(items[index])) {
       return items[index];
