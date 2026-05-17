@@ -1,10 +1,15 @@
 import * as vscode from "vscode";
 import {
   buildTheoryDependencyGraph,
+  computeReverseDependencies,
+  findNodeByPath,
+  ReverseDependencyEntry,
   TheoryDependencyGraph,
-  TheoryGraphImport,
   TheoryGraphNode,
-  TheoryGraphSession
+  TheoryGraphSession,
+  TheoryGraphViewMode,
+  TheoryRelationEntry,
+  theoryRelationEntries
 } from "./dependencyGraph";
 import { SessionService } from "../session/SessionService";
 
@@ -14,12 +19,14 @@ type TheoryGraphTreeNode =
   | { kind: "category"; label: string; children: TheoryGraphTreeNode[] }
   | { kind: "sessionDependency"; sessionName: string }
   | { kind: "theory"; graphNode: TheoryGraphNode }
-  | { kind: "import"; graphImport: TheoryGraphImport };
+  | { kind: "relation"; entry: TheoryRelationEntry };
 
 export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGraphTreeNode>, vscode.Disposable {
   private readonly didChangeTreeData = new vscode.EventEmitter<TheoryGraphTreeNode | undefined>();
   private readonly subscriptions: vscode.Disposable[] = [];
   private graph: TheoryDependencyGraph | undefined;
+  private reverseAdjacency: Map<string, ReverseDependencyEntry[]> = new Map();
+  private viewMode: TheoryGraphViewMode = "dependencies";
 
   public readonly onDidChangeTreeData = this.didChangeTreeData.event;
 
@@ -32,14 +39,49 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
 
   public async refresh(): Promise<void> {
     this.graph = await buildTheoryDependencyGraph(this.sessions.getSessions());
+    this.reverseAdjacency = computeReverseDependencies(this.graph);
     const externalImports = this.graph.nodes.reduce(
       (count, node) => count + node.imports.filter((graphImport) => graphImport.kind === "external").length,
       0
     );
+    const reverseDependents = [...this.reverseAdjacency.values()].reduce(
+      (count, entries) => count + entries.length,
+      0
+    );
     this.output.appendLine(
-      `Built Isabelle theory graph: ${this.graph.nodes.length} theory node(s), ${this.graph.edges.length} resolved import edge(s), ${externalImports} external import(s).`
+      `Built Isabelle theory graph: ${this.graph.nodes.length} theory node(s), ${this.graph.edges.length} resolved import edge(s), ${externalImports} external import(s), ${reverseDependents} reverse dependent entr${reverseDependents === 1 ? "y" : "ies"}.`
     );
     this.didChangeTreeData.fire(undefined);
+  }
+
+  public getViewMode(): TheoryGraphViewMode {
+    return this.viewMode;
+  }
+
+  public setViewMode(mode: TheoryGraphViewMode): void {
+    if (this.viewMode === mode) {
+      return;
+    }
+    this.viewMode = mode;
+    this.didChangeTreeData.fire(undefined);
+  }
+
+  public toggleViewMode(): TheoryGraphViewMode {
+    this.setViewMode(this.viewMode === "dependencies" ? "dependents" : "dependencies");
+    return this.viewMode;
+  }
+
+  public async getReverseDependencies(theoryId: string): Promise<ReverseDependencyEntry[]> {
+    await this.getGraph();
+    return (this.reverseAdjacency.get(theoryId) ?? []).map((entry) => ({
+      ...entry,
+      importNames: [...entry.importNames]
+    }));
+  }
+
+  public async findTheoryByPath(theoryPath: string): Promise<TheoryGraphNode | undefined> {
+    const graph = await this.getGraph();
+    return findNodeByPath(graph, theoryPath);
   }
 
   public getTreeItem(element: TheoryGraphTreeNode): vscode.TreeItem {
@@ -67,8 +109,8 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
         };
       case "theory":
         return this.theoryItem(element.graphNode);
-      case "import":
-        return this.importItem(element.graphImport);
+      case "relation":
+        return this.relationItem(element.entry);
     }
   }
 
@@ -93,7 +135,7 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
       case "category":
         return element.children;
       case "theory":
-        return element.graphNode.imports.map((graphImport) => ({ kind: "import", graphImport }));
+        return this.theoryChildren(graph, element.graphNode);
       default:
         return [];
     }
@@ -108,6 +150,7 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
 
   private invalidate(): void {
     this.graph = undefined;
+    this.reverseAdjacency = new Map();
     this.didChangeTreeData.fire(undefined);
   }
 
@@ -119,6 +162,13 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
       throw new Error("Unable to build Isabelle theory graph.");
     }
     return this.graph;
+  }
+
+  private theoryChildren(graph: TheoryDependencyGraph, graphNode: TheoryGraphNode): TheoryGraphTreeNode[] {
+    return theoryRelationEntries(graph, this.reverseAdjacency, graphNode.id, this.viewMode).map((entry) => ({
+      kind: "relation",
+      entry
+    }));
   }
 
   private sessionItem(graphSession: TheoryGraphSession): vscode.TreeItem {
@@ -133,13 +183,24 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
   }
 
   private theoryItem(graphNode: TheoryGraphNode): vscode.TreeItem {
-    const resolved = graphNode.imports.filter((graphImport) => graphImport.kind === "resolved").length;
-    const external = graphNode.imports.length - resolved;
+    const childCount = this.viewMode === "dependents"
+      ? (this.reverseAdjacency.get(graphNode.id)?.length ?? 0)
+      : graphNode.imports.length;
     const item = new vscode.TreeItem(
       graphNode.theoryName,
-      graphNode.imports.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+      childCount > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
     );
-    item.description = importSummary(resolved, external);
+
+    if (this.viewMode === "dependents") {
+      item.description = childCount > 0
+        ? `${childCount} dependent ${childCount === 1 ? "theory" : "theories"}`
+        : undefined;
+    } else {
+      const resolved = graphNode.imports.filter((graphImport) => graphImport.kind === "resolved").length;
+      const external = graphNode.imports.length - resolved;
+      item.description = importSummary(resolved, external);
+    }
+
     item.tooltip = [
       graphNode.declaredName && graphNode.declaredName !== graphNode.theoryName
         ? `Declares: ${graphNode.declaredName}`
@@ -164,18 +225,46 @@ export class TheoryGraphTreeProvider implements vscode.TreeDataProvider<TheoryGr
     return item;
   }
 
-  private importItem(graphImport: TheoryGraphImport): vscode.TreeItem {
-    const item = new vscode.TreeItem(graphImport.name, vscode.TreeItemCollapsibleState.None);
-    item.description =
-      graphImport.kind === "resolved" && graphImport.targetSessionName
-        ? graphImport.targetSessionName
-        : "external or unresolved";
-    item.tooltip =
-      graphImport.kind === "resolved" && graphImport.targetTheoryName
-        ? `Resolves to ${graphImport.targetTheoryName}`
-        : "Not resolved to a discovered workspace theory.";
-    item.iconPath = new vscode.ThemeIcon(graphImport.kind === "resolved" ? "references" : "warning");
-    item.contextValue = graphImport.kind === "resolved" ? "isabelleTheoryGraphImport" : "isabelleTheoryGraphExternalImport";
+  private relationItem(entry: TheoryRelationEntry): vscode.TreeItem {
+    if (entry.kind === "import") {
+      return this.importRelationItem(entry);
+    }
+    return this.dependentRelationItem(entry);
+  }
+
+  private importRelationItem(entry: Extract<TheoryRelationEntry, { kind: "import" }>): vscode.TreeItem {
+    const item = new vscode.TreeItem(entry.importName, vscode.TreeItemCollapsibleState.None);
+    item.description = entry.external ? "external or unresolved" : entry.sessionName;
+    item.tooltip = entry.external
+      ? "Not resolved to a discovered workspace theory."
+      : `Resolves to ${entry.theoryName}`;
+    item.iconPath = new vscode.ThemeIcon(entry.external ? "warning" : "references");
+    item.contextValue = entry.external ? "isabelleTheoryGraphExternalImport" : "isabelleTheoryGraphImport";
+    return item;
+  }
+
+  private dependentRelationItem(entry: Extract<TheoryRelationEntry, { kind: "dependent" }>): vscode.TreeItem {
+    const item = new vscode.TreeItem(entry.theoryName, vscode.TreeItemCollapsibleState.None);
+    item.description = entry.sessionName;
+    item.tooltip = [
+      `Imported by ${entry.sessionName}.${entry.theoryName}`,
+      entry.path,
+      entry.importNames.length > 0 ? `Import statements: ${entry.importNames.join(", ")}` : undefined
+    ]
+      .filter(isString)
+      .join("\n");
+    item.iconPath = new vscode.ThemeIcon(entry.path ? "arrow-left" : "warning");
+    item.contextValue = "isabelleTheoryGraphDependent";
+
+    if (entry.path) {
+      item.resourceUri = vscode.Uri.file(entry.path);
+      item.command = {
+        command: "isabelle.openTheory",
+        title: "Open Isabelle Theory",
+        arguments: [entry.path]
+      };
+    }
+
     return item;
   }
 }

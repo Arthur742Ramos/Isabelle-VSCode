@@ -41,6 +41,36 @@ export interface TheoryGraphEdge {
   importName: string;
 }
 
+export type TheoryGraphViewMode = "dependencies" | "dependents";
+
+export interface ReverseDependencyEntry {
+  importerId: string;
+  importerTheoryName: string;
+  importerSessionName: string;
+  importerPath?: string;
+  importNames: string[];
+}
+
+export type TheoryRelationEntry =
+  | {
+      kind: "import";
+      relatedTheoryId?: string;
+      theoryName: string;
+      sessionName?: string;
+      path?: string;
+      importName: string;
+      external: boolean;
+    }
+  | {
+      kind: "dependent";
+      relatedTheoryId: string;
+      theoryName: string;
+      sessionName: string;
+      path?: string;
+      importNames: string[];
+      external: false;
+    };
+
 interface MutableTheoryGraphNode extends TheoryGraphNode {
   imports: TheoryGraphImport[];
   importedBy: string[];
@@ -307,4 +337,119 @@ function isString(value: string | undefined): value is string {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+export function computeReverseDependencies(graph: TheoryDependencyGraph): Map<string, ReverseDependencyEntry[]> {
+  const reverse = new Map<string, ReverseDependencyEntry[]>();
+  for (const node of graph.nodes) {
+    reverse.set(node.id, []);
+  }
+
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  type Bucket = Map<string, ReverseDependencyEntry>;
+  const bucketsByTarget = new Map<string, Bucket>();
+
+  for (const edge of graph.edges) {
+    const source = nodeById.get(edge.sourceId);
+    if (!source) {
+      continue;
+    }
+    if (!reverse.has(edge.targetId)) {
+      continue;
+    }
+
+    const bucket = bucketsByTarget.get(edge.targetId) ?? new Map();
+    bucketsByTarget.set(edge.targetId, bucket);
+
+    const existing = bucket.get(source.id);
+    if (existing) {
+      if (!existing.importNames.includes(edge.importName)) {
+        existing.importNames.push(edge.importName);
+      }
+    } else {
+      bucket.set(source.id, {
+        importerId: source.id,
+        importerTheoryName: source.theoryName,
+        importerSessionName: source.sessionName,
+        importerPath: source.path,
+        importNames: [edge.importName]
+      });
+    }
+  }
+
+  for (const [targetId, bucket] of bucketsByTarget) {
+    const entries = [...bucket.values()];
+    for (const entry of entries) {
+      entry.importNames.sort();
+    }
+    entries.sort(compareReverseEntries);
+    reverse.set(targetId, entries);
+  }
+
+  return reverse;
+}
+
+export function theoryRelationEntries(
+  graph: TheoryDependencyGraph,
+  reverseAdjacency: Map<string, ReverseDependencyEntry[]>,
+  theoryId: string,
+  mode: TheoryGraphViewMode
+): TheoryRelationEntry[] {
+  const node = graph.nodes.find((candidate) => candidate.id === theoryId);
+  if (!node) {
+    return [];
+  }
+
+  if (mode === "dependencies") {
+    return node.imports.map((graphImport): TheoryRelationEntry => {
+      if (graphImport.kind === "resolved" && graphImport.targetId) {
+        const target = graph.nodes.find((candidate) => candidate.id === graphImport.targetId);
+        return {
+          kind: "import",
+          relatedTheoryId: graphImport.targetId,
+          theoryName: graphImport.targetTheoryName ?? target?.theoryName ?? graphImport.name,
+          sessionName: graphImport.targetSessionName ?? target?.sessionName,
+          path: target?.path,
+          importName: graphImport.name,
+          external: false
+        };
+      }
+      return {
+        kind: "import",
+        relatedTheoryId: undefined,
+        theoryName: graphImport.name,
+        sessionName: undefined,
+        path: undefined,
+        importName: graphImport.name,
+        external: true
+      };
+    });
+  }
+
+  const reverse = reverseAdjacency.get(theoryId) ?? [];
+  return reverse.map((entry): TheoryRelationEntry => ({
+    kind: "dependent",
+    relatedTheoryId: entry.importerId,
+    theoryName: entry.importerTheoryName,
+    sessionName: entry.importerSessionName,
+    path: entry.importerPath,
+    importNames: [...entry.importNames],
+    external: false
+  }));
+}
+
+export function findNodeByPath(
+  graph: TheoryDependencyGraph,
+  theoryPath: string
+): TheoryGraphNode | undefined {
+  const normalized = normalizePath(theoryPath);
+  return graph.nodes.find((node) => node.path !== undefined && normalizePath(node.path) === normalized);
+}
+
+function compareReverseEntries(left: ReverseDependencyEntry, right: ReverseDependencyEntry): number {
+  return (
+    left.importerSessionName.localeCompare(right.importerSessionName) ||
+    left.importerTheoryName.localeCompare(right.importerTheoryName) ||
+    left.importerId.localeCompare(right.importerId)
+  );
 }

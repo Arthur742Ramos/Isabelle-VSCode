@@ -150,6 +150,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
     vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
     vscode.commands.registerCommand("isabelle.refreshTheoryGraph", async () => refreshTheoryGraph(output)),
+    vscode.commands.registerCommand("isabelle.showTheoryDependents", async () => showTheoryDependents(output)),
+    vscode.commands.registerCommand("isabelle.toggleTheoryGraphMode", () => toggleTheoryGraphMode()),
     vscode.commands.registerCommand("isabelle.refreshTheoryOutline", () => theoryOutlineTree?.refresh()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
@@ -378,6 +380,74 @@ async function refreshTheoryGraph(output: vscode.OutputChannel): Promise<void> {
   } catch (error) {
     showBackendError("Unable to refresh Isabelle theory graph", error, output);
   }
+}
+
+async function showTheoryDependents(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || !isTheoryDocument(editor.document) || editor.document.uri.scheme !== "file") {
+      vscode.window.showInformationMessage("Open an Isabelle theory file to look up its dependents.");
+      return;
+    }
+
+    const service = requireSessionService();
+    if (service.getSessions().length === 0) {
+      await service.refresh();
+    }
+
+    const tree = requireTheoryGraphTree();
+    const node = await tree.findTheoryByPath(editor.document.uri.fsPath);
+    if (!node) {
+      vscode.window.showInformationMessage(
+        "The active theory is not part of the discovered Isabelle theory graph. Run Isabelle: Discover Sessions and try again."
+      );
+      return;
+    }
+
+    const dependents = await tree.getReverseDependencies(node.id);
+    if (dependents.length === 0) {
+      vscode.window.showInformationMessage(
+        `No discovered Isabelle theory imports ${node.theoryName}.`
+      );
+      return;
+    }
+
+    const picked = await vscode.window.showQuickPick(
+      dependents.map((entry) => ({
+        label: entry.importerTheoryName,
+        description: entry.importerSessionName,
+        detail: entry.importerPath ?? "(no source file recorded)",
+        entry
+      })),
+      {
+        title: `Isabelle theories that import ${node.theoryName}`,
+        placeHolder: "Select a dependent theory to open",
+        matchOnDescription: true,
+        matchOnDetail: true
+      }
+    );
+
+    if (!picked) {
+      return;
+    }
+
+    if (!picked.entry.importerPath) {
+      vscode.window.showInformationMessage(
+        `${picked.entry.importerTheoryName} has no source file recorded in the discovered graph.`
+      );
+      return;
+    }
+
+    await openTheory(picked.entry.importerPath);
+  } catch (error) {
+    showBackendError("Unable to compute Isabelle theory dependents", error, output);
+  }
+}
+
+function toggleTheoryGraphMode(): void {
+  const mode = requireTheoryGraphTree().toggleViewMode();
+  const label = mode === "dependents" ? "Dependents (imported by)" : "Dependencies (imports)";
+  vscode.window.showInformationMessage(`Isabelle theory graph mode: ${label}.`);
 }
 
 async function replaySledgehammerRun(requestId: string | undefined): Promise<void> {
