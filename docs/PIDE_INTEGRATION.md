@@ -16,35 +16,38 @@ Today the extension is intentionally a set of conservative local foundations
 surface, theory outline, theory graph, sledgehammer workflow boundary,
 checked repair preview) sitting on top of a Scala backend with a
 [`PideBridge`](../backend/src/main/scala/dev/isabelle/vscode/server/PideBridge.scala)
-seam whose only implementation is the local-syntax fallback. Real PIDE
+seam whose default implementation is the local-syntax fallback. Real PIDE
 behaviour — live document processing, Isabelle-published diagnostics,
 entity-level hovers and definitions, structured proof state, Sledgehammer
-proof search — does not exist on `main`. The plan in this document is to add
-real PIDE behaviour by running Isabelle's own `isabelle vscode_server` as a
-child LSP process of the extension. The TypeScript scaffolding for that
-client is planned work; at the time of writing it is not present on `main`
-and there is no open GitHub pull request for it yet. Everything below that
-describes the LSP client's settings, commands, or behaviour therefore
-documents intended behaviour, not shipped behaviour.
+proof search — comes from running Isabelle's own `isabelle vscode_server`
+as a child LSP process of the extension. The TypeScript scaffolding for
+that client landed in PR #26 with cross-platform support (Linux, macOS,
+and Windows via the `.ps1` auto-wrap added in PR #27); enabling it on a
+machine with Isabelle 2019+ installed turns on PIDE-flavoured diagnostics,
+hover, definition, completion, and document-symbol features. The
+capability roll-out plan below tracks the per-feature wiring that layers
+extension-specific surfaces (the theory-outline merge, status-bar
+decoration source switching, Sledgehammer panel routing) on top of what
+the server already provides.
 
 ## Architecture
 
 The chosen architecture keeps today's Scala backend exactly where it is, and
 adds the Isabelle-bundled language server as an additive, opt-in second
-path. A mental model of what the extension is intended to look like once the
-LSP relay lands:
+path. As of PR #26 and PR #27 the architecture below describes the shipped
+state on `main`:
 
 ```mermaid
 flowchart TD
     ext["VS Code extension (TypeScript)"]
 
-    subgraph current["Current path (always on, ships today)"]
+    subgraph current["Scala-backend path (always on)"]
         backend["Scala backend<br/>(custom JSON-RPC over Content-Length)"]
         store["DocumentStore"]
         bridge["PideBridge<br/>(LocalSyntaxPideBridge default)"]
     end
 
-    subgraph planned["Planned path (opt-in, not on main yet)"]
+    subgraph lspPath["LSP-relay path (opt-in, on main)"]
         lsp["vscode-languageclient"]
         server["child process:<br/>isabelle vscode_server (stdio LSP)"]
         pide["Isabelle/PIDE engine<br/>(Pure + HOL session, etc.)"]
@@ -54,15 +57,16 @@ flowchart TD
     backend --> store
     store --> bridge
 
-    ext -.->|"isabelle.languageServer.enabled = true"| lsp
+    ext -->|"isabelle.languageServer.enabled = true"| lsp
     lsp --> server
     server --> pide
 ```
 
-> The dashed edge is the planned, opt-in LSP relay. It is not implemented on
-> `main` at the time of writing. The solid path through the Scala backend is
-> the path the extension uses today and will continue to use even when the
-> LSP relay is enabled.
+> Both paths now ship on `main`. The Scala-backend path is always active; the
+> LSP-relay path activates when the user sets
+> `isabelle.languageServer.enabled = true`. The two paths coexist — VS Code
+> aggregates results from both the LSP-provided features and the existing
+> local providers.
 
 The Scala backend remains the home of session discovery, ROOT/ROOTS
 parsing, the Isabelle CLI build runner, the document-synchronization
@@ -73,8 +77,8 @@ semantics. The `PideBridge` seam introduced in PR #13
 is preserved as the integration point for future Scala-side PIDE work that
 does not naturally fit into LSP requests.
 
-The planned LSP relay is an additive, opt-in path. When enabled, the
-extension would spawn `isabelle vscode_server` as a child process and route
+The LSP relay is an additive, opt-in path. When enabled (PR #26), the
+extension spawns `isabelle vscode_server` as a child process and routes
 LSP-standard features (diagnostics, hover, definition, completion, document
 symbols) through VS Code's standard surfaces using
 [`vscode-languageclient`](https://www.npmjs.com/package/vscode-languageclient).
@@ -85,9 +89,10 @@ F12 navigation, the outline view, the completion list).
 Why this approach:
 
 - **Cross-platform by default.** `isabelle vscode_server` is part of the
-  official Isabelle distribution, so it is expected to work anywhere the
-  `isabelle` command itself runs — Linux, macOS, and Windows wherever the
-  user's Isabelle install runs there.
+  official Isabelle distribution, so it works anywhere the `isabelle`
+  command runs — Linux, macOS, and Windows. The Windows `.ps1` launcher is
+  auto-wrapped via `powershell.exe -File` so users don't need any extra
+  configuration (PR #27).
 - **Leverages official Isabelle infrastructure.** The PIDE wiring inside
   `isabelle vscode_server` is maintained by the Isabelle developers
   themselves and tracks the real PIDE engine. Reusing it avoids
@@ -102,22 +107,26 @@ Why this approach:
 
 ## Runtime prerequisites
 
-The LSP relay design assumes the following runtime environment. None of
-these requirements is enforced by code on `main` today; they describe what
-the planned LSP-client work is expected to need.
+The LSP relay requires the following runtime environment when
+`isabelle.languageServer.enabled = true`. The relay itself ships on `main`
+(PR #26 and PR #27); these requirements describe what users need installed
+on their machine to actually exercise it.
 
 - A working Isabelle installation reachable through the existing
   `isabelle.executablePath` setting (default: `isabelle` on `PATH`). The
-  `isabelle vscode_server` tool must be present in that installation; this
+  `isabelle vscode_server` tool must be present in that installation. It
   has shipped as part of the official Isabelle distribution for several
-  recent major releases, but the exact minimum supported Isabelle version
-  should be verified against upstream Isabelle release notes before the LSP
-  client lands.
+  recent major releases. The LSP client scaffold landed in PR #26 was
+  verified end-to-end against **Isabelle 2025-2**, where the server
+  advertises `codeActionProvider`, `completionProvider`,
+  `definitionProvider`, `documentHighlightProvider`, `hoverProvider`, and
+  `textDocumentSync` capabilities.
 - No additional Linux- or macOS-only restriction. Isabelle's official
-  Windows distribution bundles a Cygwin layer, so `isabelle vscode_server`
-  is expected to work on Windows wherever the configured `isabelle` command
-  works there. Concrete Windows verification is a follow-up task in the
-  capability roll-out plan below.
+  Windows distribution ships its launcher as `isabelle.ps1`; the LSP
+  client auto-wraps `.ps1`/`.psm1` paths via
+  `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File <path>`
+  (added in PR #27), so Windows users can enable the LSP path with the
+  default `isabelle.executablePath` without any extra configuration.
 - Java is already required by Isabelle itself; the extension does not add a
   separate Java dependency from the LSP-client side.
 - The extension's own runtime requirement (Node.js for the extension host,
@@ -126,16 +135,14 @@ the planned LSP-client work is expected to need.
 
 ## Configuration surface
 
-The following settings, commands, and UI surface describe the planned
-configuration shape of the LSP-client work. **None of these settings,
-commands, or UI elements exist on `main` at the time of writing**, and no
-GitHub pull request for the LSP client has been opened yet. Names and
-defaults may change before implementation. This section documents the
-intended shape so reviewers of the eventual LSP-client PR have something
-concrete to push back against.
+The settings, commands, and UI surface below are **shipped on `main`** as
+of PR #26 (LSP client scaffold) and PR #27 (Windows `.ps1` auto-wrap).
+Toggling `isabelle.languageServer.enabled = true` actually starts a child
+`isabelle vscode_server` process today; the capability roll-out plan below
+describes the per-feature work that layers VS Code surfaces on top of what
+the server already provides.
 
-Planned settings (added under the existing `Isabelle PIDE` configuration
-block):
+Shipped settings (under the existing `Isabelle PIDE` configuration block):
 
 - `isabelle.languageServer.enabled` — boolean, default `false`. Master
   switch. The default-off behaviour means installing or upgrading the
@@ -151,7 +158,7 @@ block):
   from `isabelle vscode_server` in its existing `Isabelle PIDE` output
   channel, for diagnosing connection issues.
 
-Planned commands (registered alongside the existing `Isabelle:` command
+Shipped commands (registered alongside the existing `Isabelle:` command
 family):
 
 - `Isabelle: Start Language Server` — starts the `isabelle vscode_server`
@@ -164,7 +171,7 @@ family):
   of the current LSP connection state, the Isabelle executable in use, and
   any recent connection errors.
 
-Planned UI:
+Shipped UI:
 
 - A status-bar item that reflects the current LSP connection state
   (disabled, starting, running, errored, stopped) and offers click-through
@@ -183,7 +190,7 @@ these items are done today.
         textDocument/didClose for `.thy` documents from the extension to
         isabelle vscode_server, alongside the existing custom
         document/openTheory|update|close traffic to the Scala backend. Owned
-        by the planned IsabelleLanguageClient module. Validated by opening,
+        by `src/lsp/IsabelleLanguageClient.ts`. Validated by opening,
         editing, and closing a theory while the LSP is enabled and observing
         the round-trip in the LSP trace.
   - [ ] Surface PublishDiagnostics notifications from isabelle vscode_server
@@ -250,22 +257,23 @@ these items are done today.
   command-span extraction, the custom JSON-RPC contract used by
   `DocumentSyncService`, the document-status surface, the proof-state
   boundary, the Sledgehammer workflow boundary, and any future
-  non-LSP-shaped PIDE work. The planned LSP client may provide
-  editor-facing PIDE services where `isabelle vscode_server` exposes them,
-  but it does not replace the backend protocol and it does not remove or
-  subsume the `PideBridge` seam.
+  non-LSP-shaped PIDE work. The LSP client provides editor-facing PIDE
+  services where `isabelle vscode_server` exposes them, but it does not
+  replace the backend protocol and it does not remove or subsume the
+  `PideBridge` seam.
 - Some `isabelle vscode_server` features rely on Isabelle-specific LSP
   extensions whose exact request shapes can change between Isabelle major
-  releases. The extension is expected to pin its compatibility to specific
-  Isabelle major versions and to surface incompatibilities through the
-  planned language-server status-bar item rather than failing silently.
+  releases. The extension pins its compatibility to specific Isabelle major
+  versions; incompatibilities surface through the language-server
+  status-bar item rather than failing silently.
 - The extension does not vendor Isabelle. Users must install Isabelle
   themselves and either keep `isabelle` on `PATH` or set
   `isabelle.executablePath`. The same is true today for the existing CLI
   build runner.
-- Nothing in this document is implemented on `main` at the time of
-  writing. The configuration surface, commands, and capability checklist
-  items above describe intended behaviour for the planned LSP-client work.
+- The LSP client scaffold (PR #26) and the Windows `.ps1` auto-wrap
+  (PR #27) are on `main`. The capability roll-out checklist above lists
+  the per-feature integration work that still needs to land — the LSP
+  connection itself is wired and verified end-to-end.
 
 ## References
 
@@ -274,12 +282,13 @@ these items are done today.
   <https://isabelle.in.tum.de/repos/isabelle/file/Isabelle2024/src/Tools/VSCode>
 - Microsoft Language Server Protocol specification:
   <https://microsoft.github.io/language-server-protocol>
-- `vscode-languageclient` npm package (the planned LSP client dependency):
+- `vscode-languageclient` npm package (the LSP client dependency):
   <https://www.npmjs.com/package/vscode-languageclient>
 - Microsoft Language Server Extension Guide:
   <https://code.visualstudio.com/api/language-extensions/language-server-extension-guide>
 - This repository's PIDE bridge seam:
   [`backend/src/main/scala/dev/isabelle/vscode/server/PideBridge.scala`](../backend/src/main/scala/dev/isabelle/vscode/server/PideBridge.scala)
-- Planned file (not present on `main` yet): `src/lsp/IsabelleLanguageClient.ts`
-  will own the `vscode-languageclient` instance and the spawn/lifecycle
-  management for `isabelle vscode_server`.
+- LSP client lifecycle owner:
+  [`src/lsp/IsabelleLanguageClient.ts`](../src/lsp/IsabelleLanguageClient.ts) (introduced in PR #26)
+- Windows `.ps1` auto-wrap helper:
+  [`src/lsp/languageServerArgs.ts`](../src/lsp/languageServerArgs.ts) (introduced in PR #27)
