@@ -14,6 +14,12 @@ import {
   PideDynamicOutputSession
 } from "./PideDynamicOutputSession";
 import { PideProofStateView, renderProofStateHtml } from "./proofStateRenderer";
+import {
+  DEFAULT_PROOF_STATE_SETTINGS,
+  ProofStateSettings,
+  diffProofStateSettings,
+  readProofStateSettings
+} from "./proofStateSettings";
 
 export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
@@ -30,6 +36,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private dynamicSession: PideDynamicOutputSession | undefined;
   private dynamicOutputNodes: readonly PideOutputNode[] = [];
 
+  private appliedSettings: ProofStateSettings = { ...DEFAULT_PROOF_STATE_SETTINGS };
+
   public constructor(
     private readonly backendManager: BackendManager,
     private readonly output: vscode.OutputChannel,
@@ -41,6 +49,15 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (isTheoryDocument(event.document)) {
           this.scheduleRefresh();
+        }
+      }),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration("isabelle.proofState.autoUpdate") ||
+          event.affectsConfiguration("isabelle.proofState.margin") ||
+          event.affectsConfiguration("isabelle.dynamicOutput.margin")
+        ) {
+          this.applyLspSettings();
         }
       })
     );
@@ -168,7 +185,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private startLspSession(): void {
     if (!this.languageClient || this.lspSession) return;
     this.lspOutputNodes = [];
-    this.lspAutoUpdate = true;
+    this.appliedSettings = this.readCurrentSettings();
+    this.lspAutoUpdate = this.appliedSettings.autoUpdate;
     this.lspStatus = "initializing";
     this.lspError = undefined;
     this.lspSession = new LspProofStateSession(
@@ -184,6 +202,11 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     );
     this.output.appendLine("Proof state: LSP-mode session starting");
     this.render();
+    // Apply the configured settings as soon as the upstream session is
+    // active. Margin pushes are tolerant of being sent before the
+    // session reports `active`; auto_update is also queued via the
+    // LspProofStateSession's internal `canSend` guard.
+    this.applyLspSettings();
   }
 
   private stopLspSession(): void {
@@ -235,6 +258,54 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       return;
     }
     this.view.webview.html = renderProofStateHtml(this.lastState);
+  }
+
+  /**
+   * Imperative entry point for `Isabelle: Toggle Proof State Auto-Update`.
+   * Flips the cached setting in addition to forwarding the toggle to
+   * the upstream `PIDE/state_auto_update` so the next session-startup
+   * inherits the user's choice without a workspace reload.
+   */
+  public toggleAutoUpdate(): boolean {
+    const next = !this.appliedSettings.autoUpdate;
+    this.appliedSettings = { ...this.appliedSettings, autoUpdate: next };
+    if (this.lspSession) {
+      this.lspSession.setAutoUpdate(next);
+    }
+    return next;
+  }
+
+  /**
+   * Imperative entry point for `Isabelle: Re-anchor Proof State to
+   * Cursor`. Sends `PIDE/state_locate` so the upstream State_Panel
+   * re-anchors to the current caret. No-op when no LSP session is
+   * active.
+   */
+  public requestLocate(): void {
+    this.lspSession?.requestLocate();
+  }
+
+  private applyLspSettings(): void {
+    const next = this.readCurrentSettings();
+    const delta = diffProofStateSettings(this.appliedSettings, next);
+    this.appliedSettings = next;
+    if (!this.lspSession) return;
+    if (delta.autoUpdateChanged) {
+      this.lspSession.setAutoUpdate(next.autoUpdate);
+    }
+    if (delta.proofStateMarginChanged) {
+      this.lspSession.setMargin(next.proofStateMargin);
+    }
+    if (delta.dynamicOutputMarginChanged) {
+      this.dynamicSession?.setMargin(next.dynamicOutputMargin);
+    }
+  }
+
+  private readCurrentSettings(): ProofStateSettings {
+    const config = vscode.workspace.getConfiguration("isabelle");
+    return readProofStateSettings({
+      get: <T>(section: string) => config.get<T>(section)
+    });
   }
 }
 

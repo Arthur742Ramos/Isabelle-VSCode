@@ -11,6 +11,13 @@ import {
 
 class FakeClient implements DynamicOutputClient {
   public handlers = new Map<string, Set<(params: unknown) => void>>();
+  public sent: { method: string; params?: unknown }[] = [];
+  public throwOnSend = false;
+
+  public sendNotification(method: string, params?: unknown): void {
+    if (this.throwOnSend) throw new Error("send blew up");
+    this.sent.push({ method, params });
+  }
 
   public onNotification(
     method: string,
@@ -188,5 +195,44 @@ describe("PideDynamicOutputSession", () => {
     // Two throws now logged (initial emit + the notification emit).
     expect(logger.messages.filter((m) => m.includes("UI broke")).length).toBeGreaterThanOrEqual(2);
     session.dispose();
+  });
+
+  it("sends PIDE/output_set_margin via setMargin when client supports it", () => {
+    const client = new FakeClient();
+    const session = new PideDynamicOutputSession(client, new CollectingLogger(), () => {});
+    session.setMargin(120);
+    expect(client.sent).toEqual([
+      { method: "PIDE/output_set_margin", params: { margin: 120 } }
+    ]);
+    session.dispose();
+  });
+
+  it("setMargin is a no-op for non-finite or non-positive values", () => {
+    const client = new FakeClient();
+    const session = new PideDynamicOutputSession(client, new CollectingLogger(), () => {});
+    session.setMargin(Number.NaN);
+    session.setMargin(-1);
+    session.setMargin(0);
+    session.setMargin(Number.POSITIVE_INFINITY);
+    expect(client.sent).toEqual([]);
+    session.dispose();
+  });
+
+  it("setMargin logs and does not throw when sendNotification throws", () => {
+    const client = new FakeClient();
+    client.throwOnSend = true;
+    const logger = new CollectingLogger();
+    const session = new PideDynamicOutputSession(client, logger, () => {});
+    expect(() => session.setMargin(120)).not.toThrow();
+    expect(logger.messages.some((m) => m.includes("PIDE/output_set_margin failed"))).toBe(true);
+    session.dispose();
+  });
+
+  it("setMargin is a no-op after dispose", () => {
+    const client = new FakeClient();
+    const session = new PideDynamicOutputSession(client, new CollectingLogger(), () => {});
+    session.dispose();
+    session.setMargin(120);
+    expect(client.sent).toEqual([]);
   });
 });

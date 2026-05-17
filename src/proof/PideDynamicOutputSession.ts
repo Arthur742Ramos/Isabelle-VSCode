@@ -26,6 +26,7 @@ import {
 } from "../sledgehammer/pideSledgehammerOutput";
 
 export const PIDE_DYNAMIC_OUTPUT_METHOD = "PIDE/dynamic_output";
+export const PIDE_OUTPUT_SET_MARGIN_METHOD = "PIDE/output_set_margin";
 
 export interface DynamicOutputDisposable {
   dispose(): void;
@@ -41,6 +42,7 @@ export interface DynamicOutputLogger {
  * shape structurally — no adapter required.
  */
 export interface DynamicOutputClient {
+  sendNotification?(method: string, params?: unknown): void;
   onNotification(
     method: string,
     handler: (params: unknown) => void
@@ -68,7 +70,7 @@ export class PideDynamicOutputSession implements DynamicOutputDisposable {
   private disposed = false;
 
   public constructor(
-    client: DynamicOutputClient,
+    private readonly client: DynamicOutputClient,
     private readonly logger: DynamicOutputLogger,
     private readonly onUpdate: DynamicOutputUpdateHandler,
     private readonly clock: () => Date = () => new Date()
@@ -96,6 +98,26 @@ export class PideDynamicOutputSession implements DynamicOutputDisposable {
     this.disposed = true;
     this.subscription?.dispose();
     this.subscription = undefined;
+  }
+
+  /**
+   * Push the pretty-printer margin hint via `PIDE/output_set_margin`.
+   * Upstream uses this for the caret-driven dynamic-output renderer.
+   * No-op when the underlying client does not expose
+   * `sendNotification` (legacy / test stubs) or when the session has
+   * been disposed.
+   */
+  public setMargin(margin: number): void {
+    if (this.disposed) return;
+    if (!Number.isFinite(margin) || margin <= 0) return;
+    if (!this.client.sendNotification) return;
+    try {
+      this.client.sendNotification(PIDE_OUTPUT_SET_MARGIN_METHOD, { margin });
+    } catch (error) {
+      this.logger.appendLine(
+        `Dynamic output: ${PIDE_OUTPUT_SET_MARGIN_METHOD} failed: ${errorMessage(error)}`
+      );
+    }
   }
 
   private handleNotification(params: unknown): void {
