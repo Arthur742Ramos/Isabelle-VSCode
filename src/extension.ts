@@ -166,6 +166,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.runSledgehammer", async () => sledgehammerPanel?.run()),
     vscode.commands.registerCommand("isabelle.cancelSledgehammer", async () => sledgehammerPanel?.cancel()),
     vscode.commands.registerCommand("isabelle.insertSledgehammerProof", async () => sledgehammerPanel?.insertFirstSuggestion()),
+    vscode.commands.registerCommand("isabelle.pickSledgehammerSuggestion", async () => sledgehammerPanel?.pickAndInsertSuggestion()),
     vscode.commands.registerCommand("isabelle.replaySledgehammerRun", async (requestId?: string) =>
       replaySledgehammerRun(requestId)
     ),

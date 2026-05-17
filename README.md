@@ -37,6 +37,7 @@ Implemented foundation:
   - `Isabelle: Run Sledgehammer`
   - `Isabelle: Cancel Sledgehammer`
   - `Isabelle: Insert Sledgehammer Proof`
+  - `Isabelle: Pick Sledgehammer Suggestion to Insert`
   - `Isabelle: Replay Sledgehammer Run`
   - `Isabelle: Clear Sledgehammer History`
   - `Isabelle: Create Checked Repair Request`

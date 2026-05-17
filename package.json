@@ -54,6 +54,7 @@
     "onCommand:isabelle.runSledgehammer",
     "onCommand:isabelle.cancelSledgehammer",
     "onCommand:isabelle.insertSledgehammerProof",
+    "onCommand:isabelle.pickSledgehammerSuggestion",
     "onCommand:isabelle.replaySledgehammerRun",
     "onCommand:isabelle.clearSledgehammerHistory",
     "onCommand:isabelle.createRepairRequest",
@@ -171,6 +172,10 @@
         "command": "isabelle.insertSledgehammerProof",
         "title": "Isabelle: Insert Sledgehammer Proof",
         "icon": "$(edit)"
+      },
+      {
+        "command": "isabelle.pickSledgehammerSuggestion",
+        "title": "Isabelle: Pick Sledgehammer Suggestion to Insert"
       },
       {
         "command": "isabelle.replaySledgehammerRun",
