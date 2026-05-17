@@ -50,7 +50,7 @@ Implemented foundation:
 - Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
 - Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
-- Status-bar document status surface that summarizes synchronized/local command spans and the current command with an explicit local syntax-only label; it does not publish Isabelle diagnostics.
+- Status-bar document status surface that summarizes synchronized/local command spans and the current command with an explicit local syntax-only label; it does not publish Isabelle diagnostics. Editor decorations also mark each synchronized command span with its local-only status (pending/running/finished/failed/unknown), derived from the same local command-span source rather than PIDE processing.
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens, basic command/symbol hovers, document symbols, local import links, and in-file go-to-definition for locally parsed declarations.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
 - Explorer-side **Isabelle Proof Outline** view that follows the active theory and groups command spans with proof steps.

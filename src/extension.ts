@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
+import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
 import { DocumentStatusService } from "./document/DocumentStatusService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
 import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
@@ -42,6 +43,7 @@ import { formatUserVisibleError } from "./ui/errorMessages";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
+let commandSpanDecorationsService: CommandSpanDecorationsService | undefined;
 let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
@@ -63,6 +65,7 @@ export function activate(context: vscode.ExtensionContext): void {
   sessionService = sessions;
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
+  commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
@@ -79,6 +82,7 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     backendManager,
     buildService,
+    commandSpanDecorationsService,
     documentStatusService,
     documentSyncService,
     proofOutlineProvider,
@@ -146,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   documentSyncService.start();
   documentStatusService.start();
+  commandSpanDecorationsService.start();
 }
 
 export function deactivate(): void {
@@ -166,6 +171,8 @@ export function deactivate(): void {
   buildService = undefined;
   documentStatusService?.dispose();
   documentStatusService = undefined;
+  commandSpanDecorationsService?.dispose();
+  commandSpanDecorationsService = undefined;
   sessionService?.dispose();
   sessionService = undefined;
   theoryGraphTree?.dispose();
