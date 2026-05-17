@@ -75,6 +75,11 @@
     "onCommand:isabelle.browseDocumentation",
     "onCommand:isabelle.previewTheory",
     "onCommand:isabelle.previewTheoryInSplit",
+    "onCommand:isabelle.includeWord",
+    "onCommand:isabelle.includeWordPermanently",
+    "onCommand:isabelle.excludeWord",
+    "onCommand:isabelle.excludeWordPermanently",
+    "onCommand:isabelle.resetWords",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -266,6 +271,26 @@
       {
         "command": "isabelle.previewTheoryInSplit",
         "title": "Isabelle: Preview Theory in Split"
+      },
+      {
+        "command": "isabelle.includeWord",
+        "title": "Isabelle: Include Word in Spell-Checker (Session)"
+      },
+      {
+        "command": "isabelle.includeWordPermanently",
+        "title": "Isabelle: Include Word in Spell-Checker (Permanent)"
+      },
+      {
+        "command": "isabelle.excludeWord",
+        "title": "Isabelle: Exclude Word from Spell-Checker (Session)"
+      },
+      {
+        "command": "isabelle.excludeWordPermanently",
+        "title": "Isabelle: Exclude Word from Spell-Checker (Permanent)"
+      },
+      {
+        "command": "isabelle.resetWords",
+        "title": "Isabelle: Reset Spell-Checker Session Words"
       }
     ],
     "views": {

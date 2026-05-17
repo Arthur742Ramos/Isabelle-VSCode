@@ -19,13 +19,13 @@ single page to read for "what is shipped, what is still open, why."
 | 2 Session discovery (ROOT/ROOTS/AFP, active session, theory tree) | ✅ Done |
 | 3 Build integration (`isabelle build`, streamed output, diagnostics) | ✅ Done |
 | 4 PIDE document connection | ✅ Done (Tier-2 manual still recommended) |
-| 5 Semantic markup | ✅ 7 of 8 — `documentSymbol` upstream-blocked; PIDE/decoration overlay + PIDE/abbrevs completion + PIDE/documentation browser + PIDE/preview live theory preview shipped |
+| 5 Semantic markup | ✅ 8 of 9 — `documentSymbol` upstream-blocked; PIDE/decoration overlay + PIDE/abbrevs completion + PIDE/documentation browser + PIDE/preview live theory preview + PIDE spell-checker dictionary commands shipped |
 | 6 Proof state panel | ✅ 2 of 2 — LSP-backed via PIDE state-panel + dynamic_output |
 | 7 Sledgehammer workflow | ✅ 6 of 7 — minimization upstream-blocked |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
 
-Vitest baseline: **559 cases, all green**.
+Vitest baseline: **575 cases, all green**.
 
 ## What is fully shipped
 

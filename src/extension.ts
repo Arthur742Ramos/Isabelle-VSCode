@@ -21,6 +21,18 @@ import {
   previewActiveTheory,
   wirePreviewSnapshotsToPanel
 } from "./api/previewTheory";
+import {
+  EXCLUDE_WORD_COMMAND_ID,
+  EXCLUDE_WORD_PERMANENTLY_COMMAND_ID,
+  INCLUDE_WORD_COMMAND_ID,
+  INCLUDE_WORD_PERMANENTLY_COMMAND_ID,
+  RESET_WORDS_COMMAND_ID,
+  SpellCheckerCaretEditor,
+  SpellCheckerUi,
+  SpellCheckerWordAction,
+  dispatchResetWords,
+  dispatchSpellCheckerWord
+} from "./api/spellCheckerCommands";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
@@ -269,6 +281,11 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand(SHOW_DOCUMENTATION_COMMAND_ID, () => browseDocumentationCommand(output)),
     vscode.commands.registerCommand(PREVIEW_THEORY_COMMAND_ID, () => previewTheoryCommand(output, { split: false })),
     vscode.commands.registerCommand(PREVIEW_THEORY_SPLIT_COMMAND_ID, () => previewTheoryCommand(output, { split: true })),
+    vscode.commands.registerCommand(INCLUDE_WORD_COMMAND_ID, () => spellCheckerWordCommand(output, "include")),
+    vscode.commands.registerCommand(INCLUDE_WORD_PERMANENTLY_COMMAND_ID, () => spellCheckerWordCommand(output, "include-permanently")),
+    vscode.commands.registerCommand(EXCLUDE_WORD_COMMAND_ID, () => spellCheckerWordCommand(output, "exclude")),
+    vscode.commands.registerCommand(EXCLUDE_WORD_PERMANENTLY_COMMAND_ID, () => spellCheckerWordCommand(output, "exclude-permanently")),
+    vscode.commands.registerCommand(RESET_WORDS_COMMAND_ID, () => spellCheckerResetCommand(output)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -1131,6 +1148,57 @@ function makePreviewTheoryUi(): PreviewTheoryUi {
       vscode.window.showInformationMessage(message),
     showWarningMessage: async (message) =>
       vscode.window.showWarningMessage(message)
+  };
+}
+
+async function spellCheckerWordCommand(
+  output: vscode.OutputChannel,
+  action: SpellCheckerWordAction
+): Promise<void> {
+  if (!languageClient) {
+    await vscode.window.showInformationMessage(
+      "Isabelle language server is not initialized yet."
+    );
+    return;
+  }
+  await dispatchSpellCheckerWord(
+    action,
+    languageClient,
+    languageClient,
+    makeSpellCheckerUi(),
+    output
+  );
+}
+
+async function spellCheckerResetCommand(output: vscode.OutputChannel): Promise<void> {
+  if (!languageClient) {
+    await vscode.window.showInformationMessage(
+      "Isabelle language server is not initialized yet."
+    );
+    return;
+  }
+  await dispatchResetWords(
+    languageClient,
+    languageClient,
+    makeSpellCheckerUi(),
+    output
+  );
+}
+
+function makeSpellCheckerUi(): SpellCheckerUi {
+  return {
+    getActiveEditor: (): SpellCheckerCaretEditor | undefined => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return undefined;
+      return {
+        uri: editor.document.uri.toString(),
+        isTheoryDocument: isTheoryDocument(editor.document),
+        line: editor.selection.active.line,
+        character: editor.selection.active.character
+      };
+    },
+    showInformationMessage: async (message) =>
+      vscode.window.showInformationMessage(message)
   };
 }
 
