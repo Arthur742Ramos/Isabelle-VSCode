@@ -212,14 +212,26 @@ these items are done today.
         VS Code session against an Isabelle install and remains a Tier-2
         manual-testing follow-up; this checkbox stays unchecked until that
         live verification is recorded.
-  - [ ] Reflect server-driven document status in the existing
+  - [x] Reflect server-driven document status in the existing
         `CommandSpanDecorationsService` gutter so that, when the LSP is
         active, the "local-only pending" status is replaced by an
         Isabelle-published status. The local fallback in
         `src/document/CommandSpanDecorations.ts` and the
         `DocumentStatusService` summary must keep working when the LSP is
-        off. Validated by toggling `isabelle.languageServer.enabled` and
-        observing the decoration source change.
+        off. Shipped with a conservative binary policy:
+        `shouldSuppressLocalCommandSpanDecorations(state)` returns true
+        only when the LSP is `running`, in which case the local
+        dashed-border placeholder is hidden in favor of the LSP's own
+        published diagnostics. When the LSP is `disabled`, `starting`,
+        `stopping`, `failed`, or not wired at all, the existing local
+        decorations render unchanged. Once `isabelle vscode_server`
+        exposes a per-command status surface (it does not today — see
+        [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
+        for the analogous Sledgehammer investigation), the policy will
+        extend to swap the source rather than suppress. Validated by
+        unit tests on the pure policy helper; end-to-end toggling of
+        `isabelle.languageServer.enabled` and observing the decoration
+        source change remains a Tier-2 manual verification.
 
 - [ ] Milestone 5 (Semantic markup with entity metadata)
   - [ ] Route textDocument/hover through LSP for PIDE-driven entity

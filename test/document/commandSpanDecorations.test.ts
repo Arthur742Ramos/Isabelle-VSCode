@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   STATUS_DECORATION_KEYS,
+  computeDecorationGroupsForLspState,
   emptyStatusRangeGroups,
-  groupCommandSpanRangesByStatus
+  groupCommandSpanRangesByStatus,
+  shouldSuppressLocalCommandSpanDecorations
 } from "../../src/document/commandSpanDecorationGroups";
+import { IsabelleLanguageServerState } from "../../src/lsp/lspTypes";
 import { CommandSpan, ProtocolRange } from "../../src/protocol/messages";
 
 function makeRange(line: number, character: number, endLine = line, endCharacter = character + 1): ProtocolRange {
@@ -75,5 +78,79 @@ describe("groupCommandSpanRangesByStatus", () => {
     expect(groups.finished).toEqual([]);
     expect(groups.failed).toEqual([]);
     expect(Object.keys(groups).sort()).toEqual([...STATUS_DECORATION_KEYS].sort());
+  });
+});
+
+describe("shouldSuppressLocalCommandSpanDecorations", () => {
+  // Local command spans always carry status "pending" because they are
+  // a syntactic placeholder, not real PIDE processing state. When the
+  // Isabelle language server is running, the LSP's own published
+  // diagnostics replace the local "pending" gutter as the source of
+  // per-command processing information; the local dashed border would
+  // otherwise mislead the user. The suppression policy is binary today:
+  // suppress when the LSP is `running`, keep local-only otherwise.
+
+  it("suppresses local decorations exactly when the LSP is running", () => {
+    expect(shouldSuppressLocalCommandSpanDecorations("running")).toBe(true);
+  });
+
+  it("does not suppress when the LSP is disabled, starting, stopping, or failed", () => {
+    const nonRunning: IsabelleLanguageServerState[] = [
+      "disabled",
+      "starting",
+      "stopping",
+      "failed"
+    ];
+    for (const state of nonRunning) {
+      expect(shouldSuppressLocalCommandSpanDecorations(state)).toBe(false);
+    }
+  });
+
+  it("does not suppress when no LSP is wired (state undefined)", () => {
+    expect(shouldSuppressLocalCommandSpanDecorations(undefined)).toBe(false);
+  });
+});
+
+describe("computeDecorationGroupsForLspState", () => {
+  const spans: CommandSpan[] = [
+    makeSpan("a", "pending", makeRange(0, 0, 0, 5)),
+    makeSpan("b", "finished", makeRange(1, 0, 1, 4)),
+    makeSpan("c", "failed", makeRange(2, 0, 2, 6))
+  ];
+
+  it("delegates to groupCommandSpanRangesByStatus when the LSP is not running", () => {
+    const groups = computeDecorationGroupsForLspState(spans, "disabled");
+    expect(groups).toEqual(groupCommandSpanRangesByStatus(spans));
+  });
+
+  it("returns the empty group shape when the LSP is running (decorations suppressed)", () => {
+    const groups = computeDecorationGroupsForLspState(spans, "running");
+    expect(groups).toEqual(emptyStatusRangeGroups());
+    for (const status of STATUS_DECORATION_KEYS) {
+      expect(groups[status]).toEqual([]);
+    }
+  });
+
+  it("delegates with the same input across each non-running LSP state", () => {
+    const expected = groupCommandSpanRangesByStatus(spans);
+    const nonRunning: (IsabelleLanguageServerState | undefined)[] = [
+      "disabled",
+      "starting",
+      "stopping",
+      "failed",
+      undefined
+    ];
+    for (const state of nonRunning) {
+      expect(computeDecorationGroupsForLspState(spans, state)).toEqual(expected);
+    }
+  });
+
+  it("returns an empty-group shape (not a shared reference) when suppressing", () => {
+    // Guard against accidental aliasing of the empty groups object — each
+    // call must hand out a fresh copy so callers can mutate it safely.
+    const a = computeDecorationGroupsForLspState(spans, "running");
+    const b = computeDecorationGroupsForLspState(spans, "running");
+    expect(a).not.toBe(b);
+    expect(a.pending).not.toBe(b.pending);
   });
 });

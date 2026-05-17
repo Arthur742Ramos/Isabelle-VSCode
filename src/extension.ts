@@ -74,7 +74,10 @@ export function activate(context: vscode.ExtensionContext): void {
   sessionService = sessions;
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
-  commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService);
+  languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
+  languageServerStatusBar = new LanguageServerStatusBar(languageClient);
+  pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
+  commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
@@ -87,9 +90,6 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
   statusBar.show();
-  languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
-  languageServerStatusBar = new LanguageServerStatusBar(languageClient);
-  pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
 
   context.subscriptions.push(
     output,
