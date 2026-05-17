@@ -50,6 +50,7 @@ Implemented foundation:
 - Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
 - Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
+- Scala backend `PideBridge` seam with a default local-syntax implementation; a future real PIDE bridge can plug in without protocol changes.
 - Status-bar document status surface that summarizes synchronized/local command spans and the current command with an explicit local syntax-only label; it does not publish Isabelle diagnostics.
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens, basic command/symbol hovers, document symbols, local import links, and in-file go-to-definition for locally parsed declarations.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
@@ -137,3 +138,5 @@ The high-level roadmap is:
 9. Checked AI repair loop that only reports success after Isabelle verifies the patch.
 
 Motto: VS Code for UI, Isabelle/Scala for semantics, Isabelle/ML for truth.
+
+The Scala backend exposes a `PideBridge` trait (with a default `LocalSyntaxPideBridge` that preserves today's command-span-and-disclaimer behavior) so milestones 4, 5, and 7's PIDE-backed document status, entity metadata, structured proof state, and Sledgehammer proof search plug into a clear interface without changing the JSON-RPC protocol or the VS Code extension.

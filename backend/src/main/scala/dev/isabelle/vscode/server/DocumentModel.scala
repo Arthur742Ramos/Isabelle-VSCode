@@ -4,20 +4,20 @@ import scala.collection.mutable
 
 final case class TheoryDocument(uri: String, text: String, version: Int, session: Option[String])
 
-final class DocumentStore {
+final class DocumentStore(bridge: PideBridge = new LocalSyntaxPideBridge) {
   private val documents = mutable.Map.empty[String, TheoryDocument]
 
   def open(uri: String, text: String, version: Int, session: Option[String]): ujson.Value = {
     val document = TheoryDocument(uri, text, version, session)
     documents.update(uri, document)
-    documentResult(document)
+    bridge.documentResult(document)
   }
 
   def update(uri: String, text: String, version: Int): ujson.Value = {
     val session = documents.get(uri).flatMap(_.session)
     val document = TheoryDocument(uri, text, version, session)
     documents.update(uri, document)
-    documentResult(document)
+    bridge.documentResult(document)
   }
 
   def close(uri: String): ujson.Value = {
@@ -38,27 +38,7 @@ final class DocumentStore {
         )
 
       case Some(document) =>
-        val spans = CommandSpanParser.parse(document)
-        val command = spans.find(_.contains(line, character))
-          .orElse(spans.reverse.find(_.startsBeforeOrAt(line, character)))
-
-        ujson.Obj(
-          "uri" -> uri,
-          "version" -> document.version,
-          "status" -> "unavailable",
-          "command" -> command.map(_.json).getOrElse(ujson.Null),
-          "context" -> ujson.Arr(),
-          "goals" -> ujson.Arr(
-            ujson.Obj(
-              "index" -> 1,
-              "text" -> "Live proof goals require Isabelle/PIDE proof-state integration."
-            )
-          ),
-          "raw" -> ujson.Str(command
-            .map(span => s"Current command: ${span.kind}${span.name.map(name => s" $name").getOrElse("")}")
-            .getOrElse("No Isabelle command span at the current cursor position.")),
-          "message" -> "Proof-state panel is connected; semantic goals/context are pending PIDE integration."
-        )
+        bridge.proofState(document, line, character)
     }
 
   def sledgehammer(
@@ -81,43 +61,15 @@ final class DocumentStore {
         )
 
       case Some(document) =>
-        val spans = CommandSpanParser.parse(document)
-        val command = spans.find(_.contains(line, character))
-          .orElse(spans.reverse.find(_.startsBeforeOrAt(line, character)))
-        val commandText = command
-          .map(span => s"Current command: ${span.kind}${span.name.map(name => s" $name").getOrElse("")}")
-          .getOrElse("No Isabelle command span at the current cursor position.")
-        val sessionText = session.orElse(document.session)
-          .map(value => s"Session: $value")
-          .getOrElse("No active Isabelle session was provided.")
-        val executableText = isabelleExecutablePath
-          .filter(_.nonEmpty)
-          .map(value => s"Isabelle executable: $value")
-          .getOrElse("No Isabelle executable path was provided.")
-
-        ujson.Obj(
-          "requestId" -> requestId,
-          "uri" -> uri,
-          "version" -> document.version,
-          "status" -> "unavailable",
-          "command" -> command.map(_.json).getOrElse(ujson.Null),
-          "suggestions" -> ujson.Arr(),
-          "raw" -> Vector(
-            commandText,
-            sessionText,
-            executableText,
-            "Sledgehammer proof search requires live Isabelle/PIDE proof context; this backend currently exposes only the typed workflow boundary."
-          ).mkString("\n"),
-          "message" -> "Sledgehammer workflow is wired, but proof search is unavailable until the Scala backend integrates with Isabelle/PIDE."
-        )
+        bridge.sledgehammer(SledgehammerRequest(
+          requestId = requestId,
+          document = document,
+          line = line,
+          character = character,
+          session = session,
+          isabelleExecutablePath = isabelleExecutablePath
+        ))
     }
-
-  private def documentResult(document: TheoryDocument): ujson.Value =
-    ujson.Obj(
-      "uri" -> document.uri,
-      "version" -> document.version,
-      "commandSpans" -> CommandSpanParser.parse(document).map(_.json)
-    )
 }
 
 final case class CommandSpan(
