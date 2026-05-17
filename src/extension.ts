@@ -55,18 +55,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
   backendManager = new BackendManager(context, output);
   buildService = new BuildService(output);
-  sessionService = new SessionService(output, (params) =>
+  const sessions = new SessionService(output, (params) =>
     backendManager!.getClient().request<DiscoverSessionsResult, DiscoverSessionsParams>("session/discover", params)
   );
-  documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
+  sessionService = sessions;
+  documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
   proofStatePanel = new ProofStatePanel(backendManager, output);
-  proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessionService);
-  sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
+  proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
+  sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider);
-  const sessionTree = new SessionTreeProvider(sessionService, async () => discoverSessions(output, { silent: true }));
-  theoryGraphTree = new TheoryGraphTreeProvider(sessionService, output);
+  const sessionTree = new SessionTreeProvider(sessions, async () => discoverSessions(output, { silent: true }));
+  theoryGraphTree = new TheoryGraphTreeProvider(sessions, output);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
@@ -81,7 +82,7 @@ export function activate(context: vscode.ExtensionContext): void {
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
-    sessionService,
+    sessions,
     sledgehammerPanel,
     sessionTree,
     theoryGraphTree,
@@ -94,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
     vscode.languages.registerDocumentLinkProvider(
       { language: "isabelle", scheme: "file" },
-      new IsabelleDocumentLinkProvider(sessionService)
+      new IsabelleDocumentLinkProvider(sessions)
     ),
     vscode.languages.registerDocumentSymbolProvider(
       { language: "isabelle", scheme: "file" },
@@ -102,7 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.languages.registerDefinitionProvider(
       { language: "isabelle", scheme: "file" },
-      new IsabelleDefinitionProvider(documentSyncService)
+      new IsabelleDefinitionProvider(documentSyncService, sessions, output)
     ),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
