@@ -244,11 +244,15 @@ these items are done today.
         identifier and observing PIDE-sourced completion candidates.
 
 - [ ] Milestone 7 (Sledgehammer)
-  - [ ] Research: determine whether `isabelle vscode_server` exposes
+  - [x] Research: determine whether `isabelle vscode_server` exposes
         Sledgehammer suggestions as LSP custom requests, as a code-action
         contribution, or only through its own built-in command palette.
-        Capture the upstream surface in a follow-up update to this
-        document.
+        Captured in [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md):
+        the surface is a set of `PIDE/sledgehammer_*` and `PIDE/caret_update`
+        LSP notifications (not requests, not code actions, not workspace
+        commands, not advertised in `initialize` capabilities); see that
+        document for the full message shapes and the implications for
+        `src/sledgehammer/SledgehammerPanel.ts`.
   - [ ] Implement: once the upstream Sledgehammer surface is confirmed,
         bridge `src/sledgehammer/SledgehammerPanel.ts` to the correct LSP
         request and replace the current "unavailable" placeholder from
