@@ -178,6 +178,8 @@ For a packaged extension, `npm run package:validate` builds and includes `backen
 
 ## Roadmap
 
+For the consolidated current status of every milestone (what is shipped, what remains, what is upstream-blocked), see [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md).
+
 The high-level roadmap is:
 
 1. Skeleton: extension activation, backend launch, health/version protocol.
