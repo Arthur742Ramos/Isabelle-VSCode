@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-17 (PR adds `PIDE/decoration` overlay). For per-feature checkboxes,
+> Last refreshed: 2026-05-17 (PRs #51 + #52 + #53 — PIDE decoration overlay, abbrevs completion, documentation browser). For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -204,7 +204,21 @@ authoring guide.
   `PIDE/dynamic_output.decorations`.** Upstream sends optional
   decoration data alongside the dynamic-output content; mapping
   it to editor gutters would require new vscode editor decoration
-  plumbing.
+  plumbing. (The `PIDE/decoration` overlay landed in PR #51
+  already handles the per-URI `text_<color>` channel; this open
+  item is the analogous caret-driven channel on the
+  dynamic-output side.)
+- **`PIDE/preview_request` theory HTML preview.** Upstream
+  supports a synchronous preview-response handshake that returns
+  an HTML render of a theory. Wiring this would unlock an
+  `Isabelle: Preview Theory` command surfaced as a webview, but
+  the rendering depends on the user's theme integration and is
+  scoped large enough for its own PR.
+- **`PIDE/include_word` / `exclude_word` / `reset_words` spell-checker
+  commands.** Upstream exposes these as notifications the client can
+  send to teach the spell-checker per-session. Useful but
+  small-surface — would mostly add three short commands to the
+  palette.
 - **More opinionated bundled AI providers** (OpenAI, Anthropic,
   GitHub Copilot, etc.). Third parties can already plug in via
   the v1 API. Shipping any default that calls a third-party
@@ -225,6 +239,16 @@ Documented per checkbox in `PIDE_INTEGRATION.md`:
   error, see both sources in Problems panel).
 - M5 hover / definition / completion end-to-end against
   cross-file declarations.
+- M5 `PIDE/decoration` overlay end-to-end — open an Isabelle
+  theory with the LSP enabled and confirm that keywords, free
+  variables, type parameters, and `text_bad` errors are painted
+  with the upstream-published ranges.
+- M5 `PIDE/abbrevs` completion end-to-end — type `\<lam` in a
+  `.thy` with the LSP enabled and accept the `λ` suggestion from
+  the cached `PIDE/abbrevs_response` table.
+- M5 `Isabelle: Browse Isabelle Documentation` end-to-end — with
+  the LSP enabled, run the command, pick the Tutorial entry, and
+  confirm the PDF opens with the OS's default application.
 - M6 PIDE state + dynamic-output live updating as the prover
   progresses.
 - M7 Sledgehammer / sendback / quiescence / multi-suggestion
