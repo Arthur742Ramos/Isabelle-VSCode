@@ -107,6 +107,12 @@ Compile the Scala backend if `sbt` is available:
 npm run backend:compile
 ```
 
+Run the Scala backend unit tests if `sbt` is available:
+
+```powershell
+npm run backend:test
+```
+
 Run the backend during extension development:
 
 ```powershell

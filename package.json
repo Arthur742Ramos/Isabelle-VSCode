@@ -368,6 +368,7 @@
     "check": "npm run compile && npm test",
     "package:validate": "npm run check && npm run backend:package && vsce ls --no-dependencies && vsce package --no-dependencies --out isabelle-pide-vscode.validation.vsix && node -e \"require('fs').rmSync('isabelle-pide-vscode.validation.vsix',{force:true})\"",
     "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
+    "backend:test": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true test",
     "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true package && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/scala-2.13/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
     "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
   },
