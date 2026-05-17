@@ -194,6 +194,9 @@ provider id cannot escape the namespace.
 - [`src/repair/RepairAiSecretStore.ts`](../src/repair/RepairAiSecretStore.ts)
   — `vscode.SecretStorage`-backed namespaced credential store for
   AI provider keys.
+- [`src/repair/ManualPasteBackRepairAiProvider.ts`](../src/repair/ManualPasteBackRepairAiProvider.ts)
+  — the built-in "manual paste-back" provider registered on
+  activation; no network calls.
 - [`src/repair/unifiedDiff.ts`](../src/repair/unifiedDiff.ts) —
   the strict patch parser the preview command applies.
 - README "Checked repair workflow" section — describes the
