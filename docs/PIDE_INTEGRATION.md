@@ -393,6 +393,29 @@ these items are done today.
         End-to-end "open a `.thy`, run `Isabelle: Preview Theory`,
         confirm the rendered HTML matches the source" remains a
         Tier-2 manual run.
+  - [x] Surface upstream `PIDE/include_word`,
+        `PIDE/include_word_permanently`, `PIDE/exclude_word`,
+        `PIDE/exclude_word_permanently`, and `PIDE/reset_words`
+        spell-checker dictionary notifications. Owned by
+        `src/api/spellCheckerCommands.ts` (vscode-free helper
+        against injectable client + active-editor + UI shapes).
+        Five new commands ship — `Isabelle: Include Word
+        (Session / Permanent)`, `Isabelle: Exclude Word
+        (Session / Permanent)`, `Isabelle: Reset Spell-Checker
+        Session Words`. The include/exclude variants first push
+        `PIDE/caret_update { uri, line, character, focus: true }`
+        so the server's `update_dictionary` resolves the word at
+        the caller's caret (the existing background
+        `caret_update` from the sledgehammer flow may be stale or
+        keyed off a different editor); the reset variant is
+        global and skips the caret update.
+        Validated by `test/api/spellCheckerCommands.test.ts` (16
+        cases: per-action guard matrix, sequenced caret_update +
+        notification dispatch, reset-is-global behaviour,
+        client-error log path). End-to-end "type a custom word
+        in a `.thy`, run `Isabelle: Include Word (Permanent)`,
+        confirm the spell-check decoration disappears" remains a
+        Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes
