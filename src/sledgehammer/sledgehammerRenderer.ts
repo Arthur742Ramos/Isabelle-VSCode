@@ -1,13 +1,15 @@
 import { SledgehammerRunResult, SledgehammerSuggestion } from "../protocol/messages";
+import { PideOutputNode, renderPideOutputHtml } from "./pideSledgehammerOutput";
 import { SledgehammerHistoryEntry } from "./sledgehammerHistory";
 
 const MAX_RECENT_HISTORY_ENTRIES = 10;
 
 export function renderSledgehammerHtml(
   result: SledgehammerRunResult | undefined,
-  history: readonly SledgehammerHistoryEntry[] = []
+  history: readonly SledgehammerHistoryEntry[] = [],
+  outputNodes: readonly PideOutputNode[] = []
 ): string {
-  const main = result ? renderResult(result) : renderEmpty();
+  const main = result ? renderResult(result, outputNodes) : renderEmpty();
   const body = `${main}${renderHistory(history)}`;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -28,13 +30,22 @@ export function renderSledgehammerHtml(
     ul.history { list-style: none; padding-left: 0; }
     ul.history li { margin-bottom: 6px; }
     ul.history li .meta { margin-left: 6px; }
+    .pide-sledgehammer-message { padding: 6px 8px; margin: 6px 0; border-left: 3px solid var(--vscode-panel-border); background: var(--vscode-textBlockQuote-background); }
+    .pide-sledgehammer-error { border-left-color: var(--vscode-editorError-foreground); }
+    .pide-sledgehammer-warning { border-left-color: var(--vscode-editorWarning-foreground); }
+    .pide-sledgehammer-information { border-left-color: var(--vscode-editorInfo-foreground); }
+    .pide-sledgehammer-sendback { background: var(--vscode-textCodeBlock-background); padding: 1px 4px; border-radius: 2px; }
+    .pide-sledgehammer-text { white-space: pre-wrap; }
   </style>
 </head>
 <body>${body}</body>
 </html>`;
 }
 
-function renderResult(result: SledgehammerRunResult): string {
+function renderResult(
+  result: SledgehammerRunResult,
+  outputNodes: readonly PideOutputNode[]
+): string {
   const command = result.command
     ? `<p><strong>Current command:</strong> <code>${escapeHtml(result.command.kind)}${result.command.name ? ` ${escapeHtml(result.command.name)}` : ""}</code></p>`
     : `<p class="muted">No command span at the current cursor position.</p>`;
@@ -46,6 +57,27 @@ function renderResult(result: SledgehammerRunResult): string {
     <p><strong>Request:</strong> <code>${escapeHtml(result.requestId || "not started")}</code></p>
     ${command}
     ${renderSuggestions(result.suggestions)}
+    ${renderBackendBoundary(result, outputNodes)}`;
+}
+
+function renderBackendBoundary(
+  result: SledgehammerRunResult,
+  outputNodes: readonly PideOutputNode[]
+): string {
+  if (outputNodes.length > 0) {
+    // LSP-mode: render the parsed Isabelle XML markup using stable CSS
+    // classes from `pideSledgehammerOutput.ts`. The raw status message
+    // is shown as a small caption above so users can still see the
+    // upstream PIDE/sledgehammer_status text.
+    const status = result.raw ? `<p class="muted">${escapeHtml(result.raw)}</p>` : "";
+    return `
+      <div class="section">
+        <h3>Prover output</h3>
+        ${status}
+        ${renderPideOutputHtml(outputNodes)}
+      </div>`;
+  }
+  return `
     <div class="section">
       <h3>Backend boundary</h3>
       <pre>${escapeHtml(result.raw || "No Sledgehammer backend details available yet.")}</pre>

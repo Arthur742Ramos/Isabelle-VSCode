@@ -265,11 +265,43 @@ these items are done today.
         commands, not advertised in `initialize` capabilities); see that
         document for the full message shapes and the implications for
         `src/sledgehammer/SledgehammerPanel.ts`.
-  - [ ] Implement: once the upstream Sledgehammer surface is confirmed,
+  - [x] Implement: once the upstream Sledgehammer surface is confirmed,
         bridge `src/sledgehammer/SledgehammerPanel.ts` to the correct LSP
         request and replace the current "unavailable" placeholder from
         `LocalSyntaxPideBridge.sledgehammer` for users who have the LSP
         enabled. Users without the LSP keep the existing typed boundary.
+        Shipped in two layers: `src/sledgehammer/LspSledgehammerSession.ts`
+        encapsulates the upstream `PIDE/caret_update` ->
+        `PIDE/sledgehammer_request` -> `PIDE/sledgehammer_status` /
+        `PIDE/sledgehammer_output` -> `PIDE/sledgehammer_cancel` dance
+        as a one-shot, vscode-free orchestrator; the panel itself
+        branches on `IsabelleLanguageClient.getStatus().state ===
+        "running"` and uses the orchestrator in LSP mode while keeping
+        the existing `sledgehammer/run` Scala-backend path otherwise.
+        Parsed `PIDE/sledgehammer_output` segments render in a new
+        "Prover output" section via the renderer extension landed
+        alongside the PIDE XML parser. Sendbacks surface as
+        `SledgehammerSuggestion` entries so the existing
+        `Isabelle: Insert Sledgehammer Proof` command keeps working.
+        Mid-run LSP failure (the client leaves the `running` state)
+        aborts the active session, records a failure, and surfaces a
+        retry-friendly warning. End-to-end verification against a
+        live Isabelle install remains a Tier-2 manual follow-up; the
+        unit-level orchestrator + conversion helpers are fully
+        covered.
+  - [ ] Implement the two-step sendback insert flow (research
+        recommendation #5) — when the user clicks an inserted
+        suggestion, send `PIDE/sledgehammer_sendback` and apply the
+        server's `PIDE/sledgehammer_insert` reply as a
+        version-validated workspace edit. The substrate
+        (`collectSendbackTexts` from PR #32 and `SessionUpdate.sendbacks`
+        from PR #36) is in place; only the panel-side wiring is
+        outstanding.
+  - [ ] Implement a quiescence gate before dispatching
+        `PIDE/sledgehammer_request` (research recommendation #7) so the
+        first run after `didOpen` does not reproducibly receive
+        `<error_message>Unknown proof context</error_message>` for
+        non-quiescent prover state.
   - [ ] Implement proof-minimization wiring (the second half of milestone
         7), driven by the same upstream Sledgehammer surface.
 ```
