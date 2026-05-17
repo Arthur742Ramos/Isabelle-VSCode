@@ -3,6 +3,7 @@ import {
   SledgehammerSettingsConfig,
   buildPideSledgehammerRequestParams,
   normalizeProversString,
+  normalizeQuiescenceDelayMs,
   readSledgehammerSettings,
   resolveSledgehammerProvers
 } from "../../src/sledgehammer/sledgehammerSettings";
@@ -54,7 +55,8 @@ describe("readSledgehammerSettings", () => {
     expect(readSledgehammerSettings(config)).toEqual({
       provers: "",
       isar: false,
-      try0: true
+      try0: true,
+      quiescenceDelayMs: 1500
     });
   });
 
@@ -62,12 +64,14 @@ describe("readSledgehammerSettings", () => {
     const config = makeConfig({
       "sledgehammer.provers": " cvc5 verit ",
       "sledgehammer.isar": true,
-      "sledgehammer.try0": false
+      "sledgehammer.try0": false,
+      "sledgehammer.quiescenceDelayMs": 3000
     });
     expect(readSledgehammerSettings(config)).toEqual({
       provers: "cvc5 verit",
       isar: true,
-      try0: false
+      try0: false,
+      quiescenceDelayMs: 3000
     });
   });
 
@@ -93,11 +97,58 @@ describe("readSledgehammerSettings", () => {
       "sledgehammer.isar": "true" as unknown as boolean,
       "sledgehammer.try0": 0 as unknown as boolean
     });
-    expect(readSledgehammerSettings(config)).toEqual({
+    expect(readSledgehammerSettings(config)).toMatchObject({
       provers: "",
       isar: false,
       try0: true
     });
+  });
+
+  it("clamps quiescenceDelayMs to [0, 30000] and coerces non-numbers to the default", () => {
+    expect(
+      readSledgehammerSettings(makeConfig({ "sledgehammer.quiescenceDelayMs": -50 })).quiescenceDelayMs
+    ).toBe(0);
+    expect(
+      readSledgehammerSettings(makeConfig({ "sledgehammer.quiescenceDelayMs": 100000 })).quiescenceDelayMs
+    ).toBe(30000);
+    expect(
+      readSledgehammerSettings(makeConfig({ "sledgehammer.quiescenceDelayMs": "3000" as unknown as number })).quiescenceDelayMs
+    ).toBe(1500);
+    expect(
+      readSledgehammerSettings(makeConfig({ "sledgehammer.quiescenceDelayMs": NaN })).quiescenceDelayMs
+    ).toBe(1500);
+  });
+});
+
+describe("normalizeQuiescenceDelayMs", () => {
+  it("returns the schema default for non-numeric input", () => {
+    expect(normalizeQuiescenceDelayMs(undefined)).toBe(1500);
+    expect(normalizeQuiescenceDelayMs(null)).toBe(1500);
+    expect(normalizeQuiescenceDelayMs("3000")).toBe(1500);
+    expect(normalizeQuiescenceDelayMs([3000])).toBe(1500);
+  });
+
+  it("returns the schema default for NaN or Infinity", () => {
+    expect(normalizeQuiescenceDelayMs(NaN)).toBe(1500);
+    expect(normalizeQuiescenceDelayMs(Number.POSITIVE_INFINITY)).toBe(1500);
+    expect(normalizeQuiescenceDelayMs(Number.NEGATIVE_INFINITY)).toBe(1500);
+  });
+
+  it("clamps negative or zero values to 0 (gate disabled)", () => {
+    expect(normalizeQuiescenceDelayMs(-1)).toBe(0);
+    expect(normalizeQuiescenceDelayMs(-1000)).toBe(0);
+    expect(normalizeQuiescenceDelayMs(0)).toBe(0);
+  });
+
+  it("clamps values above 30000 to the documented maximum", () => {
+    expect(normalizeQuiescenceDelayMs(30000)).toBe(30000);
+    expect(normalizeQuiescenceDelayMs(60000)).toBe(30000);
+  });
+
+  it("rounds in-range fractional values to the nearest millisecond", () => {
+    expect(normalizeQuiescenceDelayMs(1500.4)).toBe(1500);
+    expect(normalizeQuiescenceDelayMs(1500.5)).toBe(1501);
+    expect(normalizeQuiescenceDelayMs(2999.9)).toBe(3000);
   });
 });
 

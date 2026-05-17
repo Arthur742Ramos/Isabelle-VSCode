@@ -22,7 +22,7 @@ export interface SledgehammerSettingsConfig {
   get<T>(section: string, defaultValue: T): T;
 }
 
-/** Snapshot of the three `isabelle.sledgehammer.*` settings. */
+/** Snapshot of the four `isabelle.sledgehammer.*` settings. */
 export interface SledgehammerSettings {
   /**
    * Space-separated prover list. Empty string means "no user override —
@@ -33,6 +33,14 @@ export interface SledgehammerSettings {
   readonly isar: boolean;
   /** When true, allow the standard `try0` tactics before/around external provers. */
   readonly try0: boolean;
+  /**
+   * Quiescence delay in milliseconds. The panel waits up to this many
+   * ms since the last theory edit before dispatching the LSP-mode
+   * `PIDE/sledgehammer_request`. Setting to 0 disables the gate. The
+   * reader clamps the value to the documented `[0, 30000]` range so a
+   * bad workspace setting cannot hang the panel.
+   */
+  readonly quiescenceDelayMs: number;
 }
 
 /**
@@ -49,13 +57,18 @@ export interface PideSledgehammerRequestParams {
 const SETTING_PROVERS = "sledgehammer.provers";
 const SETTING_ISAR = "sledgehammer.isar";
 const SETTING_TRY0 = "sledgehammer.try0";
+const SETTING_QUIESCENCE_DELAY_MS = "sledgehammer.quiescenceDelayMs";
+
+const DEFAULT_QUIESCENCE_DELAY_MS = 1500;
+const MAX_QUIESCENCE_DELAY_MS = 30_000;
 
 /**
  * Read the `isabelle.sledgehammer.*` settings from a VS Code-like
  * configuration source. Hostile or unexpected types are coerced to
  * safe defaults: a non-string `provers` value becomes an empty string,
- * and non-boolean isar/try0 values fall back to their schema defaults
- * (false and true respectively).
+ * non-boolean isar/try0 values fall back to their schema defaults
+ * (false and true respectively), and a non-finite, negative, or
+ * out-of-range `quiescenceDelayMs` clamps to `[0, 30000]`.
  */
 export function readSledgehammerSettings(
   config: SledgehammerSettingsConfig
@@ -63,12 +76,35 @@ export function readSledgehammerSettings(
   const proversRaw = config.get<unknown>(SETTING_PROVERS, "");
   const isarRaw = config.get<unknown>(SETTING_ISAR, false);
   const try0Raw = config.get<unknown>(SETTING_TRY0, true);
+  const quiescenceRaw = config.get<unknown>(SETTING_QUIESCENCE_DELAY_MS, DEFAULT_QUIESCENCE_DELAY_MS);
 
   return {
     provers: normalizeProversString(typeof proversRaw === "string" ? proversRaw : ""),
     isar: typeof isarRaw === "boolean" ? isarRaw : false,
-    try0: typeof try0Raw === "boolean" ? try0Raw : true
+    try0: typeof try0Raw === "boolean" ? try0Raw : true,
+    quiescenceDelayMs: normalizeQuiescenceDelayMs(quiescenceRaw)
   };
+}
+
+/**
+ * Clamp the quiescence-delay setting to a sane range so a hostile or
+ * bad workspace configuration cannot hang the panel for hours or
+ * surface a `NaN`-millisecond timer. Anything non-numeric falls back
+ * to the schema default.
+ */
+export function normalizeQuiescenceDelayMs(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return DEFAULT_QUIESCENCE_DELAY_MS;
+  }
+  if (raw <= 0) {
+    return 0;
+  }
+  if (raw >= MAX_QUIESCENCE_DELAY_MS) {
+    return MAX_QUIESCENCE_DELAY_MS;
+  }
+  // Round to the nearest integer ms; this avoids surprising
+  // sub-millisecond resolution in the setTimeout call site.
+  return Math.round(raw);
 }
 
 /**

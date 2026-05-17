@@ -305,11 +305,23 @@ these items are done today.
         existing document-version guard is preserved to reject
         stale inserts after the theory has been edited since the
         Sledgehammer run.
-  - [ ] Implement a quiescence gate before dispatching
+  - [x] Implement a quiescence gate before dispatching
         `PIDE/sledgehammer_request` (research recommendation #7) so the
         first run after `didOpen` does not reproducibly receive
         `<error_message>Unknown proof context</error_message>` for
-        non-quiescent prover state.
+        non-quiescent prover state. Shipped as
+        `src/sledgehammer/PideQuiescenceTracker.ts` (per-URI edit
+        timestamp tracker with `computeRequiredDelay` and
+        `waitForQuiescence` that delay only when a recent edit means
+        the server may still be reprocessing the theory) plus the new
+        `isabelle.sledgehammer.quiescenceDelayMs` setting (default
+        1500 ms, clamped to `[0, 30000]`). `SledgehammerPanel`'s
+        LSP-mode dispatch consults the tracker and shows a
+        `Waiting … ms for isabelle vscode_server to finish processing
+        the theory (quiescence gate)` status while the wait is in
+        flight. Cancellation during the wait clears the queued
+        dispatch so it never reaches the server, and a follow-up `run`
+        supersedes a pending request.
   - [ ] Implement proof-minimization wiring (the second half of milestone
         7), driven by the same upstream Sledgehammer surface.
 ```
