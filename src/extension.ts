@@ -35,6 +35,7 @@ import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
   IsabelleSemanticTokensProvider
 } from "./semantic/IsabelleSemanticTokensProvider";
+import { TheoryOutlineTreeProvider } from "./semantic/TheoryOutlineTreeProvider";
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
@@ -54,6 +55,7 @@ let sessionService: SessionService | undefined;
 let sledgehammerPanel: SledgehammerPanel | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 let theoryGraphTree: TheoryGraphTreeProvider | undefined;
+let theoryOutlineTree: TheoryOutlineTreeProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
@@ -73,6 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
   repairService = new RepairService(backendManager, output, repairPreviewProvider, createRepairVerificationContext);
   const sessionTree = new SessionTreeProvider(sessions, async () => discoverSessions(output, { silent: true }));
   theoryGraphTree = new TheoryGraphTreeProvider(sessions, output);
+  theoryOutlineTree = new TheoryOutlineTreeProvider(documentSyncService);
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "isabelle.selectSession";
   updateSessionStatus();
@@ -92,6 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
     sledgehammerPanel,
     sessionTree,
     theoryGraphTree,
+    theoryOutlineTree,
     statusBar,
     vscode.languages.registerDocumentSemanticTokensProvider(
       { language: "isabelle", scheme: "file" },
@@ -113,6 +117,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
+    vscode.window.registerTreeDataProvider("isabelle.theoryOutline", theoryOutlineTree),
     vscode.window.registerTreeDataProvider("isabelle.proofOutline", proofOutlineProvider),
     vscode.window.registerWebviewViewProvider("isabelle.proofState", proofStatePanel),
     vscode.window.registerWebviewViewProvider("isabelle.sledgehammer", sledgehammerPanel),
@@ -137,10 +142,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.runSledgehammer", async () => sledgehammerPanel?.run()),
     vscode.commands.registerCommand("isabelle.cancelSledgehammer", async () => sledgehammerPanel?.cancel()),
     vscode.commands.registerCommand("isabelle.insertSledgehammerProof", async () => sledgehammerPanel?.insertFirstSuggestion()),
+    vscode.commands.registerCommand("isabelle.replaySledgehammerRun", async (requestId?: string) =>
+      replaySledgehammerRun(requestId)
+    ),
+    vscode.commands.registerCommand("isabelle.clearSledgehammerHistory", () => sledgehammerPanel?.clearHistory()),
     vscode.commands.registerCommand("isabelle.createRepairRequest", async () => repairService?.createRepairRequest()),
     vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
     vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
     vscode.commands.registerCommand("isabelle.refreshTheoryGraph", async () => refreshTheoryGraph(output)),
+    vscode.commands.registerCommand("isabelle.refreshTheoryOutline", () => theoryOutlineTree?.refresh()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -177,6 +187,8 @@ export function deactivate(): void {
   sessionService = undefined;
   theoryGraphTree?.dispose();
   theoryGraphTree = undefined;
+  theoryOutlineTree?.dispose();
+  theoryOutlineTree = undefined;
   statusBar?.dispose();
   statusBar = undefined;
 }
@@ -365,6 +377,40 @@ async function refreshTheoryGraph(output: vscode.OutputChannel): Promise<void> {
     vscode.window.showInformationMessage("Refreshed Isabelle theory graph.");
   } catch (error) {
     showBackendError("Unable to refresh Isabelle theory graph", error, output);
+  }
+}
+
+async function replaySledgehammerRun(requestId: string | undefined): Promise<void> {
+  if (!sledgehammerPanel) {
+    return;
+  }
+
+  if (requestId) {
+    await sledgehammerPanel.replay(requestId);
+    return;
+  }
+
+  const history = sledgehammerPanel.getHistory();
+  if (history.length === 0) {
+    vscode.window.showInformationMessage("No Sledgehammer history is available to replay.");
+    return;
+  }
+
+  const picked = await vscode.window.showQuickPick(
+    history.map((entry) => ({
+      label: entry.commandSummary ?? entry.requestId,
+      description: `${entry.status} \u00b7 ${entry.suggestionCount} suggestion(s)`,
+      detail: `${entry.startedAt} \u00b7 ${entry.uri}`,
+      requestId: entry.requestId
+    })),
+    {
+      title: "Replay Sledgehammer Run",
+      placeHolder: "Choose a Sledgehammer run to replay"
+    }
+  );
+
+  if (picked) {
+    await sledgehammerPanel.replay(picked.requestId);
   }
 }
 
