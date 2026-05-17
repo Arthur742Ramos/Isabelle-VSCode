@@ -44,6 +44,7 @@
     "onCommand:isabelle.buildActiveSession",
     "onCommand:isabelle.cancelBuild",
     "onCommand:isabelle.resyncOpenTheories",
+    "onCommand:isabelle.showDocumentStatus",
     "onCommand:isabelle.refreshProofOutline",
     "onCommand:isabelle.refreshProofState",
     "onCommand:isabelle.nextCommand",
@@ -115,6 +116,10 @@
       {
         "command": "isabelle.resyncOpenTheories",
         "title": "Isabelle: Resynchronize Open Theories"
+      },
+      {
+        "command": "isabelle.showDocumentStatus",
+        "title": "Isabelle: Show Document Status"
       },
       {
         "command": "isabelle.refreshProofOutline",

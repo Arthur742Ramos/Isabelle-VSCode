@@ -60,6 +60,14 @@ export function containsPosition(span: CommandSpan, position: ProtocolPosition):
   return startsBeforeOrAt(span.range.start, position) && endsAfter(span.range.end, position);
 }
 
+export function findCommandSpanAtOrBefore(
+  spans: readonly CommandSpan[],
+  position: ProtocolPosition
+): CommandSpan | undefined {
+  return spans.find((span) => containsPosition(span, position))
+    ?? findLast(spans, (span) => startsBeforeOrAt(span.range.start, position));
+}
+
 export function startsBeforeOrAt(start: ProtocolPosition, position: ProtocolPosition): boolean {
   return start.line < position.line || (start.line === position.line && start.character <= position.character);
 }
@@ -70,6 +78,15 @@ export function startsAfter(start: ProtocolPosition, position: ProtocolPosition)
 
 function endsAfter(end: ProtocolPosition, position: ProtocolPosition): boolean {
   return end.line > position.line || (end.line === position.line && end.character > position.character);
+}
+
+function findLast<T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined {
+  for (let index = items.length - 1; index >= 0; index--) {
+    if (predicate(items[index])) {
+      return items[index];
+    }
+  }
+  return undefined;
 }
 
 function scanLineForCommand(line: string, initialState: ScanState): LineScanResult {

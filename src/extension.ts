@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
 import { BuildService } from "./build/BuildService";
+import { DocumentStatusService } from "./document/DocumentStatusService";
 import { DocumentSyncService } from "./document/DocumentSyncService";
 import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
 import {
@@ -39,6 +40,7 @@ import { formatUserVisibleError } from "./ui/errorMessages";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
+let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
@@ -57,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
     backendManager!.getClient().request<DiscoverSessionsResult, DiscoverSessionsParams>("session/discover", params)
   );
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessionService?.getActiveSessionName());
+  documentStatusService = new DocumentStatusService(documentSyncService, output);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessionService);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessionService?.getActiveSessionName());
@@ -73,6 +76,7 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     backendManager,
     buildService,
+    documentStatusService,
     documentSyncService,
     proofOutlineProvider,
     proofStatePanel,
@@ -115,6 +119,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.buildActiveSession", async () => buildActiveSession(output)),
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
+    vscode.commands.registerCommand("isabelle.showDocumentStatus", () => documentStatusService?.showActiveDocumentStatus()),
     vscode.commands.registerCommand("isabelle.refreshProofOutline", () => proofOutlineProvider?.refresh()),
     vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
     vscode.commands.registerCommand("isabelle.nextCommand", async () => navigateCommand("next", output)),
@@ -137,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   documentSyncService.start();
+  documentStatusService.start();
 }
 
 export function deactivate(): void {
@@ -155,6 +161,8 @@ export function deactivate(): void {
   backendManager = undefined;
   buildService?.dispose();
   buildService = undefined;
+  documentStatusService?.dispose();
+  documentStatusService = undefined;
   sessionService?.dispose();
   sessionService = undefined;
   theoryGraphTree?.dispose();
