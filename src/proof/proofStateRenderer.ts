@@ -10,6 +10,12 @@ export interface PideProofStateView {
   readonly status?: string;
   /** Optional error message; rendered as a warning section. */
   readonly errorMessage?: string;
+  /**
+   * Optional secondary `PIDE/dynamic_output` snapshot. When supplied,
+   * the renderer adds a "Dynamic output (caret-driven)" section under
+   * the main proof state. Empty / undefined hides the section.
+   */
+  readonly dynamicOutputNodes?: readonly PideOutputNode[];
 }
 
 export function renderProofStateHtml(
@@ -69,7 +75,12 @@ function renderPideState(view: PideProofStateView, state: ProofStateResult | und
     ? `<div class="section"><h3>Proof state</h3>${renderPideOutputHtml(view.outputNodes)}</div>`
     : `<div class="section"><h3>Proof state</h3><p class="muted">Waiting for isabelle vscode_server to publish state for the current caret position.</p></div>`;
 
-  return `<h2>Proof State</h2>${banner}${status}${command}${pideBody}${error}`;
+  const dynamicBody =
+    view.dynamicOutputNodes && view.dynamicOutputNodes.length > 0
+      ? `<div class="section"><h3>Dynamic output (caret-driven)</h3>${renderPideOutputHtml(view.dynamicOutputNodes)}</div>`
+      : "";
+
+  return `<h2>Proof State</h2>${banner}${status}${command}${pideBody}${dynamicBody}${error}`;
 }
 
 function renderState(state: ProofStateResult): string {

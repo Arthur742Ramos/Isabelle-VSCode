@@ -132,4 +132,35 @@ describe("renderProofStateHtml", () => {
     expect(html).not.toContain("<h3>Goals</h3>");
     expect(html).toContain('class="pide-sledgehammer-text"');
   });
+
+  it("renders the secondary Dynamic output section when dynamicOutputNodes are supplied", () => {
+    const html = renderProofStateHtml(undefined, {
+      outputNodes: [{ kind: "text", text: "main" }],
+      autoUpdate: true,
+      dynamicOutputNodes: [
+        {
+          kind: "warning",
+          children: [{ kind: "text", text: "caret hover note" }]
+        }
+      ]
+    });
+    expect(html).toContain("Dynamic output (caret-driven)");
+    expect(html).toContain('class="pide-sledgehammer-message pide-sledgehammer-warning"');
+    expect(html).toContain("caret hover note");
+  });
+
+  it("omits the Dynamic output section when the snapshot is empty or undefined", () => {
+    const noSnapshot = renderProofStateHtml(undefined, {
+      outputNodes: [],
+      autoUpdate: true
+    });
+    expect(noSnapshot).not.toContain("Dynamic output (caret-driven)");
+
+    const emptySnapshot = renderProofStateHtml(undefined, {
+      outputNodes: [],
+      autoUpdate: true,
+      dynamicOutputNodes: []
+    });
+    expect(emptySnapshot).not.toContain("Dynamic output (caret-driven)");
+  });
 });

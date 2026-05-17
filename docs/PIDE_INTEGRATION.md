@@ -395,10 +395,20 @@ these items are done today.
         on the session plus 6 renderer cases on the new PIDE view
         path; live verification against an Isabelle install remains
         a Tier-2 manual run.
-  - [ ] Optionally expose the lighter-weight `PIDE/dynamic_output`
+  - [x] Optionally expose the lighter-weight `PIDE/dynamic_output`
         surface as a secondary "message panel" attached to the editor
-        caret (no `id`, no init/exit handshake). Defer until the
-        primary `PIDE/state_*` wiring lands.
+        caret (no `id`, no init/exit handshake). Shipped as
+        `src/proof/PideDynamicOutputSession.ts` — a single-subscription
+        owner that parses each notification's content via the existing
+        PIDE-XML parser (PR #32), holds it under
+        snapshot-replacement semantics (matching `state_output` and
+        `sledgehammer_output`), and exposes it through the proof state
+        panel's webview as a secondary "Dynamic output (caret-driven)"
+        section under the main proof state. The session is started
+        alongside the main `LspProofStateSession` on LSP-running
+        transitions and torn down with it. The section hides itself
+        when the snapshot is empty so the panel does not show a
+        confusing placeholder for users without a focused caret.
 ```
 
 ## Honest limits

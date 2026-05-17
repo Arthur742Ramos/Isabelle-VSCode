@@ -9,6 +9,10 @@ import {
   ProofStateSessionStatus,
   ProofStateUpdate
 } from "./LspProofStateSession";
+import {
+  DynamicOutputUpdate,
+  PideDynamicOutputSession
+} from "./PideDynamicOutputSession";
 import { PideProofStateView, renderProofStateHtml } from "./proofStateRenderer";
 
 export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -22,6 +26,9 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private lspAutoUpdate = true;
   private lspStatus: ProofStateSessionStatus | undefined;
   private lspError: string | undefined;
+
+  private dynamicSession: PideDynamicOutputSession | undefined;
+  private dynamicOutputNodes: readonly PideOutputNode[] = [];
 
   public constructor(
     private readonly backendManager: BackendManager,
@@ -123,6 +130,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       clearTimeout(this.refreshTimer);
       this.refreshTimer = undefined;
     }
+    this.dynamicSession?.dispose();
+    this.dynamicSession = undefined;
     this.lspSession?.dispose();
     this.lspSession = undefined;
     for (const disposable of this.disposables) {
@@ -167,6 +176,12 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       this.output,
       (update) => this.handleLspUpdate(update)
     );
+    this.dynamicOutputNodes = [];
+    this.dynamicSession = new PideDynamicOutputSession(
+      this.languageClient,
+      this.output,
+      (update) => this.handleDynamicUpdate(update)
+    );
     this.output.appendLine("Proof state: LSP-mode session starting");
     this.render();
   }
@@ -174,6 +189,9 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private stopLspSession(): void {
     if (!this.lspSession) return;
     this.output.appendLine("Proof state: LSP-mode session stopping");
+    this.dynamicSession?.dispose();
+    this.dynamicSession = undefined;
+    this.dynamicOutputNodes = [];
     this.lspSession.dispose();
     this.lspSession = undefined;
     this.lspOutputNodes = [];
@@ -198,6 +216,11 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     this.render();
   }
 
+  private handleDynamicUpdate(update: DynamicOutputUpdate): void {
+    this.dynamicOutputNodes = update.outputNodes;
+    this.render();
+  }
+
   private render(): void {
     if (!this.view) return;
     if (this.lspSession) {
@@ -205,7 +228,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
         outputNodes: this.lspOutputNodes,
         autoUpdate: this.lspAutoUpdate,
         status: pideStatusCaption(this.lspStatus),
-        errorMessage: this.lspError
+        errorMessage: this.lspError,
+        dynamicOutputNodes: this.dynamicOutputNodes
       };
       this.view.webview.html = renderProofStateHtml(this.lastState, pideView);
       return;
