@@ -146,3 +146,5 @@ The high-level roadmap is:
 Motto: VS Code for UI, Isabelle/Scala for semantics, Isabelle/ML for truth.
 
 The Scala backend exposes a `PideBridge` trait (with a default `LocalSyntaxPideBridge` that preserves today's command-span-and-disclaimer behavior) so milestones 4, 5, and 7's PIDE-backed document status, entity metadata, structured proof state, and Sledgehammer proof search plug into a clear interface without changing the JSON-RPC protocol or the VS Code extension.
+
+See [docs/PIDE_INTEGRATION.md](docs/PIDE_INTEGRATION.md) for the chosen LSP-relay approach (run Isabelle's bundled `isabelle vscode_server` as an opt-in child language server, additive to the Scala backend and the `PideBridge` seam), the runtime prerequisites, and the capability roll-out plan for milestones 4, 5, and 7. The planned `isabelle.languageServer.enabled` setting defaults to `false`; nothing in that document is implemented on `main` yet.
