@@ -289,6 +289,31 @@ these items are done today.
         `test/lsp/featureCoexistence.test.ts`. End-to-end "type a
         partial identifier and see PIDE-sourced suggestions" still
         requires a Tier-2 manual run.
+  - [x] Surface upstream `PIDE/decoration` overlays as editor
+        decorations. Owned by
+        `src/document/PideDecorationOverlayService.ts` (vscode side)
+        and `src/document/pideDecorations.ts` (pure parser, style
+        mapping, group helper, request planner). Subscribes to
+        `PIDE/decoration { uri, entries: [{ type: "text_<color>",
+        content: [{ range, hover_message? }] }] }`, lazily creates one
+        `TextEditorDecorationType` per known `Rendering.Color.Value`
+        kind (keyword1/2/3, quasi_keyword, operator, tfree/tvar,
+        free/bound/skolem/var, inner_numeral / inner_quoted /
+        inner_cartouche, antiquote / antiquoted, dynamic,
+        class_parameter, raw_text / plain_text / comment,
+        intensify, bullet, bad, legacy, main), and sends
+        `PIDE/decoration_request { uri }` when a previously unseen
+        theory becomes visible. The overlay layers cleanly on top of
+        the local semantic-tokens foundation and tears down (cache +
+        painted decorations + per-type decoration registry) when the
+        LSP leaves `running`. Validated by
+        `test/document/pideDecorations.test.ts` (24 cases on the
+        parser, style mapping, group helper, and request planner) and
+        `test/document/pideDecorationOverlayService.structural.test.ts`
+        (structural pins on the vscode-side wiring). End-to-end "open
+        an Isabelle theory with the LSP enabled and see keywords /
+        free variables / errors painted with PIDE-published ranges"
+        remains a Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes

@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-17 (PR #50). For per-feature checkboxes,
+> Last refreshed: 2026-05-17 (PR adds `PIDE/decoration` overlay). For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -19,13 +19,13 @@ single page to read for "what is shipped, what is still open, why."
 | 2 Session discovery (ROOT/ROOTS/AFP, active session, theory tree) | ✅ Done |
 | 3 Build integration (`isabelle build`, streamed output, diagnostics) | ✅ Done |
 | 4 PIDE document connection | ✅ Done (Tier-2 manual still recommended) |
-| 5 Semantic markup | ✅ 3 of 4 — `documentSymbol` upstream-blocked |
+| 5 Semantic markup | ✅ 4 of 5 — `documentSymbol` upstream-blocked; PIDE/decoration overlay shipped |
 | 6 Proof state panel | ✅ 2 of 2 — LSP-backed via PIDE state-panel + dynamic_output |
 | 7 Sledgehammer workflow | ✅ 6 of 7 — minimization upstream-blocked |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
 
-Vitest baseline: **425 cases, all green**.
+Vitest baseline: **463 cases, all green**.
 
 ## What is fully shipped
 
@@ -75,7 +75,12 @@ document-link, document-symbol) registered against
 `running`, `vscode-languageclient` auto-registers hover, definition,
 and completion providers against the same selector (Isabelle
 2025-2 advertises all three); VS Code aggregates results from
-both. The only outstanding capability is the
+both. On top of that, the new `PideDecorationOverlayService`
+subscribes to upstream `PIDE/decoration` and overlays the editor
+with the server's per-URI `text_<color>` ranges (keywords, free /
+bound / type variables, inner-syntax literals, errors,
+deprecation, etc.) — see `PIDE_INTEGRATION.md` for the full
+decoration-type map. The only outstanding capability is the
 `textDocument/documentSymbol` merge — Isabelle 2025-2 does NOT
 advertise `documentSymbolProvider`, so VS Code's Outline +
 breadcrumb stay on the local provider. Documented as
