@@ -5,7 +5,7 @@ import scala.sys.process.Process
 import scala.util.control.NonFatal
 
 object Main {
-  private val documents = new DocumentStore
+  private val documents = new DocumentStore(new LocalSyntaxPideBridge)
 
   def main(args: Array[String]): Unit = {
     val in = new BufferedInputStream(System.in)

@@ -54,17 +54,21 @@
     "onCommand:isabelle.runSledgehammer",
     "onCommand:isabelle.cancelSledgehammer",
     "onCommand:isabelle.insertSledgehammerProof",
+    "onCommand:isabelle.replaySledgehammerRun",
+    "onCommand:isabelle.clearSledgehammerHistory",
     "onCommand:isabelle.createRepairRequest",
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
     "onCommand:isabelle.showTheoryDependents",
     "onCommand:isabelle.toggleTheoryGraphMode",
+    "onCommand:isabelle.refreshTheoryOutline",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
     "onView:isabelle.sledgehammer",
-    "onView:isabelle.theoryGraph"
+    "onView:isabelle.theoryGraph",
+    "onView:isabelle.theoryOutline"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -165,6 +169,14 @@
         "icon": "$(edit)"
       },
       {
+        "command": "isabelle.replaySledgehammerRun",
+        "title": "Isabelle: Replay Sledgehammer Run"
+      },
+      {
+        "command": "isabelle.clearSledgehammerHistory",
+        "title": "Isabelle: Clear Sledgehammer History"
+      },
+      {
         "command": "isabelle.createRepairRequest",
         "title": "Isabelle: Create Checked Repair Request"
       },
@@ -189,6 +201,11 @@
         "command": "isabelle.toggleTheoryGraphMode",
         "title": "Isabelle: Toggle Theory Graph Direction",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "isabelle.refreshTheoryOutline",
+        "title": "Isabelle: Refresh Theory Outline",
+        "icon": "$(refresh)"
       }
     ],
     "views": {
@@ -212,6 +229,10 @@
         {
           "id": "isabelle.theoryGraph",
           "name": "Isabelle Theory Graph"
+        },
+        {
+          "id": "isabelle.theoryOutline",
+          "name": "Isabelle Theory Outline"
         }
       ]
     },
@@ -270,6 +291,11 @@
         {
           "command": "isabelle.toggleTheoryGraphMode",
           "when": "view == isabelle.theoryGraph",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshTheoryOutline",
+          "when": "view == isabelle.theoryOutline",
           "group": "navigation"
         }
       ]

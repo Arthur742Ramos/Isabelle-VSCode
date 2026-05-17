@@ -37,12 +37,15 @@ Implemented foundation:
   - `Isabelle: Run Sledgehammer`
   - `Isabelle: Cancel Sledgehammer`
   - `Isabelle: Insert Sledgehammer Proof`
+  - `Isabelle: Replay Sledgehammer Run`
+  - `Isabelle: Clear Sledgehammer History`
   - `Isabelle: Create Checked Repair Request`
   - `Isabelle: Preview Repair Patch`
   - `Isabelle: Check Current Workspace for Repair`
   - `Isabelle: Refresh Theory Graph`
   - `Isabelle: Show Theory Dependents`
   - `Isabelle: Toggle Theory Graph Direction`
+  - `Isabelle: Refresh Theory Outline`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and backend-backed `session/discover`.
@@ -52,18 +55,20 @@ Implemented foundation:
 - Isabelle CLI build runner for the active session with streamed output, cancellation, and Problems diagnostics for common source-location formats.
 - Document synchronization bridge for opening, updating, and closing Isabelle theory documents through the Scala backend.
 - Scala backend document state with conservative command-span extraction as a placeholder for future PIDE spans.
-- Status-bar document status surface that summarizes synchronized/local command spans and the current command with an explicit local syntax-only label; it does not publish Isabelle diagnostics.
+- Scala backend `PideBridge` seam with a default local-syntax implementation; a future real PIDE bridge can plug in without protocol changes.
+- Status-bar document status surface that summarizes synchronized/local command spans and the current command with an explicit local syntax-only label; it does not publish Isabelle diagnostics. Editor decorations also mark each synchronized command span with its local-only status (pending/running/finished/failed/unknown), derived from the same local command-span source rather than PIDE processing.
 - Local semantic-rendering foundation with Isabelle command/declaration/symbol semantic tokens, basic command/symbol hovers, document symbols, local import links, and in-file go-to-definition for locally parsed declarations.
 - Explorer-side **Isabelle Proof State** panel that follows the active theory cursor and renders structured placeholder proof-state data through the backend protocol.
 - Explorer-side **Isabelle Proof Outline** view that follows the active theory and groups command spans with proof steps.
 - Command navigation helpers for moving to the next/previous Isabelle command and revealing the current command span.
 - Conservative proof action palette for refreshing the proof-state panel, building the active session, or explicitly inserting `sorry`/`oops` without claiming verification.
-- Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
+- Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, a local run-history surface with replay of past requests, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists; PIDE-backed proof search and minimization remain future work.
 - Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
 - Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers, with a view-mode toggle that switches each theory between its forward `imports` and the local reverse `imported by` list, plus a `Show Theory Dependents` quick-pick driven from the active editor for local impact navigation.
+- Explorer-side **Isabelle Theory Outline** tree that groups locally extracted theory entities (theorems, lemmas, definitions, datatypes, locales, etc.) for the active `.thy` editor, refreshes as command spans change, and reuses the existing reveal-command navigation. This is local syntax-only extraction from synchronized command spans and does **not** consume PIDE entity metadata.
 - Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, document status summaries, and proof-outline helpers.
 
-The theory graph, proof outline, document status surface, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency, diagnostics, or semantic markup yet. The theory-graph reverse navigation is derived from the same parsed `.thy` headers and only reports importers that were locally discovered. This milestone does **not** implement PIDE document processing, live proof checking, PIDE semantic markup/entity metadata, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
+The theory graph, theory outline, proof outline, document status surface, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency, diagnostics, or semantic markup yet. The theory-graph reverse navigation is derived from the same parsed `.thy` headers and only reports importers that were locally discovered. This milestone does **not** implement PIDE document processing, live proof checking, PIDE semantic markup/entity metadata, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
 
 ## Checked repair workflow
 
@@ -139,3 +144,5 @@ The high-level roadmap is:
 9. Checked AI repair loop that only reports success after Isabelle verifies the patch.
 
 Motto: VS Code for UI, Isabelle/Scala for semantics, Isabelle/ML for truth.
+
+The Scala backend exposes a `PideBridge` trait (with a default `LocalSyntaxPideBridge` that preserves today's command-span-and-disclaimer behavior) so milestones 4, 5, and 7's PIDE-backed document status, entity metadata, structured proof state, and Sledgehammer proof search plug into a clear interface without changing the JSON-RPC protocol or the VS Code extension.
