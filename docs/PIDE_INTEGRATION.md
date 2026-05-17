@@ -289,14 +289,22 @@ these items are done today.
         live Isabelle install remains a Tier-2 manual follow-up; the
         unit-level orchestrator + conversion helpers are fully
         covered.
-  - [ ] Implement the two-step sendback insert flow (research
+  - [x] Implement the two-step sendback insert flow (research
         recommendation #5) — when the user clicks an inserted
         suggestion, send `PIDE/sledgehammer_sendback` and apply the
         server's `PIDE/sledgehammer_insert` reply as a
-        version-validated workspace edit. The substrate
-        (`collectSendbackTexts` from PR #32 and `SessionUpdate.sendbacks`
-        from PR #36) is in place; only the panel-side wiring is
-        outstanding.
+        version-validated workspace edit. Shipped as
+        `src/sledgehammer/pideSledgehammerInsert.ts` (pure
+        `validatePideInsertPayload` + async `requestPideInsert` that
+        subscribes before sending, drops malformed/mismatched
+        replies, times out on missing replies, and returns a typed
+        success-or-reason result) plus a panel-side branch in
+        `SledgehammerPanel.insertFirstSuggestion()` that picks
+        LSP-mode when the language client is `running` and applies
+        the server-supplied position via `WorkspaceEdit`. The
+        existing document-version guard is preserved to reject
+        stale inserts after the theory has been edited since the
+        Sledgehammer run.
   - [ ] Implement a quiescence gate before dispatching
         `PIDE/sledgehammer_request` (research recommendation #7) so the
         first run after `didOpen` does not reproducibly receive
