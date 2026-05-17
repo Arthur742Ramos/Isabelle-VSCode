@@ -395,6 +395,21 @@
           },
           "default": [],
           "description": "Additional arguments passed to `isabelle build` before the active session name."
+        },
+        "isabelle.sledgehammer.provers": {
+          "type": "string",
+          "default": "",
+          "description": "Optional space-separated list of Sledgehammer provers (e.g. `cvc5 verit z3 e spass vampire zipperposition`). Empty falls back to the prover list reported by `isabelle vscode_server` via `PIDE/sledgehammer_provers_response`, which in turn falls back to Isabelle's own `sledgehammer_provers` defaults. Only consulted when the LSP relay is enabled and a Sledgehammer run is dispatched through `PIDE/sledgehammer_request`. The setting is also exposed for future Scala-backend wiring."
+        },
+        "isabelle.sledgehammer.isar": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, ask Sledgehammer to return Isar-style structured proofs (`proof ... qed`) instead of one-liners. Mirrors the `isar` flag of `PIDE/sledgehammer_request`. Default `false` matches the upstream `isabelle vscode_server` default."
+        },
+        "isabelle.sledgehammer.try0": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, allow Sledgehammer to try the standard `try0` tactics (`auto`, `blast`, `fast`, `force`, ...) before and around the external provers. Mirrors the `try0` flag of `PIDE/sledgehammer_request`. Default `true` matches the upstream `isabelle vscode_server` default."
         }
       }
     }
