@@ -54,6 +54,8 @@
     "onCommand:isabelle.runSledgehammer",
     "onCommand:isabelle.cancelSledgehammer",
     "onCommand:isabelle.insertSledgehammerProof",
+    "onCommand:isabelle.replaySledgehammerRun",
+    "onCommand:isabelle.clearSledgehammerHistory",
     "onCommand:isabelle.createRepairRequest",
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
@@ -161,6 +163,14 @@
         "command": "isabelle.insertSledgehammerProof",
         "title": "Isabelle: Insert Sledgehammer Proof",
         "icon": "$(edit)"
+      },
+      {
+        "command": "isabelle.replaySledgehammerRun",
+        "title": "Isabelle: Replay Sledgehammer Run"
+      },
+      {
+        "command": "isabelle.clearSledgehammerHistory",
+        "title": "Isabelle: Clear Sledgehammer History"
       },
       {
         "command": "isabelle.createRepairRequest",
