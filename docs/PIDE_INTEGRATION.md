@@ -359,6 +359,42 @@ these items are done today.
         supersedes a pending request.
   - [ ] Implement proof-minimization wiring (the second half of milestone
         7), driven by the same upstream Sledgehammer surface.
+        **Upstream-blocked at LSP level** as of the
+        `ce22e9eaee0d486b424c1c2d1ccb66229632cf0d` source probe — see
+        [`proof_state_and_minimization_lsp_research.md`](proof_state_and_minimization_lsp_research.md)
+        for the verbatim findings. Two paths forward: (a) wait for
+        upstream to add a `PIDE/sledgehammer_minimize_request`
+        notification; or (b) implement minimization in the Scala
+        backend's `PideBridge` via direct Isabelle/ML call into
+        `Sledgehammer_Minimize.run`. Recommendation: defer until the
+        backend's `PideBridge` gains a real PIDE implementation. The
+        recommended next step on the milestone-7 track is *not* this
+        checkbox but rather Milestone 6's LSP-mode proof state, which
+        is unblocked by the same research probe.
+
+- [ ] Milestone 6 (Proof state panel)
+  - [ ] Replace the local-syntax-only `ProofStatePanel` placeholder
+        with a structured proof state rendered from
+        `isabelle vscode_server`. The upstream LSP surface to use was
+        documented in
+        [`proof_state_and_minimization_lsp_research.md`](proof_state_and_minimization_lsp_research.md):
+        send `PIDE/state_init` (request), capture the returned
+        `state_id`, subscribe to `PIDE/state_output { id, content,
+        auto_update, decorations? }`, render the parsed Isabelle XML
+        content via the existing PIDE-XML parser (PR #32), and call
+        `PIDE/state_exit { id }` on dispose. Branch on
+        `IsabelleLanguageClient.getStatus().state === "running"`, keep
+        the local-syntax placeholder as the fallback when the LSP is
+        off. Map the auto-update toggle to `PIDE/state_auto_update {
+        id, enabled }`. Single instance per active panel — do NOT
+        re-init on every cursor move. Validated by Tier-2 manual
+        verification against an Isabelle install (open a theory,
+        place the cursor inside a proof, observe the state panel
+        updating live as the prover progresses).
+  - [ ] Optionally expose the lighter-weight `PIDE/dynamic_output`
+        surface as a secondary "message panel" attached to the editor
+        caret (no `id`, no init/exit handshake). Defer until the
+        primary `PIDE/state_*` wiring lands.
 ```
 
 ## Honest limits
@@ -395,6 +431,8 @@ these items are done today.
 - Isabelle distribution VS Code source (upstream `isabelle vscode_server`
   implementation):
   <https://isabelle.in.tum.de/repos/isabelle/file/Isabelle2024/src/Tools/VSCode>
+- Isabelle upstream git mirror (used in source-only research probes):
+  <https://github.com/isabelle-prover/mirror-isabelle/tree/master/src/Tools/VSCode/src>
 - Microsoft Language Server Protocol specification:
   <https://microsoft.github.io/language-server-protocol>
 - `vscode-languageclient` npm package (the LSP client dependency):
