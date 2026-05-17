@@ -80,6 +80,8 @@
     "onCommand:isabelle.excludeWord",
     "onCommand:isabelle.excludeWordPermanently",
     "onCommand:isabelle.resetWords",
+    "onCommand:isabelle.toggleProofStateAutoUpdate",
+    "onCommand:isabelle.relocateProofState",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -291,6 +293,14 @@
       {
         "command": "isabelle.resetWords",
         "title": "Isabelle: Reset Spell-Checker Session Words"
+      },
+      {
+        "command": "isabelle.toggleProofStateAutoUpdate",
+        "title": "Isabelle: Toggle Proof State Auto-Update"
+      },
+      {
+        "command": "isabelle.relocateProofState",
+        "title": "Isabelle: Re-anchor Proof State to Cursor"
       }
     ],
     "views": {
@@ -492,6 +502,25 @@
           "type": "boolean",
           "default": false,
           "description": "Safety gate for the AI repair seam. When false (the default), the `Isabelle: Request AI Repair Suggestion` command refuses to invoke any registered provider, even if `isabelle.repair.aiProvider` is set. Setting this to true acknowledges that the provider will receive the full checked-repair request, which may include source code, diagnostics, and proof state — read docs/AI_REPAIR.md before enabling."
+        },
+        "isabelle.proofState.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (the upstream default), the LSP-mode proof state panel re-renders on every `Session.Commands_Changed` or `Session.Caret_Focus` server event. When false, the panel only refreshes when you run `Isabelle: Refresh Proof State` (or use the panel toolbar refresh button). Maps onto the upstream `PIDE/state_auto_update` notification."
+        },
+        "isabelle.proofState.margin": {
+          "type": "number",
+          "default": 80,
+          "minimum": 20,
+          "maximum": 400,
+          "description": "Pretty-printer margin (in columns) for the LSP-mode proof state panel. Lower values produce more line breaks; higher values keep formulas on one line. Maps onto the upstream `PIDE/state_set_margin` notification."
+        },
+        "isabelle.dynamicOutput.margin": {
+          "type": "number",
+          "default": 80,
+          "minimum": 20,
+          "maximum": 400,
+          "description": "Pretty-printer margin (in columns) for the caret-driven dynamic output sub-panel shown beneath the proof state. Maps onto the upstream `PIDE/output_set_margin` notification."
         }
       }
     }

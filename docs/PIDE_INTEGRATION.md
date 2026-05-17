@@ -417,6 +417,32 @@ these items are done today.
         confirm the spell-check decoration disappears" remains a
         Tier-2 manual run.
 
+- [ ] Milestone 6 (Proof state panel)
+  - [x] Surface upstream `PIDE/state_auto_update`,
+        `PIDE/state_locate`, `PIDE/state_set_margin`, and
+        `PIDE/output_set_margin` as user-facing settings + commands.
+        Owned by `src/proof/proofStateSettings.ts` (pure reader +
+        clamp + diff helpers) and `src/proof/ProofStatePanel.ts`
+        (applies the settings on session start, watches for
+        configuration changes, exposes `toggleAutoUpdate()` and
+        `requestLocate()` for the two new commands). `PideDynamicOutputSession`
+        gains a `setMargin` method that forwards to
+        `PIDE/output_set_margin`. New settings:
+        `isabelle.proofState.autoUpdate` (default `true`, matches
+        upstream `state_panel.scala:82`),
+        `isabelle.proofState.margin` (default 80, clamped 20-400),
+        `isabelle.dynamicOutput.margin` (default 80, clamped 20-400).
+        New commands: `Isabelle: Toggle Proof State Auto-Update`
+        (persists the flip into the workspace setting AND forwards
+        `PIDE/state_auto_update` so the user sees the change in both
+        the UI and on the next reload), `Isabelle: Re-anchor Proof
+        State to Cursor` (sends `PIDE/state_locate`). Validated by
+        `test/proof/proofStateSettings.test.ts` (13 cases on read,
+        clamp, diff) plus 4 new cases on `PideDynamicOutputSession.setMargin`.
+        End-to-end "edit `isabelle.proofState.margin` to 40, watch
+        the proof state pane re-flow tighter" remains a Tier-2
+        manual run.
+
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes
         Sledgehammer suggestions as LSP custom requests, as a code-action

@@ -286,6 +286,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand(EXCLUDE_WORD_COMMAND_ID, () => spellCheckerWordCommand(output, "exclude")),
     vscode.commands.registerCommand(EXCLUDE_WORD_PERMANENTLY_COMMAND_ID, () => spellCheckerWordCommand(output, "exclude-permanently")),
     vscode.commands.registerCommand(RESET_WORDS_COMMAND_ID, () => spellCheckerResetCommand(output)),
+    vscode.commands.registerCommand("isabelle.toggleProofStateAutoUpdate", () => toggleProofStateAutoUpdateCommand()),
+    vscode.commands.registerCommand("isabelle.relocateProofState", () => relocateProofStateCommand()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -1200,6 +1202,33 @@ function makeSpellCheckerUi(): SpellCheckerUi {
     showInformationMessage: async (message) =>
       vscode.window.showInformationMessage(message)
   };
+}
+
+function toggleProofStateAutoUpdateCommand(): void {
+  if (!proofStatePanel) {
+    void vscode.window.showInformationMessage(
+      "Isabelle proof state panel is not initialized yet."
+    );
+    return;
+  }
+  const enabled = proofStatePanel.toggleAutoUpdate();
+  // Persist the user's choice into the workspace setting so reloads
+  // pick it up and so the setting reflects the new value in the UI.
+  const config = vscode.workspace.getConfiguration("isabelle");
+  void config.update("proofState.autoUpdate", enabled, vscode.ConfigurationTarget.Workspace);
+  void vscode.window.showInformationMessage(
+    `Isabelle proof state auto-update is now ${enabled ? "on" : "off"}.`
+  );
+}
+
+function relocateProofStateCommand(): void {
+  if (!proofStatePanel) {
+    void vscode.window.showInformationMessage(
+      "Isabelle proof state panel is not initialized yet."
+    );
+    return;
+  }
+  proofStatePanel.requestLocate();
 }
 
 function formatLanguageServerStatus(status: IsabelleLanguageServerStatus): string {
