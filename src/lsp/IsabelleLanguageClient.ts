@@ -9,6 +9,11 @@ import {
   TransportKind
 } from "vscode-languageclient/node";
 import { buildLanguageServerCommand, resolveIsabelleCommand } from "./languageServerArgs";
+import {
+  LspNotificationHandler,
+  LspNotificationRegistry,
+  LspNotificationSubscription
+} from "./lspNotificationRegistry";
 import { IsabelleLanguageServerState, IsabelleLanguageServerStatus } from "./lspTypes";
 
 const REACH_CHECK_TIMEOUT_MS = 10_000;
@@ -48,6 +53,8 @@ export class IsabelleLanguageClient implements vscode.Disposable {
   private currentClient: LanguageClient | undefined;
   private currentClientStateListener: vscode.Disposable | undefined;
   private reachCheckChild: ChildProcessWithoutNullStreams | undefined;
+  /** Per-method notification handlers; persist across client lifecycles. */
+  private readonly notificationRegistry = new LspNotificationRegistry();
 
   private readonly lspOutput: vscode.OutputChannel;
   private readonly lspTraceOutput: vscode.OutputChannel;
@@ -72,6 +79,63 @@ export class IsabelleLanguageClient implements vscode.Disposable {
       lastStartedAt: this.lastStartedAt,
       lastStoppedAt: this.lastStoppedAt
     };
+  }
+
+  /**
+   * Send an LSP notification to the running language server. Drops with a
+   * log line (does not throw) if the client is not currently `running` —
+   * callers should treat send as best-effort and gate on
+   * {@link getStatus} when they need to know whether the message landed.
+   *
+   * Intended for the PIDE-flavoured notifications that isabelle vscode_server
+   * exposes (see `docs/sledgehammer_lsp_research.md`): notifications like
+   * `PIDE/caret_update` and `PIDE/sledgehammer_request` flow through here.
+   */
+  public sendNotification(method: string, params?: unknown): void {
+    if (this.disposed) {
+      return;
+    }
+    const client = this.currentClient;
+    if (!client || this.state !== "running") {
+      this.output.appendLine(
+        `Isabelle language server: dropped sendNotification(${method}) — client state is "${this.state}"`
+      );
+      return;
+    }
+    try {
+      // vscode-languageclient accepts (method, params) overloads; cast
+      // params to satisfy the typed overload without leaking `any` to callers.
+      void client.sendNotification(method, params as never);
+    } catch (error) {
+      this.output.appendLine(
+        `Isabelle language server: sendNotification(${method}) failed: ${errorMessage(error)}`
+      );
+    }
+  }
+
+  /**
+   * Subscribe to an LSP notification by method name. Handlers persist
+   * across language-client restarts: a handler registered while the
+   * client is `disabled` will start receiving notifications once the
+   * client transitions to `running`, and will continue receiving them
+   * after a restart cycle.
+   *
+   * Disposing the returned subscription removes the handler from the
+   * internal registry; subsequent dispose calls are no-ops. Disposing
+   * does NOT unwire any per-client onNotification registration that
+   * vscode-languageclient may already hold — those are cleaned up
+   * automatically when the underlying client is stopped — but the
+   * handler will not be re-registered on the next client start.
+   */
+  public onNotification(
+    method: string,
+    handler: LspNotificationHandler
+  ): LspNotificationSubscription {
+    const subscription = this.notificationRegistry.add(method, handler);
+    if (this.currentClient && this.state === "running") {
+      this.registerHandlerOnClient(this.currentClient, method, handler);
+    }
+    return subscription;
   }
 
   public start(): Promise<void> {
@@ -261,6 +325,7 @@ export class IsabelleLanguageClient implements vscode.Disposable {
 
     this.currentClient = client;
     this.attachClientStateListener(client);
+    this.replayNotificationHandlers(client);
     this.output.appendLine("Isabelle language server: running");
     this.transition({
       state: "running",
@@ -324,6 +389,35 @@ export class IsabelleLanguageClient implements vscode.Disposable {
         });
       }
     });
+  }
+
+  private replayNotificationHandlers(client: LanguageClient): void {
+    for (const [method, handlers] of this.notificationRegistry.entries()) {
+      for (const handler of handlers) {
+        this.registerHandlerOnClient(client, method, handler);
+      }
+    }
+  }
+
+  private registerHandlerOnClient(
+    client: LanguageClient,
+    method: string,
+    handler: LspNotificationHandler
+  ): void {
+    try {
+      // vscode-languageclient's onNotification disposable is tied to the
+      // client's own lifetime: when the client stops, all per-client
+      // registrations are cleaned up. We intentionally drop the returned
+      // disposable here because handler lifetime is tracked by the
+      // notificationRegistry (handlers persist across client restarts
+      // via replayNotificationHandlers); per-client cleanup happens via
+      // client.stop().
+      client.onNotification(method, handler);
+    } catch (error) {
+      this.output.appendLine(
+        `Isabelle language server: onNotification(${method}) registration failed: ${errorMessage(error)}`
+      );
+    }
   }
 
   private cancelReachCheck(): void {
