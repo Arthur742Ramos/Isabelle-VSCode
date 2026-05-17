@@ -43,8 +43,8 @@ export function buildRepairVerificationPlanMarkdown(snapshot: RepairVerification
     "",
     "## Patch",
     "",
-    snapshot.patchPath ? `- Patch file: \`${inlineCode(snapshot.patchPath)}\`` : "- Patch file: not recorded",
-    `- Workspace folder: \`${inlineCode(snapshot.workspaceFolder)}\``,
+    snapshot.patchPath ? `- Patch file: ${codeSpan(snapshot.patchPath)}` : "- Patch file: not recorded",
+    `- Workspace folder: ${codeSpan(snapshot.workspaceFolder)}`,
     `- Captured at: ${snapshot.capturedAt}`,
     "",
     renderPatchSummary(snapshot.patches),
@@ -69,7 +69,7 @@ function renderPatchSummary(patches: RepairVerificationPatchSummary[]): string {
   }
 
   return patches
-    .map((patch, index) => `${index + 1}. \`${inlineCode(patch.relativePath)}\` (${formatHunks(patch.hunkCount)})`)
+    .map((patch, index) => `${index + 1}. ${codeSpan(patch.relativePath)} (${formatHunks(patch.hunkCount)})`)
     .join("\n");
 }
 
@@ -83,12 +83,12 @@ function renderVerification(verification: RepairVerificationContext | undefined)
   }
 
   return [
-    `- Session: \`${inlineCode(verification.session.name)}\``,
-    verification.session.parent ? `- Parent session: \`${inlineCode(verification.session.parent)}\`` : undefined,
-    `- Root directory: \`${inlineCode(verification.session.rootDirectory)}\``,
-    `- Session directory: \`${inlineCode(verification.session.sessionDirectory)}\``,
-    `- Working directory: \`${inlineCode(verification.build.workingDirectory)}\``,
-    `- Command line: \`${inlineCode(formatCommandLine(verification.build))}\``,
+    `- Session: ${codeSpan(verification.session.name)}`,
+    verification.session.parent ? `- Parent session: ${codeSpan(verification.session.parent)}` : undefined,
+    `- Root directory: ${codeSpan(verification.session.rootDirectory)}`,
+    `- Session directory: ${codeSpan(verification.session.sessionDirectory)}`,
+    `- Working directory: ${codeSpan(verification.build.workingDirectory)}`,
+    `- Command line: ${codeSpan(formatCommandLine(verification.build))}`,
     "",
     "Arguments:",
     "",
@@ -114,6 +114,10 @@ function quoteCommandPart(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function inlineCode(value: string): string {
-  return value.replace(/`/g, "\\`");
+function codeSpan(value: string): string {
+  const backtickRuns = value.match(/`+/g) ?? [];
+  const longestRun = backtickRuns.reduce((longest, run) => Math.max(longest, run.length), 0);
+  const delimiter = "`".repeat(longestRun + 1);
+  const padding = value.startsWith("`") || value.endsWith("`") ? " " : "";
+  return `${delimiter}${padding}${value}${padding}${delimiter}`;
 }

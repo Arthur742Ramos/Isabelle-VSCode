@@ -299,50 +299,46 @@ async function buildActiveSession(output: vscode.OutputChannel): Promise<void> {
 }
 
 async function createRepairVerificationContext(): Promise<RepairVerificationContext | undefined> {
-  const service = requireSessionService();
-  const sessions = service.getSessions().length > 0 ? service.getSessions() : (await service.refresh()).sessions;
-  let session = service.getActiveSession();
+  try {
+    const service = requireSessionService();
+    const sessions = service.getSessions().length > 0 ? service.getSessions() : (await service.refresh()).sessions;
+    const session = service.getActiveSession() ?? (sessions.length === 1 ? sessions[0] : undefined);
 
-  if (!session && sessions.length === 1) {
-    session = sessions[0];
-    await vscode.workspace
-      .getConfiguration("isabelle")
-      .update("session.active", session.name, vscode.ConfigurationTarget.Workspace);
-    updateSessionStatus();
-  }
+    if (!session) {
+      vscode.window.showWarningMessage(
+        "No active Isabelle session was selected; the repair verification plan will include generic check instructions."
+      );
+      return undefined;
+    }
 
-  if (!session && sessions.length > 1) {
-    session = await service.selectActiveSession();
-  }
+    const config = vscode.workspace.getConfiguration("isabelle");
+    const build = createBuildCommand({
+      isabelleExecutablePath: getIsabelleExecutablePath(),
+      sessionName: session.name,
+      rootDirectories: [session.rootDirectory, session.sessionDirectory],
+      extraArgs: config.get<string[]>("build.extraArgs", [])
+    });
 
-  if (!session) {
+    return {
+      session: {
+        name: session.name,
+        parent: session.parent,
+        rootDirectory: session.rootDirectory,
+        sessionDirectory: session.sessionDirectory
+      },
+      build: {
+        command: build.command,
+        args: build.args,
+        workingDirectory: session.sessionDirectory
+      }
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     vscode.window.showWarningMessage(
-      "No active Isabelle session was selected; the repair verification plan will include generic check instructions."
+      `Unable to collect Isabelle build details for the repair verification plan: ${message}`
     );
     return undefined;
   }
-
-  const config = vscode.workspace.getConfiguration("isabelle");
-  const build = createBuildCommand({
-    isabelleExecutablePath: getIsabelleExecutablePath(),
-    sessionName: session.name,
-    rootDirectories: [session.rootDirectory, session.sessionDirectory],
-    extraArgs: config.get<string[]>("build.extraArgs", [])
-  });
-
-  return {
-    session: {
-      name: session.name,
-      parent: session.parent,
-      rootDirectory: session.rootDirectory,
-      sessionDirectory: session.sessionDirectory
-    },
-    build: {
-      command: build.command,
-      args: build.args,
-      workingDirectory: session.sessionDirectory
-    }
-  };
 }
 
 function cancelBuild(): void {

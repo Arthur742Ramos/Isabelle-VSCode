@@ -53,7 +53,7 @@ export function buildRepairRequestMarkdown(snapshot: RepairRequestSnapshot): str
     "",
     "## Proposed repair",
     "",
-    "Paste or save a proposed unified diff separately, then run `Isabelle: Preview Repair Patch`. The preview command is read-only, rejects unsafe patch shapes, and opens a local verification plan for the active session.",
+    "Paste or save a proposed unified diff separately, then run `Isabelle: Preview Repair Patch`. The preview command is read-only, rejects unsafe patch shapes, and opens a local verification plan with active-session build details when available.",
     "",
     "After manually applying trusted edits, run `Isabelle: Check Current Workspace for Repair` or the build command listed in the verification plan. Only report success after Isabelle verifies the current workspace contents.",
     ""

@@ -45,4 +45,15 @@ describe("buildRepairVerificationPlanMarkdown", () => {
     expect(markdown).toContain("Until that build succeeds, the repair is not verified");
     expect(markdown).not.toContain("Command line:");
   });
+
+  it("keeps backticks in paths inside valid Markdown code spans", () => {
+    const markdown = buildRepairVerificationPlanMarkdown({
+      capturedAt: "2026-05-16T21:00:00.000Z",
+      workspaceFolder: "C:\\work`space",
+      patches: [{ relativePath: "Foo`bar.thy", hunkCount: 1 }]
+    });
+
+    expect(markdown).toContain("``C:\\work`space``");
+    expect(markdown).toContain("``Foo`bar.thy``");
+  });
 });
