@@ -32,6 +32,7 @@ import {
   VersionResult
 } from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
+import { ManualPasteBackRepairAiProvider } from "./repair/ManualPasteBackRepairAiProvider";
 import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
 import { RepairAiSecretStore } from "./repair/RepairAiSecretStore";
 import { RepairService } from "./repair/RepairService";
@@ -102,6 +103,30 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   repairPreviewProvider = new RepairPreviewProvider();
   repairAiProviderRegistry = new RepairAiProviderRegistry();
   repairAiSecretStore = new RepairAiSecretStore(context.secrets);
+  repairAiProviderRegistry.register(
+    new ManualPasteBackRepairAiProvider({
+      writeClipboard: (text) => Promise.resolve(vscode.env.clipboard.writeText(text)),
+      showInformationMessage: (message, ...actions) =>
+        Promise.resolve(vscode.window.showInformationMessage(message, ...actions)),
+      showPatchOpenDialog: async () => {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectFiles: true,
+          canSelectFolders: false,
+          canSelectMany: false,
+          filters: {
+            "Patch files": ["patch", "diff"],
+            "All files": ["*"]
+          },
+          openLabel: "Use as AI repair patch"
+        });
+        return picked?.[0]?.fsPath;
+      },
+      readTextFile: async (p) => {
+        const fs = await import("fs");
+        return fs.promises.readFile(p, "utf8");
+      }
+    })
+  );
   repairService = new RepairService(
     backendManager,
     output,
