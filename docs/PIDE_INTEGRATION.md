@@ -314,6 +314,33 @@ these items are done today.
         an Isabelle theory with the LSP enabled and see keywords /
         free variables / errors painted with PIDE-published ranges"
         remains a Tier-2 manual run.
+  - [x] Surface upstream `PIDE/abbrevs_response` as a VS Code
+        completion provider. Owned by
+        `src/semantic/PideAbbrevsCache.ts` (cache + pure
+        prefix-matching) and
+        `src/semantic/PideAbbrevsCompletionProvider.ts` (vscode-side
+        registration). Subscribes to `PIDE/abbrevs_response { abbrevs:
+        [[abbrev, expansion], ...] }`, dispatches
+        `PIDE/abbrevs_request` on every fresh `running` transition,
+        and exposes the parsed table as a completion provider whose
+        trigger character set is derived from the leading characters
+        of the cached abbreviations. The provider walks backward from
+        the cursor (up to 32 characters, stopping at whitespace) to
+        find the longest typed prefix that starts at least one
+        abbreviation, then returns each matching expansion as a
+        completion item with the abbreviation as the filter text so
+        VS Code matches and renders correctly. Coexists with the
+        LSP's own `textDocument/completion` provider (PIDE-sourced
+        identifier completions appear above the bulk abbreviation
+        list because the abbrev items use a deliberately low
+        sortText prefix). Validated by
+        `test/semantic/pideAbbrevsCache.test.ts` (26 cases on the
+        parser, trigger-character helper, prefix matcher, and full
+        cache lifecycle) and
+        `test/semantic/pideAbbrevsCompletionProvider.structural.test.ts`
+        (10 structural pins). End-to-end "type `\<lam` in a `.thy`
+        with the LSP enabled and accept the `λ` suggestion" remains
+        a Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes
