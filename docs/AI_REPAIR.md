@@ -99,12 +99,40 @@ Providers should:
   paths, no path traversal).
 
 A provider registers via the global `RepairAiProviderRegistry`
-instance constructed in `extension.ts`. There is currently no
-extension-API surface for third-party VS Code extensions to
-register against it; that's a follow-up. Today, registering a
-provider means modifying the extension source. The seam is
-positioned so a future PR (or fork) can add a concrete provider
-without changing the existing surface.
+instance constructed in `extension.ts`. There are two ways to do
+this:
+
+1. **From inside this extension** — modify the extension source.
+   This is the path the bundled "manual paste-back" provider uses.
+2. **From a third-party VS Code extension** — use the extension API
+   exposed by `activate()`:
+
+   ```typescript
+   import * as vscode from "vscode";
+
+   export async function activate(context: vscode.ExtensionContext) {
+     const isabelle = vscode.extensions.getExtension(
+       "arthur742ramos.isabelle-pide-vscode"
+     );
+     if (!isabelle) return;
+     const api = await isabelle.activate();
+     if (!api || api.version !== "1") return;
+
+     const disposable = api.registerRepairAiProvider({
+       id: "my-provider",
+       displayName: "My AI Provider",
+       async generatePatch(request, signal) {
+         // ... call your service ...
+         return { ok: true, patchText: unifiedDiffString };
+       }
+     });
+     context.subscriptions.push(disposable);
+   }
+   ```
+
+   The `api.version` field is the canonical compat tag; it bumps
+   whenever the surface changes in a non-additive way. Third-party
+   extensions should check it before using any other field.
 
 ## What this seam intentionally does NOT do
 
@@ -125,6 +153,9 @@ without changing the existing surface.
 
 ## References
 
+- [`src/api/IsabellePideExtensionApi.ts`](../src/api/IsabellePideExtensionApi.ts)
+  — the public `activate()` return surface (v1) that third-party
+  extensions register against.
 - [`src/repair/repairAiSettings.ts`](../src/repair/repairAiSettings.ts)
   — settings reader + pure gate decision.
 - [`src/repair/repairAiProvider.ts`](../src/repair/repairAiProvider.ts)

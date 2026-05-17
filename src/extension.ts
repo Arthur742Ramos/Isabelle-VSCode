@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
 import { BackendManager } from "./backend/BackendManager";
+import {
+  createIsabellePideExtensionApi,
+  IsabellePideExtensionApi
+} from "./api/IsabellePideExtensionApi";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
@@ -68,7 +72,7 @@ let statusBar: vscode.StatusBarItem | undefined;
 let theoryGraphTree: TheoryGraphTreeProvider | undefined;
 let theoryOutlineTree: TheoryOutlineTreeProvider | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): IsabellePideExtensionApi {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
   backendManager = new BackendManager(context, output);
   buildService = new BuildService(output);
@@ -238,6 +242,8 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     });
   }
+
+  return createIsabellePideExtensionApi(repairAiProviderRegistry);
 }
 
 export async function deactivate(): Promise<void> {
