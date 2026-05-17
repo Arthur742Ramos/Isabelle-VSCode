@@ -102,6 +102,7 @@ To enable:
 2. The extension first runs `isabelle version` with a 10 s timeout to verify reachability. On failure (Isabelle missing, path wrong, timeout), the language client transitions to a `failed` state and surfaces the error in the `Isabelle Language Server` output channel and the status bar; no LSP child is spawned.
 3. On success, the LSP child is started over stdio. Its connection state appears as a status-bar item (`Isabelle LSP: starting / running / stopping / failed`). Click it to see the latest snapshot, including the command line, Isabelle version line, and last error.
 4. To stop, run `Isabelle: Stop Language Server` or set `"isabelle.languageServer.enabled": false`. `Isabelle: Restart Language Server` performs a clean stop/start cycle.
+5. When both the CLI-build runner has published diagnostics and the language server is enabled and publishes diagnostics for the same file, VS Code keeps them in two separate `DiagnosticCollection` owners and aggregates them in the Problems panel. CLI-build diagnostics appear with the `Source` column set to `isabelle build`. LSP-published diagnostics carry whatever `source` label Isabelle's `vscode_server` includes (if any); that label is supplied by the server and may vary by Isabelle release, so it is not pinned by this extension. The structural separation between the two collections is verified by `test/lsp/diagnosticsCoexistence.test.ts`; the live Problems-panel behavior still requires a running VS Code session against an Isabelle install.
 
 Settings:
 

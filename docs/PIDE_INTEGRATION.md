@@ -189,10 +189,22 @@ these items are done today.
   - [ ] Surface PublishDiagnostics notifications from isabelle vscode_server
         through VS Code's Diagnostics collection, alongside (not replacing)
         the existing CLI-build diagnostics produced by
-        `src/build/diagnostics.ts`. Validated by introducing a deliberate
-        Isabelle error in a synchronized theory and observing both the LSP
-        diagnostic and the existing CLI-build diagnostic in the Problems
-        panel.
+        `src/build/diagnostics.ts`. By design the two sources are owned by
+        distinct `vscode.DiagnosticCollection` instances:
+        `BuildService` owns the collection named
+        `"isabelle-build"` (constant `BUILD_DIAGNOSTIC_COLLECTION_NAME`) and
+        tags each diagnostic with `source = "isabelle build"` (constant
+        `BUILD_DIAGNOSTIC_SOURCE`); the Isabelle LSP client uses a separate
+        collection assigned by VS Code via `vscode-languageclient`, so the
+        two never overwrite one another for the same file. The structural
+        coexistence — distinct collection names plus the no-collision
+        guard rails — is pinned by `test/lsp/diagnosticsCoexistence.test.ts`.
+        End-to-end verification (introducing a deliberate Isabelle error in
+        a synchronized theory and observing both the LSP diagnostic and the
+        CLI-build diagnostic in the Problems panel) still requires a live
+        VS Code session against an Isabelle install and remains a Tier-2
+        manual-testing follow-up; this checkbox stays unchecked until that
+        live verification is recorded.
   - [ ] Reflect server-driven document status in the existing
         `CommandSpanDecorationsService` gutter so that, when the LSP is
         active, the "local-only pending" status is replaced by an
