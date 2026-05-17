@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-17 (PRs #51 + #52 + #53 — PIDE decoration overlay, abbrevs completion, documentation browser). For per-feature checkboxes,
+> Last refreshed: 2026-05-17 (PRs #51 + #52 + #53 + #54 + #55 + #56 + #57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls). For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -90,10 +90,21 @@ new `PideDocumentationCache` + `Isabelle: Browse Isabelle
 Documentation` command dispatch `PIDE/documentation_request`, cache
 the response, and surface the available Isabelle manuals
 (Tutorial, Isar-Ref, Sledgehammer, etc.) as a quick-pick that
-opens the selected entry with the OS default. The only outstanding
-capability is the `textDocument/documentSymbol` merge — Isabelle
-2025-2 does NOT advertise `documentSymbolProvider`, so VS Code's
-Outline + breadcrumb stay on the local provider. Documented as
+opens the selected entry with the OS default. The new
+`PidePreviewSubscriber` + `Isabelle: Preview Theory` /
+`Isabelle: Preview Theory in Split` commands send
+`PIDE/preview_request` for the active theory and render the
+server's `PIDE/preview_response` HTML body in a CSP-locked
+webview that re-paints live as the source changes. Five new
+spell-checker commands (`Isabelle: Include / Exclude Word
+(Session / Permanent)` and `Isabelle: Reset Spell-Checker
+Session Words`) push the upstream `PIDE/include_word`-family
+notifications, with the include/exclude variants first sending
+`PIDE/caret_update` so the server resolves the word at the
+user's caret. The only outstanding capability is the
+`textDocument/documentSymbol` merge — Isabelle 2025-2 does NOT
+advertise `documentSymbolProvider`, so VS Code's Outline +
+breadcrumb stay on the local provider. Documented as
 upstream-blocked in `PIDE_INTEGRATION.md`.
 
 ### Milestone 6 — Proof state panel
@@ -111,6 +122,16 @@ The panel branches on `IsabelleLanguageClient.getStatus().state ===
   caret-driven "Dynamic output" section subscribes to
   `PIDE/dynamic_output` and renders the latest snapshot under
   the main state. Hides itself when the snapshot is empty.
+- **User-facing controls** (PR #57): three settings
+  (`isabelle.proofState.autoUpdate`, `isabelle.proofState.margin`,
+  `isabelle.dynamicOutput.margin`) and two commands
+  (`Isabelle: Toggle Proof State Auto-Update`,
+  `Isabelle: Re-anchor Proof State to Cursor`) wire the
+  upstream `PIDE/state_auto_update` / `PIDE/state_set_margin` /
+  `PIDE/state_locate` / `PIDE/output_set_margin` notifications
+  through to the user. Settings changes propagate live without
+  a workspace reload, and only the notifications whose
+  underlying setting actually changed are re-sent.
 - **Backend fallback**: when the LSP is off or errors, the panel
   falls back to the existing local-syntax `proofState/get`
   placeholder so users see something useful rather than an empty
@@ -208,17 +229,6 @@ authoring guide.
   already handles the per-URI `text_<color>` channel; this open
   item is the analogous caret-driven channel on the
   dynamic-output side.)
-- **`PIDE/preview_request` theory HTML preview.** Upstream
-  supports a synchronous preview-response handshake that returns
-  an HTML render of a theory. Wiring this would unlock an
-  `Isabelle: Preview Theory` command surfaced as a webview, but
-  the rendering depends on the user's theme integration and is
-  scoped large enough for its own PR.
-- **`PIDE/include_word` / `exclude_word` / `reset_words` spell-checker
-  commands.** Upstream exposes these as notifications the client can
-  send to teach the spell-checker per-session. Useful but
-  small-surface — would mostly add three short commands to the
-  palette.
 - **More opinionated bundled AI providers** (OpenAI, Anthropic,
   GitHub Copilot, etc.). Third parties can already plug in via
   the v1 API. Shipping any default that calls a third-party
@@ -249,8 +259,19 @@ Documented per checkbox in `PIDE_INTEGRATION.md`:
 - M5 `Isabelle: Browse Isabelle Documentation` end-to-end — with
   the LSP enabled, run the command, pick the Tutorial entry, and
   confirm the PDF opens with the OS's default application.
+- M5 `Isabelle: Preview Theory` (and split) end-to-end — open a
+  `.thy`, run the command, confirm the rendered HTML matches
+  the source and re-renders as you edit.
+- M5 spell-checker dictionary commands end-to-end — type a
+  custom word in a `.thy`, run `Isabelle: Include Word
+  (Permanent)`, confirm the spell-check decoration disappears.
 - M6 PIDE state + dynamic-output live updating as the prover
   progresses.
+- M6 proof state controls end-to-end — toggle
+  `isabelle.proofState.autoUpdate` off, confirm the panel
+  stops auto-refreshing; edit `isabelle.proofState.margin` and
+  watch the rendered state re-flow; run `Isabelle: Re-anchor
+  Proof State to Cursor` and confirm the panel re-anchors.
 - M7 Sledgehammer / sendback / quiescence / multi-suggestion
   flows end-to-end.
 - M9 manual-paste-back end-to-end (copy → paste in external AI
