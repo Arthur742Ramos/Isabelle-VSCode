@@ -48,7 +48,8 @@ describe("buildRepairRequestMarkdown", () => {
     expect(markdown).toContain("Failed to finish proof");
     expect(markdown).toContain("`lemma foo`");
     expect(markdown).toContain("A ==> B");
-    expect(markdown).toContain("read-only and rejects unsafe patch shapes");
+    expect(markdown).toContain("read-only, rejects unsafe patch shapes");
+    expect(markdown).toContain("verification plan with active-session build details when available");
   });
 
   it("records unavailable proof state explicitly", () => {

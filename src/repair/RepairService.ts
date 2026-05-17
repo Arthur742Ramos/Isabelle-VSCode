@@ -6,12 +6,20 @@ import { ProofStateParams, ProofStateResult } from "../protocol/messages";
 import { buildRepairRequestMarkdown, RepairDiagnosticSnapshot } from "./repairRequest";
 import { RepairPreviewProvider } from "./RepairPreviewProvider";
 import { applyUnifiedDiffPatch, parseUnifiedDiff, RepairPatchError } from "./unifiedDiff";
+import {
+  buildRepairVerificationPlanMarkdown,
+  RepairVerificationContext,
+  RepairVerificationPatchSummary
+} from "./verificationPlan";
+
+export type RepairVerificationContextProvider = () => Promise<RepairVerificationContext | undefined>;
 
 export class RepairService {
   public constructor(
     private readonly backendManager: BackendManager,
     private readonly output: vscode.OutputChannel,
-    private readonly previewProvider: RepairPreviewProvider
+    private readonly previewProvider: RepairPreviewProvider,
+    private readonly createVerificationContext?: RepairVerificationContextProvider
   ) {}
 
   public async createRepairRequest(): Promise<void> {
@@ -67,6 +75,10 @@ export class RepairService {
 
       const patchText = Buffer.from(await vscode.workspace.fs.readFile(patchUris[0])).toString("utf8");
       const patches = parseUnifiedDiff(patchText);
+      const patchSummaries: RepairVerificationPatchSummary[] = patches.map((patch) => ({
+        relativePath: patch.relativePath,
+        hunkCount: patch.hunks.length
+      }));
       const workspaceRealPath = await fs.promises.realpath(workspaceFolder.uri.fsPath);
 
       for (const patch of patches) {
@@ -84,8 +96,10 @@ export class RepairService {
         );
       }
 
+      await this.openVerificationPlan(workspaceFolder, patchUris[0], patchSummaries);
+
       vscode.window.showInformationMessage(
-        `Opened readonly repair preview for ${patches.length} file(s). No edits were applied.`
+        `Opened readonly repair preview and verification plan for ${patches.length} file(s). No edits were applied.`
       );
     } catch (error) {
       this.showRepairError("Unable to preview repair patch", error);
@@ -97,6 +111,29 @@ export class RepairService {
       "Checking current workspace contents. Repair previews are readonly and are not applied automatically."
     );
     await vscode.commands.executeCommand("isabelle.buildActiveSession");
+  }
+
+  private async openVerificationPlan(
+    workspaceFolder: vscode.WorkspaceFolder,
+    patchUri: vscode.Uri,
+    patches: RepairVerificationPatchSummary[]
+  ): Promise<void> {
+    const verification = this.createVerificationContext
+      ? await this.createVerificationContext()
+      : undefined;
+    const markdown = buildRepairVerificationPlanMarkdown({
+      capturedAt: new Date().toISOString(),
+      workspaceFolder: workspaceFolder.uri.fsPath,
+      patchPath: patchUri.fsPath,
+      patches,
+      verification
+    });
+
+    const document = await vscode.workspace.openTextDocument({
+      content: markdown,
+      language: "markdown"
+    });
+    await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Beside });
   }
 
   private async captureProofState(editor: vscode.TextEditor): Promise<ProofStateResult> {
