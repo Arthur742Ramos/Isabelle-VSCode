@@ -60,6 +60,8 @@
     "onCommand:isabelle.createRepairRequest",
     "onCommand:isabelle.copyRepairRequestToClipboard",
     "onCommand:isabelle.requestAiRepairSuggestion",
+    "onCommand:isabelle.setAiProviderSecret",
+    "onCommand:isabelle.clearAiProviderSecret",
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
@@ -198,6 +200,14 @@
       {
         "command": "isabelle.requestAiRepairSuggestion",
         "title": "Isabelle: Request AI Repair Suggestion (Experimental)"
+      },
+      {
+        "command": "isabelle.setAiProviderSecret",
+        "title": "Isabelle: Set AI Repair Provider Secret"
+      },
+      {
+        "command": "isabelle.clearAiProviderSecret",
+        "title": "Isabelle: Clear AI Repair Provider Secret"
       },
       {
         "command": "isabelle.previewRepairPatch",

@@ -33,6 +33,7 @@ import {
 } from "./protocol/messages";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
+import { RepairAiSecretStore } from "./repair/RepairAiSecretStore";
 import { RepairService } from "./repair/RepairService";
 import { RepairVerificationContext } from "./repair/verificationPlan";
 import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
@@ -65,6 +66,7 @@ let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
 let repairAiProviderRegistry: RepairAiProviderRegistry | undefined;
+let repairAiSecretStore: RepairAiSecretStore | undefined;
 let repairService: RepairService | undefined;
 let sessionService: SessionService | undefined;
 let sledgehammerPanel: SledgehammerPanel | undefined;
@@ -99,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   );
   repairPreviewProvider = new RepairPreviewProvider();
   repairAiProviderRegistry = new RepairAiProviderRegistry();
+  repairAiSecretStore = new RepairAiSecretStore(context.secrets);
   repairService = new RepairService(
     backendManager,
     output,
@@ -187,6 +190,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.createRepairRequest", async () => repairService?.createRepairRequest()),
     vscode.commands.registerCommand("isabelle.copyRepairRequestToClipboard", async () => repairService?.copyRepairRequestToClipboard()),
     vscode.commands.registerCommand("isabelle.requestAiRepairSuggestion", async () => repairService?.requestAiRepairSuggestion()),
+    vscode.commands.registerCommand("isabelle.setAiProviderSecret", async () => setAiProviderSecret(output)),
+    vscode.commands.registerCommand("isabelle.clearAiProviderSecret", async () => clearAiProviderSecret(output)),
     vscode.commands.registerCommand("isabelle.previewRepairPatch", async () => repairService?.previewRepairPatch()),
     vscode.commands.registerCommand("isabelle.checkRepairWorkspace", async () => repairService?.checkCurrentWorkspaceForRepair()),
     vscode.commands.registerCommand("isabelle.refreshTheoryGraph", async () => refreshTheoryGraph(output)),
@@ -243,7 +248,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     });
   }
 
-  return createIsabellePideExtensionApi(repairAiProviderRegistry);
+  return createIsabellePideExtensionApi(repairAiProviderRegistry, repairAiSecretStore);
 }
 
 export async function deactivate(): Promise<void> {
@@ -266,6 +271,7 @@ export async function deactivate(): Promise<void> {
   repairPreviewProvider?.dispose();
   repairPreviewProvider = undefined;
   repairService = undefined;
+  repairAiSecretStore = undefined;
   repairAiProviderRegistry = undefined;
   backendManager?.dispose();
   backendManager = undefined;
@@ -283,6 +289,88 @@ export async function deactivate(): Promise<void> {
   theoryOutlineTree = undefined;
   statusBar?.dispose();
   statusBar = undefined;
+}
+
+async function setAiProviderSecret(output: vscode.OutputChannel): Promise<void> {
+  if (!repairAiSecretStore || !repairAiProviderRegistry) {
+    vscode.window.showWarningMessage("AI repair seam is not initialised.");
+    return;
+  }
+  const known = repairAiProviderRegistry.listIds();
+  const configured = vscode.workspace
+    .getConfiguration("isabelle")
+    .get<string>("repair.aiProvider", "")
+    .trim();
+  const fallbackId = configured.length > 0 ? configured : (known[0] ?? "");
+  const providerId = await vscode.window.showInputBox({
+    title: "Set AI repair provider secret",
+    prompt:
+      "Provider id (matches RepairAiProvider.id). Stored under isabelle.repair.aiSecret.<id> via vscode.SecretStorage.",
+    value: fallbackId,
+    ignoreFocusOut: true,
+    placeHolder: "my-provider"
+  });
+  if (!providerId) {
+    return;
+  }
+  const secret = await vscode.window.showInputBox({
+    title: `Secret for "${providerId}"`,
+    prompt: "Leave empty to delete the existing entry.",
+    password: true,
+    ignoreFocusOut: true
+  });
+  if (secret === undefined) {
+    return;
+  }
+  try {
+    await repairAiSecretStore.set(providerId, secret);
+    if (secret.length === 0) {
+      vscode.window.showInformationMessage(
+        `Cleared the stored secret for AI repair provider "${providerId}".`
+      );
+    } else {
+      vscode.window.showInformationMessage(
+        `Stored a secret for AI repair provider "${providerId}". Providers can read it via the extension API.`
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Set AI provider secret failed: ${message}`);
+    vscode.window.showErrorMessage(`Unable to store AI repair secret: ${message}`);
+  }
+}
+
+async function clearAiProviderSecret(output: vscode.OutputChannel): Promise<void> {
+  if (!repairAiSecretStore || !repairAiProviderRegistry) {
+    vscode.window.showWarningMessage("AI repair seam is not initialised.");
+    return;
+  }
+  const known = repairAiProviderRegistry.listIds();
+  const configured = vscode.workspace
+    .getConfiguration("isabelle")
+    .get<string>("repair.aiProvider", "")
+    .trim();
+  const fallbackId = configured.length > 0 ? configured : (known[0] ?? "");
+  const providerId = await vscode.window.showInputBox({
+    title: "Clear AI repair provider secret",
+    prompt: "Provider id whose stored secret should be deleted.",
+    value: fallbackId,
+    ignoreFocusOut: true,
+    placeHolder: "my-provider"
+  });
+  if (!providerId) {
+    return;
+  }
+  try {
+    await repairAiSecretStore.clear(providerId);
+    vscode.window.showInformationMessage(
+      `Cleared the stored secret for AI repair provider "${providerId}".`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Clear AI provider secret failed: ${message}`);
+    vscode.window.showErrorMessage(`Unable to clear AI repair secret: ${message}`);
+  }
 }
 
 async function showVersion(output: vscode.OutputChannel): Promise<void> {

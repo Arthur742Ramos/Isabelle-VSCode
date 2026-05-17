@@ -4,6 +4,10 @@ import {
   RepairAiProvider,
   RepairAiProviderRegistry
 } from "../../src/repair/repairAiProvider";
+import {
+  RepairAiSecretStore,
+  SecretStorageLike
+} from "../../src/repair/RepairAiSecretStore";
 
 function stubProvider(id: string): RepairAiProvider {
   return {
@@ -13,15 +17,32 @@ function stubProvider(id: string): RepairAiProvider {
   };
 }
 
+function fakeSecretStore(): RepairAiSecretStore {
+  const map = new Map<string, string>();
+  const storage: SecretStorageLike = {
+    get: async (key) => map.get(key),
+    store: async (key, value) => {
+      map.set(key, value);
+    },
+    delete: async (key) => {
+      map.delete(key);
+    }
+  };
+  return new RepairAiSecretStore(storage);
+}
+
 describe("createIsabellePideExtensionApi", () => {
   it("declares version='1' so consumers can do a compat check", () => {
-    const api = createIsabellePideExtensionApi(new RepairAiProviderRegistry());
+    const api = createIsabellePideExtensionApi(
+      new RepairAiProviderRegistry(),
+      fakeSecretStore()
+    );
     expect(api.version).toBe("1");
   });
 
   it("registerRepairAiProvider proxies into the underlying registry", () => {
     const registry = new RepairAiProviderRegistry();
-    const api = createIsabellePideExtensionApi(registry);
+    const api = createIsabellePideExtensionApi(registry, fakeSecretStore());
     const provider = stubProvider("third-party-ai");
     api.registerRepairAiProvider(provider);
     expect(registry.get("third-party-ai")).toBe(provider);
@@ -29,7 +50,7 @@ describe("createIsabellePideExtensionApi", () => {
 
   it("registerRepairAiProvider returns a disposable that removes the registration", () => {
     const registry = new RepairAiProviderRegistry();
-    const api = createIsabellePideExtensionApi(registry);
+    const api = createIsabellePideExtensionApi(registry, fakeSecretStore());
     const disposable = api.registerRepairAiProvider(stubProvider("x"));
     expect(registry.listIds()).toEqual(["x"]);
     disposable.dispose();
@@ -38,7 +59,7 @@ describe("createIsabellePideExtensionApi", () => {
 
   it("listRepairAiProviderIds reflects the live registry state", () => {
     const registry = new RepairAiProviderRegistry();
-    const api = createIsabellePideExtensionApi(registry);
+    const api = createIsabellePideExtensionApi(registry, fakeSecretStore());
     expect(api.listRepairAiProviderIds()).toEqual([]);
 
     api.registerRepairAiProvider(stubProvider("alpha"));
@@ -55,7 +76,10 @@ describe("createIsabellePideExtensionApi", () => {
     // The registry rejects empty ids because it keys by id. The API
     // must propagate that error so callers cannot get a phantom
     // disposable that refers to nothing.
-    const api = createIsabellePideExtensionApi(new RepairAiProviderRegistry());
+    const api = createIsabellePideExtensionApi(
+      new RepairAiProviderRegistry(),
+      fakeSecretStore()
+    );
     expect(() =>
       api.registerRepairAiProvider({
         id: "",
@@ -67,7 +91,7 @@ describe("createIsabellePideExtensionApi", () => {
 
   it("respects the registry's replace-on-same-id semantics", () => {
     const registry = new RepairAiProviderRegistry();
-    const api = createIsabellePideExtensionApi(registry);
+    const api = createIsabellePideExtensionApi(registry, fakeSecretStore());
     const first = stubProvider("a");
     const second = stubProvider("a");
     const firstDisposable = api.registerRepairAiProvider(first);
@@ -76,5 +100,25 @@ describe("createIsabellePideExtensionApi", () => {
     // tracks the specific registration it owns.
     firstDisposable.dispose();
     expect(registry.get("a")).toBe(second);
+  });
+
+  it("getRepairAiSecretStore returns the same store across calls", () => {
+    const store = fakeSecretStore();
+    const api = createIsabellePideExtensionApi(
+      new RepairAiProviderRegistry(),
+      store
+    );
+    expect(api.getRepairAiSecretStore()).toBe(store);
+    expect(api.getRepairAiSecretStore()).toBe(api.getRepairAiSecretStore());
+  });
+
+  it("getRepairAiSecretStore exposes a working store (round-trips a secret)", async () => {
+    const store = fakeSecretStore();
+    const api = createIsabellePideExtensionApi(
+      new RepairAiProviderRegistry(),
+      store
+    );
+    await api.getRepairAiSecretStore().set("my-provider", "shh");
+    expect(await api.getRepairAiSecretStore().get("my-provider")).toBe("shh");
   });
 });

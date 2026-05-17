@@ -43,6 +43,8 @@ Implemented foundation:
   - `Isabelle: Create Checked Repair Request`
   - `Isabelle: Copy Checked Repair Request to Clipboard`
   - `Isabelle: Request AI Repair Suggestion (Experimental)`
+  - `Isabelle: Set AI Repair Provider Secret`
+  - `Isabelle: Clear AI Repair Provider Secret`
   - `Isabelle: Preview Repair Patch`
   - `Isabelle: Check Current Workspace for Repair`
   - `Isabelle: Refresh Theory Graph`

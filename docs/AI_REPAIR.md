@@ -134,14 +134,43 @@ this:
    whenever the surface changes in a non-additive way. Third-party
    extensions should check it before using any other field.
 
-## What this seam intentionally does NOT do
+## Secret storage
+
+Providers that need an API key should pull it from the extension's
+`SecretStorage`-backed credential store instead of reading from
+workspace settings (which serialise to plain JSON files). Two
+mechanisms support this:
+
+1. **`Isabelle: Set AI Repair Provider Secret`** /
+   **`Isabelle: Clear AI Repair Provider Secret`** commands let
+   users register a secret without provider authors having to
+   ship their own UI. The set command prefills the current
+   `isabelle.repair.aiProvider` value, prompts for the secret
+   with `password: true` (so it never surfaces in clear text),
+   and treats an empty value as "delete the existing entry".
+2. The extension API exposes the same store via
+   `api.getRepairAiSecretStore()`. Provider code can do:
+
+   ```typescript
+   const secret = await api.getRepairAiSecretStore().get(provider.id);
+   if (!secret) {
+     return { ok: false, reason: "No API key configured for this provider." };
+   }
+   ```
+
+Both paths key under `isabelle.repair.aiSecret.<providerId>` and
+the helper rejects ids outside `[A-Za-z0-9._-]` so a hostile
+provider id cannot escape the namespace.
+
+
 
 - It does not ship a default provider — that would constitute the
   extension calling a third-party service on installation, which
   is exactly the policy this gate exists to prevent.
-- It does not store credentials. A future provider that needs an
-  API key should fetch it from VS Code's `SecretStorage` so it
-  never lands in workspace settings.
+- It does not store credentials in workspace settings. The bundled
+  `RepairAiSecretStore` writes to `vscode.SecretStorage`; providers
+  should use it via `api.getRepairAiSecretStore()` rather than
+  reading their own settings.
 - It does not auto-apply provider-supplied patches. The existing
   preview-then-build-then-verify pipeline is the only path that
   reports a repair as checked.
@@ -162,6 +191,9 @@ this:
   — provider registry + timeout-bounded coordinator.
 - [`src/repair/RepairService.ts`](../src/repair/RepairService.ts)
   — the two new commands.
+- [`src/repair/RepairAiSecretStore.ts`](../src/repair/RepairAiSecretStore.ts)
+  — `vscode.SecretStorage`-backed namespaced credential store for
+  AI provider keys.
 - [`src/repair/unifiedDiff.ts`](../src/repair/unifiedDiff.ts) —
   the strict patch parser the preview command applies.
 - README "Checked repair workflow" section — describes the
