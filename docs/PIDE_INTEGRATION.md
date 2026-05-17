@@ -367,6 +367,32 @@ these items are done today.
         the command flow against an in-memory UI). End-to-end "with
         the LSP enabled, open the Tutorial PDF from the command
         palette" remains a Tier-2 manual run.
+  - [x] Surface upstream `PIDE/preview_request` /
+        `PIDE/preview_response` as the live theory-preview surface.
+        Owned by `src/api/PidePreviewSubscriber.ts` (subscriber +
+        parser + `requestPreview` dispatch + cached-snapshot store)
+        and `src/api/previewTheory.ts` (vscode-free command
+        implementation + webview HTML wrapper + snapshot-to-panel
+        bridge). The new `Isabelle: Preview Theory` and
+        `Isabelle: Preview Theory in Split` commands send
+        `PIDE/preview_request { uri, column }` for the active
+        Isabelle theory editor (using the active editor's
+        `viewColumn` or the next column when splitting), the
+        subscriber listens for `PIDE/preview_response { uri, column,
+        label, content }` and re-paints a single shared webview
+        panel with a strict CSP (`default-src 'none'`). Empty
+        server snapshots are filtered so the panel does not flash
+        back to a loading placeholder while the server re-renders.
+        Coexists transparently with the Scala backend path; it is
+        purely a layered LSP-mode feature. Validated by
+        `test/api/pidePreviewSubscriber.test.ts` (20 cases on the
+        parser + lifecycle + listener fan-out + empty-snapshot
+        helper) and `test/api/previewTheory.test.ts` (13 cases on
+        the command guards, success path, split-column behaviour,
+        snapshot-to-panel wiring, and HTML wrapper escaping).
+        End-to-end "open a `.thy`, run `Isabelle: Preview Theory`,
+        confirm the rendered HTML matches the source" remains a
+        Tier-2 manual run.
 
 - [ ] Milestone 7 (Sledgehammer)
   - [x] Research: determine whether `isabelle vscode_server` exposes

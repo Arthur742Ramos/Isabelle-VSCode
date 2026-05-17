@@ -11,6 +11,16 @@ import {
   ShowDocumentationQuickPickItem,
   ShowDocumentationUi
 } from "./api/browseIsabelleDocumentation";
+import { PidePreviewSubscriber } from "./api/PidePreviewSubscriber";
+import {
+  PREVIEW_THEORY_COMMAND_ID,
+  PREVIEW_THEORY_SPLIT_COMMAND_ID,
+  PreviewTheoryActiveEditor,
+  PreviewTheoryPanel,
+  PreviewTheoryUi,
+  previewActiveTheory,
+  wirePreviewSnapshotsToPanel
+} from "./api/previewTheory";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
@@ -76,6 +86,9 @@ let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let pideDecorationOverlayService: PideDecorationOverlayService | undefined;
 let pideAbbrevsCache: PideAbbrevsCache | undefined;
 let pideDocumentationCache: PideDocumentationCache | undefined;
+let pidePreviewSubscriber: PidePreviewSubscriber | undefined;
+let pidePreviewPanel: vscode.WebviewPanel | undefined;
+let pidePreviewSnapshotWiring: { dispose(): void } | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -106,6 +119,11 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   pideDecorationOverlayService = new PideDecorationOverlayService(languageClient, output);
   pideAbbrevsCache = new PideAbbrevsCache(languageClient, output);
   pideDocumentationCache = new PideDocumentationCache(languageClient, output);
+  pidePreviewSubscriber = new PidePreviewSubscriber(languageClient, output);
+  pidePreviewSnapshotWiring = wirePreviewSnapshotsToPanel(
+    pidePreviewSubscriber,
+    makePreviewTheoryUi()
+  );
   proofStatePanel = new ProofStatePanel(backendManager, output, languageClient);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(
@@ -172,6 +190,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     pideDecorationOverlayService,
     pideAbbrevsCache,
     pideDocumentationCache,
+    pidePreviewSubscriber,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -248,6 +267,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.restartLanguageServer", async () => restartLanguageServer(output)),
     vscode.commands.registerCommand("isabelle.showLanguageServerStatus", () => showLanguageServerStatus()),
     vscode.commands.registerCommand(SHOW_DOCUMENTATION_COMMAND_ID, () => browseDocumentationCommand(output)),
+    vscode.commands.registerCommand(PREVIEW_THEORY_COMMAND_ID, () => previewTheoryCommand(output, { split: false })),
+    vscode.commands.registerCommand(PREVIEW_THEORY_SPLIT_COMMAND_ID, () => previewTheoryCommand(output, { split: true })),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -305,6 +326,12 @@ export async function deactivate(): Promise<void> {
   pideAbbrevsCache = undefined;
   pideDocumentationCache?.dispose();
   pideDocumentationCache = undefined;
+  pidePreviewSnapshotWiring?.dispose();
+  pidePreviewSnapshotWiring = undefined;
+  pidePreviewSubscriber?.dispose();
+  pidePreviewSubscriber = undefined;
+  pidePreviewPanel?.dispose();
+  pidePreviewPanel = undefined;
   pideQuiescenceTracker?.dispose();
   pideQuiescenceTracker = undefined;
   await languageClient?.shutdown();
@@ -1038,6 +1065,73 @@ async function browseDocumentationCommand(output: vscode.OutputChannel): Promise
     output,
     ui
   );
+}
+
+async function previewTheoryCommand(
+  output: vscode.OutputChannel,
+  options: { split: boolean }
+): Promise<void> {
+  if (!languageClient || !pidePreviewSubscriber) {
+    await vscode.window.showInformationMessage(
+      "Isabelle theory preview is not initialized yet."
+    );
+    return;
+  }
+  await previewActiveTheory(
+    pidePreviewSubscriber,
+    languageClient,
+    makePreviewTheoryUi(),
+    options
+  );
+}
+
+function makePreviewTheoryUi(): PreviewTheoryUi {
+  return {
+    getActiveEditor: () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return undefined;
+      return {
+        uri: editor.document.uri.toString(),
+        isTheoryDocument: isTheoryDocument(editor.document),
+        viewColumn: editor.viewColumn ?? vscode.ViewColumn.One
+      };
+    },
+    resolvePreviewColumn: (editor, split) => {
+      if (!split) {
+        return editor.viewColumn;
+      }
+      // Mirror upstream `vscode_lib.adjacent_editor_column`: place
+      // the preview in the next viewColumn, wrapping at the limit.
+      const next = editor.viewColumn + 1;
+      return next > vscode.ViewColumn.Nine ? vscode.ViewColumn.One : next;
+    },
+    ensurePanel: (initialColumn) => {
+      if (!pidePreviewPanel) {
+        pidePreviewPanel = vscode.window.createWebviewPanel(
+          "isabelle.preview",
+          "Isabelle Preview",
+          initialColumn,
+          { enableScripts: false }
+        );
+        pidePreviewPanel.onDidDispose(() => {
+          pidePreviewPanel = undefined;
+        });
+      }
+      const panel = pidePreviewPanel;
+      return {
+        setContent: (title, html) => {
+          panel.title = title;
+          panel.webview.html = html;
+        },
+        reveal: (column) => panel.reveal(column),
+        dispose: () => panel.dispose()
+      };
+    },
+    showInformationMessage: async (message) =>
+      vscode.window.showInformationMessage(message),
+    showWarningMessage: async (message) =>
+      vscode.window.showWarningMessage(message)
+  };
 }
 
 function formatLanguageServerStatus(status: IsabelleLanguageServerStatus): string {

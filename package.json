@@ -73,6 +73,8 @@
     "onCommand:isabelle.restartLanguageServer",
     "onCommand:isabelle.showLanguageServerStatus",
     "onCommand:isabelle.browseDocumentation",
+    "onCommand:isabelle.previewTheory",
+    "onCommand:isabelle.previewTheoryInSplit",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -256,6 +258,14 @@
       {
         "command": "isabelle.browseDocumentation",
         "title": "Isabelle: Browse Isabelle Documentation"
+      },
+      {
+        "command": "isabelle.previewTheory",
+        "title": "Isabelle: Preview Theory"
+      },
+      {
+        "command": "isabelle.previewTheoryInSplit",
+        "title": "Isabelle: Preview Theory in Split"
       }
     ],
     "views": {
