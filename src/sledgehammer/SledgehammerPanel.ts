@@ -7,10 +7,17 @@ import {
   SledgehammerRunResult,
   SledgehammerSuggestion
 } from "../protocol/messages";
+import { SledgehammerHistory, SledgehammerHistoryEntry } from "./sledgehammerHistory";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
+
+interface ExecuteRunOverrides {
+  sessionName?: string;
+  isabelleExecutablePath?: string;
+}
 
 export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly history = new SledgehammerHistory();
   private view: vscode.WebviewView | undefined;
   private lastResult: SledgehammerRunResult | undefined;
   private activeRequestId: string | undefined;
@@ -53,64 +60,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       return;
     }
 
-    const requestId = `sledgehammer-${this.nextRequestNumber++}`;
-    this.activeRequestId = requestId;
-    this.lastResult = {
-      requestId,
-      uri: editor.document.uri.toString(),
-      version: editor.document.version,
-      status: "running",
-      suggestions: [],
-      raw: "Waiting for the Isabelle backend to evaluate the Sledgehammer request.",
-      message: "Sledgehammer request sent to the backend."
-    };
-    this.render();
-    this.updateContexts();
-
-    const params: SledgehammerRunParams = {
-      requestId,
-      uri: editor.document.uri.toString(),
-      version: editor.document.version,
-      position: {
-        line: editor.selection.active.line,
-        character: editor.selection.active.character
-      },
-      session: this.getActiveSessionName(),
-      isabelleExecutablePath: vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle")
-    };
-
-    try {
-      const result = await this.backendManager.getClient().request<SledgehammerRunResult, SledgehammerRunParams>(
-        "sledgehammer/run",
-        params
-      );
-      this.lastResult = result;
-      this.output.appendLine(`Sledgehammer ${result.status}: ${result.message ?? result.raw}`);
-      if (result.status === "completed" && result.suggestions.length > 0) {
-        vscode.window.showInformationMessage(`Sledgehammer found ${result.suggestions.length} proof suggestion(s).`);
-      } else if (result.message) {
-        vscode.window.showInformationMessage(result.message);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.lastResult = {
-        requestId,
-        uri: editor.document.uri.toString(),
-        version: editor.document.version,
-        status: "failed",
-        suggestions: [],
-        raw: message,
-        message
-      };
-      this.output.appendLine(`Sledgehammer request failed: ${message}`);
-      vscode.window.showErrorMessage(`Sledgehammer request failed: ${message}`);
-    } finally {
-      if (this.activeRequestId === requestId) {
-        this.activeRequestId = undefined;
-      }
-      this.render();
-      this.updateContexts();
-    }
+    await this.executeRun(editor);
   }
 
   public async cancel(): Promise<void> {
@@ -134,6 +84,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
           message: result.message,
           raw: result.message
         };
+        this.history.recordCancellation(requestId, result.message, new Date().toISOString());
         this.activeRequestId = undefined;
         this.render();
         this.updateContexts();
@@ -177,6 +128,62 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     }
   }
 
+  public async replay(requestId: string): Promise<void> {
+    const entry = this.history.find(requestId);
+    if (!entry) {
+      vscode.window.showWarningMessage(`No Sledgehammer history entry found for request ${requestId}.`);
+      return;
+    }
+
+    if (this.activeRequestId) {
+      vscode.window.showInformationMessage("A Sledgehammer job is already running.");
+      return;
+    }
+
+    let uri: vscode.Uri;
+    try {
+      uri = vscode.Uri.parse(entry.uri, true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Unable to replay Sledgehammer run: invalid URI (${message}).`);
+      return;
+    }
+
+    let editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.toString() !== entry.uri) {
+      try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        editor = await vscode.window.showTextDocument(document);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`Unable to open theory for Sledgehammer replay: ${message}`);
+        return;
+      }
+    }
+
+    if (!isTheoryDocument(editor.document)) {
+      vscode.window.showWarningMessage(
+        "The theory referenced by this Sledgehammer history entry is no longer recognized as an Isabelle theory."
+      );
+      return;
+    }
+
+    await this.executeRun(editor, {
+      sessionName: entry.sessionName,
+      isabelleExecutablePath: entry.isabelleExecutablePath
+    });
+  }
+
+  public clearHistory(): void {
+    this.history.clear();
+    this.render();
+    vscode.window.showInformationMessage("Cleared Sledgehammer run history.");
+  }
+
+  public getHistory(): readonly SledgehammerHistoryEntry[] {
+    return this.history.list();
+  }
+
   public dispose(): void {
     for (const disposable of this.disposables) {
       disposable.dispose();
@@ -184,9 +191,87 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     this.disposables.length = 0;
   }
 
+  private async executeRun(editor: vscode.TextEditor, overrides?: ExecuteRunOverrides): Promise<void> {
+    const requestId = `sledgehammer-${this.nextRequestNumber++}`;
+    const uri = editor.document.uri.toString();
+    const version = editor.document.version;
+    const sessionName = overrides?.sessionName ?? this.getActiveSessionName();
+    const isabelleExecutablePath = overrides?.isabelleExecutablePath
+      ?? vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle");
+    const startedAt = new Date().toISOString();
+
+    this.activeRequestId = requestId;
+    this.lastResult = {
+      requestId,
+      uri,
+      version,
+      status: "running",
+      suggestions: [],
+      raw: "Waiting for the Isabelle backend to evaluate the Sledgehammer request.",
+      message: "Sledgehammer request sent to the backend."
+    };
+    this.history.recordStart({
+      requestId,
+      uri,
+      version,
+      sessionName,
+      isabelleExecutablePath,
+      startedAt
+    });
+    this.render();
+    this.updateContexts();
+
+    const params: SledgehammerRunParams = {
+      requestId,
+      uri,
+      version,
+      position: {
+        line: editor.selection.active.line,
+        character: editor.selection.active.character
+      },
+      session: sessionName,
+      isabelleExecutablePath
+    };
+
+    try {
+      const result = await this.backendManager.getClient().request<SledgehammerRunResult, SledgehammerRunParams>(
+        "sledgehammer/run",
+        params
+      );
+      this.lastResult = result;
+      this.history.recordResult(requestId, result, new Date().toISOString());
+      this.output.appendLine(`Sledgehammer ${result.status}: ${result.message ?? result.raw}`);
+      if (result.status === "completed" && result.suggestions.length > 0) {
+        vscode.window.showInformationMessage(`Sledgehammer found ${result.suggestions.length} proof suggestion(s).`);
+      } else if (result.message) {
+        vscode.window.showInformationMessage(result.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.lastResult = {
+        requestId,
+        uri,
+        version,
+        status: "failed",
+        suggestions: [],
+        raw: message,
+        message
+      };
+      this.history.recordFailure(requestId, message, new Date().toISOString());
+      this.output.appendLine(`Sledgehammer request failed: ${message}`);
+      vscode.window.showErrorMessage(`Sledgehammer request failed: ${message}`);
+    } finally {
+      if (this.activeRequestId === requestId) {
+        this.activeRequestId = undefined;
+      }
+      this.render();
+      this.updateContexts();
+    }
+  }
+
   private render(): void {
     if (this.view) {
-      this.view.webview.html = renderSledgehammerHtml(this.lastResult);
+      this.view.webview.html = renderSledgehammerHtml(this.lastResult, this.history.list());
     }
   }
 

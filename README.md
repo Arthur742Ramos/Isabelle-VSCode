@@ -37,6 +37,8 @@ Implemented foundation:
   - `Isabelle: Run Sledgehammer`
   - `Isabelle: Cancel Sledgehammer`
   - `Isabelle: Insert Sledgehammer Proof`
+  - `Isabelle: Replay Sledgehammer Run`
+  - `Isabelle: Clear Sledgehammer History`
   - `Isabelle: Create Checked Repair Request`
   - `Isabelle: Preview Repair Patch`
   - `Isabelle: Check Current Workspace for Repair`
@@ -56,7 +58,7 @@ Implemented foundation:
 - Explorer-side **Isabelle Proof Outline** view that follows the active theory and groups command spans with proof steps.
 - Command navigation helpers for moving to the next/previous Isabelle command and revealing the current command span.
 - Conservative proof action palette for refreshing the proof-state panel, building the active session, or explicitly inserting `sorry`/`oops` without claiming verification.
-- Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists.
+- Explorer-side **Isabelle Sledgehammer** panel and commands with typed run/cancel protocol messages, current-command context, guarded proof insertion for future suggestions, a local run-history surface with replay of past requests, and a backend boundary that explicitly reports proof search as unavailable until Isabelle/PIDE integration exists; PIDE-backed proof search and minimization remain future work.
 - Conservative checked repair loop foundation that captures local diagnostics/proof context, previews unified-diff proposals without applying edits, and reruns the existing Isabelle build command over current workspace contents.
 - Explorer-side **Isabelle Theory Graph** tree that builds a conservative dependency graph from discovered ROOT sessions plus parsed theory import headers.
 - Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, document status summaries, and proof-outline helpers.

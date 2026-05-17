@@ -1,7 +1,14 @@
 import { SledgehammerRunResult, SledgehammerSuggestion } from "../protocol/messages";
+import { SledgehammerHistoryEntry } from "./sledgehammerHistory";
 
-export function renderSledgehammerHtml(result: SledgehammerRunResult | undefined): string {
-  const body = result ? renderResult(result) : renderEmpty();
+const MAX_RECENT_HISTORY_ENTRIES = 10;
+
+export function renderSledgehammerHtml(
+  result: SledgehammerRunResult | undefined,
+  history: readonly SledgehammerHistoryEntry[] = []
+): string {
+  const main = result ? renderResult(result) : renderEmpty();
+  const body = `${main}${renderHistory(history)}`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,9 +22,12 @@ export function renderSledgehammerHtml(result: SledgehammerRunResult | undefined
     .status { border-radius: 999px; display: inline-block; font-size: 0.85em; padding: 2px 8px; }
     .status.completed { background: var(--vscode-testing-iconPassed); color: var(--vscode-editor-background); }
     .status.running { background: var(--vscode-testing-iconQueued); color: var(--vscode-editor-background); }
-    .status.failed, .status.unavailable { background: var(--vscode-testing-iconFailed); color: var(--vscode-editor-background); }
+    .status.failed, .status.unavailable, .status.cancelled { background: var(--vscode-testing-iconFailed); color: var(--vscode-editor-background); }
     pre { background: var(--vscode-textCodeBlock-background); padding: 8px; white-space: pre-wrap; }
     code { font-family: var(--vscode-editor-font-family); }
+    ul.history { list-style: none; padding-left: 0; }
+    ul.history li { margin-bottom: 6px; }
+    ul.history li .meta { margin-left: 6px; }
   </style>
 </head>
 <body>${body}</body>
@@ -39,6 +49,39 @@ function renderResult(result: SledgehammerRunResult): string {
     <div class="section">
       <h3>Backend boundary</h3>
       <pre>${escapeHtml(result.raw || "No Sledgehammer backend details available yet.")}</pre>
+    </div>`;
+}
+
+function renderHistory(history: readonly SledgehammerHistoryEntry[]): string {
+  if (history.length === 0) {
+    return "";
+  }
+
+  const recent = history.slice(0, MAX_RECENT_HISTORY_ENTRIES);
+  const items = recent
+    .map((entry) => {
+      const summary = entry.commandSummary
+        ? ` <code>${escapeHtml(entry.commandSummary)}</code>`
+        : "";
+      const message = entry.message
+        ? ` <span class="muted meta">${escapeHtml(entry.message)}</span>`
+        : "";
+      const suggestionLabel = entry.suggestionCount === 1 ? "1 suggestion" : `${entry.suggestionCount} suggestions`;
+      return `
+        <li>
+          <code class="muted">${escapeHtml(entry.startedAt)}</code>${summary}
+          <span class="status ${escapeHtml(entry.status)} meta">${escapeHtml(entry.status)}</span>
+          <span class="muted meta">${escapeHtml(suggestionLabel)}</span>
+          <span class="muted meta">request <code>${escapeHtml(entry.requestId)}</code></span>${message}
+        </li>`;
+    })
+    .join("");
+
+  return `
+    <div class="section">
+      <h3>Recent runs</h3>
+      <p class="muted">Local-only history of Sledgehammer requests. PIDE-backed proof search remains future work.</p>
+      <ul class="history">${items}</ul>
     </div>`;
 }
 
