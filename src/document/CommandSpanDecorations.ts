@@ -13,9 +13,12 @@ import { DocumentSyncService } from "./DocumentSyncService";
 
 type DecorationTypes = Record<DocumentCommandStatus, vscode.TextEditorDecorationType>;
 
+const REFRESH_DEBOUNCE_MS = 75;
+
 export class CommandSpanDecorationsService implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly decorationTypes: DecorationTypes;
+  private readonly refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private started = false;
   private disposed = false;
 
@@ -30,11 +33,11 @@ export class CommandSpanDecorationsService implements vscode.Disposable {
     this.started = true;
 
     this.disposables.push(
-      this.documents.onDidChangeTheoryDocument((result) => this.refreshForUri(result.uri)),
+      this.documents.onDidChangeTheoryDocument((result) => this.scheduleRefreshForUri(result.uri)),
       vscode.window.onDidChangeVisibleTextEditors(() => this.refresh()),
       vscode.window.onDidChangeActiveTextEditor(() => this.refresh()),
       vscode.workspace.onDidChangeTextDocument((event) => {
-        this.refreshForUri(event.document.uri.toString());
+        this.scheduleRefreshForUri(event.document.uri.toString());
       })
     );
 
@@ -52,22 +55,16 @@ export class CommandSpanDecorationsService implements vscode.Disposable {
     }
   }
 
-  public refreshForUri(uri: string): void {
-    if (this.disposed) {
-      return;
-    }
-    for (const editor of vscode.window.visibleTextEditors) {
-      if (editor.document.uri.toString() === uri && isTheoryDocument(editor.document)) {
-        this.applyDecorations(editor);
-      }
-    }
-  }
-
   public dispose(): void {
     if (this.disposed) {
       return;
     }
     this.disposed = true;
+
+    for (const timer of this.refreshTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.refreshTimers.clear();
 
     for (const disposable of this.disposables) {
       disposable.dispose();
@@ -76,6 +73,34 @@ export class CommandSpanDecorationsService implements vscode.Disposable {
 
     for (const status of STATUS_DECORATION_KEYS) {
       this.decorationTypes[status].dispose();
+    }
+  }
+
+  private scheduleRefreshForUri(uri: string): void {
+    if (this.disposed) {
+      return;
+    }
+    const existing = this.refreshTimers.get(uri);
+    if (existing !== undefined) {
+      clearTimeout(existing);
+    }
+    this.refreshTimers.set(
+      uri,
+      setTimeout(() => {
+        this.refreshTimers.delete(uri);
+        this.refreshForUri(uri);
+      }, REFRESH_DEBOUNCE_MS)
+    );
+  }
+
+  private refreshForUri(uri: string): void {
+    if (this.disposed) {
+      return;
+    }
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (editor.document.uri.toString() === uri && isTheoryDocument(editor.document)) {
+        this.applyDecorations(editor);
+      }
     }
   }
 
