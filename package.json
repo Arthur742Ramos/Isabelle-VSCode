@@ -63,6 +63,10 @@
     "onCommand:isabelle.showTheoryDependents",
     "onCommand:isabelle.toggleTheoryGraphMode",
     "onCommand:isabelle.refreshTheoryOutline",
+    "onCommand:isabelle.startLanguageServer",
+    "onCommand:isabelle.stopLanguageServer",
+    "onCommand:isabelle.restartLanguageServer",
+    "onCommand:isabelle.showLanguageServerStatus",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -206,6 +210,22 @@
         "command": "isabelle.refreshTheoryOutline",
         "title": "Isabelle: Refresh Theory Outline",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.startLanguageServer",
+        "title": "Isabelle: Start Language Server"
+      },
+      {
+        "command": "isabelle.stopLanguageServer",
+        "title": "Isabelle: Stop Language Server"
+      },
+      {
+        "command": "isabelle.restartLanguageServer",
+        "title": "Isabelle: Restart Language Server"
+      },
+      {
+        "command": "isabelle.showLanguageServerStatus",
+        "title": "Isabelle: Show Language Server Status"
       }
     ],
     "views": {
@@ -332,6 +352,24 @@
           "default": "isabelle",
           "description": "Path to the Isabelle executable used by the backend for CLI-backed milestone commands."
         },
+        "isabelle.languageServer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt in to running Isabelle's bundled `isabelle vscode_server` as a language server. When enabled, the extension spawns the server and routes LSP features (diagnostics, hover, definition, completion, document symbols) through it. Requires Isabelle 2019 or newer installed and reachable via the path in `isabelle.executablePath`. Cross-platform (Linux, macOS, Windows). Default off keeps existing local-only behavior."
+        },
+        "isabelle.languageServer.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional command-line arguments passed to `isabelle vscode_server` before the protocol switches (e.g., `[\"-L\", \"./isabelle.log\"]`)."
+        },
+        "isabelle.languageServer.logVerbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the language client logs full LSP traffic to its output channel (helpful for debugging; noisy)."
+        },
         "isabelle.session.roots": {
           "type": "array",
           "items": {
@@ -370,6 +408,9 @@
     "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
     "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true package && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/scala-2.13/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
     "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
