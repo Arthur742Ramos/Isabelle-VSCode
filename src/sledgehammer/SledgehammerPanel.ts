@@ -25,6 +25,10 @@ import {
 import { PideQuiescenceTracker } from "./PideQuiescenceTracker";
 import { PideSledgehammerProversCache } from "./PideSledgehammerProversCache";
 import { SledgehammerHistory, SledgehammerHistoryEntry } from "./sledgehammerHistory";
+import {
+  buildSledgehammerQuickPickItems,
+  SledgehammerQuickPickItem
+} from "./sledgehammerQuickPick";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
 import { readSledgehammerSettings } from "./sledgehammerSettings";
 
@@ -169,7 +173,42 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
   }
 
   public async insertFirstSuggestion(): Promise<void> {
-    const suggestion = this.lastResult?.suggestions[0];
+    await this.insertSuggestionAtIndex(0);
+  }
+
+  /**
+   * Open a QuickPick listing every available proof suggestion and
+   * insert the user's choice. Routes through the same backend-mode
+   * vs LSP-mode path that `insertFirstSuggestion` uses.
+   */
+  public async pickAndInsertSuggestion(): Promise<void> {
+    const suggestions = this.lastResult?.suggestions ?? [];
+    if (!this.lastResult || suggestions.length === 0) {
+      vscode.window.showWarningMessage(
+        "No Sledgehammer proof suggestions are available to pick from."
+      );
+      return;
+    }
+    if (suggestions.length === 1) {
+      // Single suggestion: there's nothing to pick, just insert.
+      await this.insertSuggestionAtIndex(0);
+      return;
+    }
+    const items = buildSledgehammerQuickPickItems(suggestions);
+    const chosen = await vscode.window.showQuickPick(items, {
+      title: "Insert Sledgehammer proof",
+      placeHolder: "Choose which proof suggestion to insert",
+      matchOnDescription: true,
+      matchOnDetail: true
+    });
+    if (!chosen) {
+      return;
+    }
+    await this.insertSuggestionAtIndex(chosen.index);
+  }
+
+  private async insertSuggestionAtIndex(index: number): Promise<void> {
+    const suggestion = this.lastResult?.suggestions[index];
     if (!this.lastResult || !suggestion) {
       vscode.window.showWarningMessage("No Sledgehammer proof suggestion is available to insert.");
       return;
