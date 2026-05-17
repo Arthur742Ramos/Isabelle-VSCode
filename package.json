@@ -60,11 +60,13 @@
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
+    "onCommand:isabelle.refreshTheoryOutline",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
     "onView:isabelle.sledgehammer",
-    "onView:isabelle.theoryGraph"
+    "onView:isabelle.theoryGraph",
+    "onView:isabelle.theoryOutline"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -188,6 +190,11 @@
         "command": "isabelle.refreshTheoryGraph",
         "title": "Isabelle: Refresh Theory Graph",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.refreshTheoryOutline",
+        "title": "Isabelle: Refresh Theory Outline",
+        "icon": "$(refresh)"
       }
     ],
     "views": {
@@ -211,6 +218,10 @@
         {
           "id": "isabelle.theoryGraph",
           "name": "Isabelle Theory Graph"
+        },
+        {
+          "id": "isabelle.theoryOutline",
+          "name": "Isabelle Theory Outline"
         }
       ]
     },
@@ -264,6 +275,11 @@
         {
           "command": "isabelle.refreshTheoryGraph",
           "when": "view == isabelle.theoryGraph",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.refreshTheoryOutline",
+          "when": "view == isabelle.theoryOutline",
           "group": "navigation"
         }
       ]
