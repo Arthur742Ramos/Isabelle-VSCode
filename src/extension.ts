@@ -42,6 +42,8 @@ import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvide
 import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkProvider";
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
+import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
+import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
 import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
   IsabelleSemanticTokensProvider
@@ -65,6 +67,7 @@ let languageServerStatusBar: LanguageServerStatusBar | undefined;
 let pideQuiescenceTracker: PideQuiescenceTracker | undefined;
 let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let pideDecorationOverlayService: PideDecorationOverlayService | undefined;
+let pideAbbrevsCache: PideAbbrevsCache | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -93,6 +96,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   pideQuiescenceTracker = new PideQuiescenceTracker(vscode.workspace);
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
   pideDecorationOverlayService = new PideDecorationOverlayService(languageClient, output);
+  pideAbbrevsCache = new PideAbbrevsCache(languageClient, output);
   proofStatePanel = new ProofStatePanel(backendManager, output, languageClient);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(
@@ -157,6 +161,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     pideQuiescenceTracker,
     pideSledgehammerProversCache,
     pideDecorationOverlayService,
+    pideAbbrevsCache,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -184,6 +189,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       { language: "isabelle", scheme: "file" },
       new IsabelleDefinitionProvider(documentSyncService, sessions, output)
     ),
+    registerPideAbbrevsCompletionProvider(pideAbbrevsCache),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryOutline", theoryOutlineTree),
@@ -284,6 +290,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
 export async function deactivate(): Promise<void> {
   pideSledgehammerProversCache?.dispose();
   pideSledgehammerProversCache = undefined;
+  pideAbbrevsCache?.dispose();
+  pideAbbrevsCache = undefined;
   pideQuiescenceTracker?.dispose();
   pideQuiescenceTracker = undefined;
   await languageClient?.shutdown();
