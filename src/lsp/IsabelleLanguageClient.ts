@@ -114,6 +114,38 @@ export class IsabelleLanguageClient implements vscode.Disposable {
   }
 
   /**
+   * Send an LSP request to the running language server and wait for
+   * the response. Rejects (does not silently swallow) when the client
+   * is not currently `running`, so callers can branch on the rejection
+   * cleanly — this differs from {@link sendNotification}, which logs
+   * and drops, because requests semantically require a reply.
+   *
+   * Intended for the PIDE-flavoured requests that isabelle vscode_server
+   * exposes — `PIDE/state_init` is the first concrete consumer (see
+   * `docs/proof_state_and_minimization_lsp_research.md`).
+   */
+  public sendRequest<T>(method: string, params?: unknown): Promise<T> {
+    if (this.disposed) {
+      return Promise.reject(
+        new Error(`Isabelle language server: cannot sendRequest(${method}) after dispose`)
+      );
+    }
+    const client = this.currentClient;
+    if (!client || this.state !== "running") {
+      return Promise.reject(
+        new Error(
+          `Isabelle language server: cannot sendRequest(${method}) — client state is "${this.state}"`
+        )
+      );
+    }
+    try {
+      return client.sendRequest<T>(method, params as never);
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
    * Subscribe to an LSP notification by method name. Handlers persist
    * across language-client restarts: a handler registered while the
    * client is `disabled` will start receiving notifications once the

@@ -81,7 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
   pideQuiescenceTracker = new PideQuiescenceTracker(vscode.workspace);
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
-  proofStatePanel = new ProofStatePanel(backendManager, output);
+  proofStatePanel = new ProofStatePanel(backendManager, output, languageClient);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(
     backendManager,
