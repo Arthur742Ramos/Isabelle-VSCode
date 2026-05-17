@@ -1,11 +1,14 @@
 package dev.isabelle.vscode.server
 
 import java.io.{BufferedInputStream, BufferedOutputStream}
+import java.util.concurrent.atomic.AtomicReference
 import scala.sys.process.Process
 import scala.util.control.NonFatal
 
 object Main {
   private val documents = new DocumentStore(new LocalSyntaxPideBridge)
+  private val pideConfiguration =
+    new AtomicReference[PideConfiguration](PideConfiguration.default)
 
   def main(args: Array[String]): Unit = {
     val in = new BufferedInputStream(System.in)
@@ -120,10 +123,53 @@ object Main {
           "message" -> "No active Sledgehammer job is running; PIDE-backed Sledgehammer jobs are not implemented in this backend yet."
         ))
 
+      case "pide/configure" =>
+        val params = request.params.flatMap(_.objOpt)
+        val rawMode = params.flatMap(_.get("mode")).flatMap(_.strOpt)
+        rawMode match {
+          case None =>
+            Protocol.error(
+              request.id,
+              -32602,
+              "Missing required string parameter 'mode' for pide/configure."
+            )
+
+          case Some(modeString) if !PideConfiguration.isSupportedMode(modeString) =>
+            Protocol.error(
+              request.id,
+              -32602,
+              s"Unsupported PIDE mode '$modeString'; expected one of: ${PideConfiguration.SupportedModes.mkString(", ")}."
+            )
+
+          case Some(modeString) =>
+            val scalaIsabelle = params
+              .flatMap(_.get("scalaIsabelle"))
+              .flatMap(_.objOpt)
+              .map { obj =>
+                ScalaIsabelleConfiguration(
+                  isabelleHome = trimmedString(obj.get("isabelleHome")),
+                  userDir = trimmedString(obj.get("userDir")),
+                  sessionName = trimmedString(obj.get("sessionName")),
+                  logicSession = trimmedString(obj.get("logicSession")),
+                  workingDirectory = trimmedString(obj.get("workingDirectory"))
+                )
+              }
+            pideConfiguration.set(PideConfiguration(modeString, scalaIsabelle))
+            Protocol.success(request.id, ujson.Obj(
+              "mode" -> modeString,
+              "acknowledged" -> true,
+              "activeBridge" -> PideConfiguration.LocalSyntaxBridgeName,
+              "message" -> "PIDE configuration stored. Active bridge swap lands in a follow-up PR once ScalaIsabellePideBridge is fully wired."
+            ))
+        }
+
       case other =>
         Protocol.error(request.id, -32601, s"Unsupported method: $other")
     }
     }
+
+  private def trimmedString(value: Option[ujson.Value]): Option[String] =
+    value.flatMap(_.strOpt).map(_.trim).filter(_.nonEmpty)
 
   private def healthFor(executable: String): ujson.Value =
     try {
@@ -153,4 +199,40 @@ object IsabelleCli {
     val summary = raw.linesIterator.find(_.trim.nonEmpty).getOrElse(raw)
     IsabelleVersion(raw, summary)
   }
+}
+
+/**
+ * Subset of `pide/configure` scala-isabelle sub-parameters retained on the
+ * backend so a follow-up PR can hand them to the scala-isabelle bridge
+ * without protocol changes.
+ */
+final case class ScalaIsabelleConfiguration(
+  isabelleHome: Option[String] = None,
+  userDir: Option[String] = None,
+  sessionName: Option[String] = None,
+  logicSession: Option[String] = None,
+  workingDirectory: Option[String] = None
+)
+
+/**
+ * In-memory PIDE configuration set by the `pide/configure` protocol
+ * exchange. The active bridge stays local-syntax in this PR; storing the
+ * configuration lets a follow-up PR swap to a scala-isabelle bridge
+ * without changing the protocol.
+ */
+final case class PideConfiguration(
+  mode: String,
+  scalaIsabelle: Option[ScalaIsabelleConfiguration]
+)
+
+object PideConfiguration {
+  val LocalSyntaxMode: String = "localSyntax"
+  val ScalaIsabelleMode: String = "scalaIsabelle"
+  val LocalSyntaxBridgeName: String = "local-syntax"
+
+  val SupportedModes: Seq[String] = Seq(LocalSyntaxMode, ScalaIsabelleMode)
+
+  def isSupportedMode(value: String): Boolean = SupportedModes.contains(value)
+
+  def default: PideConfiguration = PideConfiguration(LocalSyntaxMode, None)
 }

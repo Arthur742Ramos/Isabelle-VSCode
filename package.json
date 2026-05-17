@@ -63,6 +63,7 @@
     "onCommand:isabelle.showTheoryDependents",
     "onCommand:isabelle.toggleTheoryGraphMode",
     "onCommand:isabelle.refreshTheoryOutline",
+    "onCommand:isabelle.configurePideMode",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -206,6 +207,10 @@
         "command": "isabelle.refreshTheoryOutline",
         "title": "Isabelle: Refresh Theory Outline",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.configurePideMode",
+        "title": "Isabelle: Configure PIDE Mode"
       }
     ],
     "views": {
@@ -331,6 +336,35 @@
           "type": "string",
           "default": "isabelle",
           "description": "Path to the Isabelle executable used by the backend for CLI-backed milestone commands."
+        },
+        "isabelle.pide.mode": {
+          "type": "string",
+          "enum": [
+            "localSyntax",
+            "scalaIsabelle"
+          ],
+          "default": "localSyntax",
+          "description": "Selects which PIDE bridge the Scala backend uses. 'localSyntax' (default) keeps the current local command-span behavior. 'scalaIsabelle' (experimental, Linux/macOS + Isabelle 2019+ runtime required) opts into the scala-isabelle-backed bridge once a future PR wires it live."
+        },
+        "isabelle.pide.isabelleHome": {
+          "type": "string",
+          "default": "",
+          "description": "Path to an Isabelle installation, used by the scalaIsabelle PIDE mode (e.g. `/opt/Isabelle2024`). Ignored when mode is localSyntax."
+        },
+        "isabelle.pide.userDir": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Isabelle user directory (`ISABELLE_USER_HOME`) for the scalaIsabelle PIDE mode."
+        },
+        "isabelle.pide.sessionName": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Isabelle session name to load when initializing the scalaIsabelle PIDE bridge."
+        },
+        "isabelle.pide.logicSession": {
+          "type": "string",
+          "default": "HOL",
+          "description": "Logic session (e.g. `HOL`) to base scalaIsabelle PIDE on."
         },
         "isabelle.session.roots": {
           "type": "array",

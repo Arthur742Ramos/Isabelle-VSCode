@@ -9,7 +9,8 @@ export type ServerMethod =
   | "document/close"
   | "proofState/get"
   | "sledgehammer/run"
-  | "sledgehammer/cancel";
+  | "sledgehammer/cancel"
+  | "pide/configure";
 
 export interface ProtocolRequest<TParams = unknown> {
   jsonrpc: "2.0";
@@ -197,6 +198,28 @@ export interface SledgehammerCancelResult {
   requestId?: string;
   cancelled: boolean;
   message: string;
+}
+
+export type IsabellePideMode = "localSyntax" | "scalaIsabelle";
+
+export interface PideConfigureScalaIsabelleParams {
+  isabelleHome?: string;
+  userDir?: string;
+  sessionName?: string;
+  logicSession?: string;
+  workingDirectory?: string;
+}
+
+export interface PideConfigureParams {
+  mode: IsabellePideMode;
+  scalaIsabelle?: PideConfigureScalaIsabelleParams;
+}
+
+export interface PideConfigureResult {
+  mode: IsabellePideMode;
+  acknowledged: true;
+  activeBridge: string;
+  message?: string;
 }
 
 export class ProtocolRequestError extends Error {

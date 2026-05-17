@@ -20,10 +20,12 @@ import {
   DiscoverSessionsResult,
   HealthParams,
   HealthResult,
+  IsabellePideMode,
   ProtocolPosition,
   VersionParams,
   VersionResult
 } from "./protocol/messages";
+import { PIDE_CONFIGURATION_KEYS, PideConfigurationService } from "./pide/PideConfigurationService";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { RepairService } from "./repair/RepairService";
 import { RepairVerificationContext } from "./repair/verificationPlan";
@@ -47,6 +49,7 @@ let buildService: BuildService | undefined;
 let commandSpanDecorationsService: CommandSpanDecorationsService | undefined;
 let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
+let pideConfigurationService: PideConfigurationService | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -68,6 +71,7 @@ export function activate(context: vscode.ExtensionContext): void {
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService);
+  pideConfigurationService = new PideConfigurationService(backendManager, output);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
   sledgehammerPanel = new SledgehammerPanel(backendManager, output, () => sessions.getActiveSessionName());
@@ -88,6 +92,7 @@ export function activate(context: vscode.ExtensionContext): void {
     commandSpanDecorationsService,
     documentStatusService,
     documentSyncService,
+    pideConfigurationService,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -153,6 +158,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("isabelle.showTheoryDependents", async () => showTheoryDependents(output)),
     vscode.commands.registerCommand("isabelle.toggleTheoryGraphMode", () => toggleTheoryGraphMode()),
     vscode.commands.registerCommand("isabelle.refreshTheoryOutline", () => theoryOutlineTree?.refresh()),
+    vscode.commands.registerCommand("isabelle.configurePideMode", async () => configurePideMode(output)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -160,6 +166,7 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  pideConfigurationService.start();
   documentSyncService.start();
   documentStatusService.start();
   commandSpanDecorationsService.start();
@@ -168,6 +175,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   documentSyncService?.dispose();
   documentSyncService = undefined;
+  pideConfigurationService?.dispose();
+  pideConfigurationService = undefined;
   proofOutlineProvider?.dispose();
   proofOutlineProvider = undefined;
   proofStatePanel?.dispose();
@@ -448,6 +457,81 @@ function toggleTheoryGraphMode(): void {
   const mode = requireTheoryGraphTree().toggleViewMode();
   const label = mode === "dependents" ? "Dependents (imported by)" : "Dependencies (imports)";
   vscode.window.showInformationMessage(`Isabelle theory graph mode: ${label}.`);
+}
+
+interface PideModePickItem extends vscode.QuickPickItem {
+  mode: IsabellePideMode;
+}
+
+async function configurePideMode(output: vscode.OutputChannel): Promise<void> {
+  const service = pideConfigurationService;
+  if (!service) {
+    vscode.window.showWarningMessage("Isabelle PIDE configuration service is not activated.");
+    return;
+  }
+
+  const currentMode = service.getCurrentMode();
+  const items: PideModePickItem[] = [
+    {
+      mode: "localSyntax",
+      label: "Local syntax",
+      description: descriptionFor("localSyntax", currentMode, "default"),
+      detail: "Conservative local command spans; no scala-isabelle runtime required."
+    },
+    {
+      mode: "scalaIsabelle",
+      label: "scala-isabelle",
+      description: descriptionFor("scalaIsabelle", currentMode, "experimental"),
+      detail:
+        "Stores configuration for the scala-isabelle PIDE bridge. The active bridge swap lands in a follow-up PR."
+    }
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "Isabelle PIDE Mode",
+    placeHolder: `Current: ${formatModeLabel(currentMode)}. Choose the PIDE bridge to configure.`
+  });
+
+  if (!picked) {
+    return;
+  }
+
+  try {
+    if (picked.mode !== currentMode) {
+      const target = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+      await vscode.workspace
+        .getConfiguration(PIDE_CONFIGURATION_KEYS.section)
+        .update("pide.mode", picked.mode, target);
+    }
+
+    const acknowledged = await service.configureNow({ source: "command", showUserError: true });
+    if (!acknowledged) {
+      return;
+    }
+    vscode.window.showInformationMessage(
+      `Isabelle PIDE mode: ${formatModeLabel(picked.mode)}. The active backend bridge remains local-syntax until a follow-up PR wires the scala-isabelle bridge.`
+    );
+  } catch (error) {
+    showBackendError("Unable to configure Isabelle PIDE mode", error, output);
+  }
+}
+
+function descriptionFor(
+  mode: IsabellePideMode,
+  current: IsabellePideMode,
+  tag: "default" | "experimental"
+): string {
+  const parts: string[] = [tag];
+  if (mode === current) {
+    parts.push("current");
+  }
+  return parts.join(" \u00b7 ");
+}
+
+function formatModeLabel(mode: IsabellePideMode): string {
+  return mode === "scalaIsabelle" ? "scala-isabelle" : "Local syntax";
 }
 
 async function replaySledgehammerRun(requestId: string | undefined): Promise<void> {
