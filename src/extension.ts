@@ -42,6 +42,7 @@ import { TheoryOutlineTreeProvider } from "./semantic/TheoryOutlineTreeProvider"
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
+import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerProversCache";
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 
@@ -52,6 +53,7 @@ let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let languageClient: IsabelleLanguageClient | undefined;
 let languageServerStatusBar: LanguageServerStatusBar | undefined;
+let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
 let repairPreviewProvider: RepairPreviewProvider | undefined;
@@ -87,6 +89,7 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.show();
   languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
   languageServerStatusBar = new LanguageServerStatusBar(languageClient);
+  pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
 
   context.subscriptions.push(
     output,
@@ -97,6 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
     documentSyncService,
     languageClient,
     languageServerStatusBar,
+    pideSledgehammerProversCache,
     proofOutlineProvider,
     proofStatePanel,
     repairPreviewProvider,
@@ -214,6 +218,8 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export async function deactivate(): Promise<void> {
+  pideSledgehammerProversCache?.dispose();
+  pideSledgehammerProversCache = undefined;
   await languageClient?.shutdown();
   languageClient = undefined;
   languageServerStatusBar?.dispose();
