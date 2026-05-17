@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DiscoveredSession } from "../../src/protocol/messages";
-import { buildTheoryDependencyGraph } from "../../src/theoryGraph/dependencyGraph";
+import { buildTheoryDependencyGraph, computeReverseDependencies } from "../../src/theoryGraph/dependencyGraph";
 
 let tempDir: string;
 
@@ -117,6 +117,197 @@ describe("buildTheoryDependencyGraph", () => {
       }
     ]);
     expect(graph.edges).toEqual([]);
+  });
+});
+
+describe("computeReverseDependencies", () => {
+  it("groups importers per target, dedupes by importer, and pre-seeds empty entries for theories with no dependents", async () => {
+    const baseDir = path.join(tempDir, "Base");
+    const appDir = path.join(tempDir, "App");
+    await fs.mkdir(baseDir, { recursive: true });
+    await fs.mkdir(appDir, { recursive: true });
+
+    const commonPath = path.join(baseDir, "Common.thy");
+    const aliasPath = path.join(baseDir, "Alias.thy");
+    const userOnePath = path.join(appDir, "UserOne.thy");
+    const userTwoPath = path.join(appDir, "UserTwo.thy");
+    await fs.writeFile(commonPath, "theory Common imports Main begin end", "utf8");
+    await fs.writeFile(aliasPath, "theory Alias imports Main begin end", "utf8");
+    await fs.writeFile(userOnePath, "theory UserOne imports Common Alias begin end", "utf8");
+    await fs.writeFile(userTwoPath, "theory UserTwo imports Common begin end", "utf8");
+
+    const graph = await buildTheoryDependencyGraph([
+      session(
+        "App",
+        appDir,
+        [
+          { name: "UserOne", path: userOnePath },
+          { name: "UserTwo", path: userTwoPath }
+        ],
+        { parent: "Base" }
+      ),
+      session("Base", baseDir, [
+        { name: "Alias", path: aliasPath },
+        { name: "Common", path: commonPath }
+      ])
+    ]);
+
+    const reverse = computeReverseDependencies(graph);
+    const ids = [...reverse.keys()].sort();
+    expect(ids).toEqual(["App:UserOne", "App:UserTwo", "Base:Alias", "Base:Common"]);
+
+    expect(reverse.get("Base:Common")).toEqual([
+      {
+        importerId: "App:UserOne",
+        importerTheoryName: "UserOne",
+        importerSessionName: "App",
+        importerPath: userOnePath,
+        importNames: ["Common"]
+      },
+      {
+        importerId: "App:UserTwo",
+        importerTheoryName: "UserTwo",
+        importerSessionName: "App",
+        importerPath: userTwoPath,
+        importNames: ["Common"]
+      }
+    ]);
+
+    expect(reverse.get("Base:Alias")).toEqual([
+      {
+        importerId: "App:UserOne",
+        importerTheoryName: "UserOne",
+        importerSessionName: "App",
+        importerPath: userOnePath,
+        importNames: ["Alias"]
+      }
+    ]);
+
+    expect(reverse.get("App:UserOne")).toEqual([]);
+    expect(reverse.get("App:UserTwo")).toEqual([]);
+  });
+
+  it("captures transitive importers without flattening the chain", async () => {
+    const chainPath = path.join(tempDir, "Chain");
+    await fs.mkdir(chainPath, { recursive: true });
+
+    const lowPath = path.join(chainPath, "Low.thy");
+    const midPath = path.join(chainPath, "Mid.thy");
+    const highPath = path.join(chainPath, "High.thy");
+    await fs.writeFile(lowPath, "theory Low imports Main begin end", "utf8");
+    await fs.writeFile(midPath, "theory Mid imports Low begin end", "utf8");
+    await fs.writeFile(highPath, "theory High imports Mid begin end", "utf8");
+
+    const graph = await buildTheoryDependencyGraph([
+      session("Chain", chainPath, [
+        { name: "High", path: highPath },
+        { name: "Low", path: lowPath },
+        { name: "Mid", path: midPath }
+      ])
+    ]);
+
+    const reverse = computeReverseDependencies(graph);
+    expect(reverse.get("Chain:Low")?.map((entry) => entry.importerId)).toEqual(["Chain:Mid"]);
+    expect(reverse.get("Chain:Mid")?.map((entry) => entry.importerId)).toEqual(["Chain:High"]);
+    expect(reverse.get("Chain:High")).toEqual([]);
+  });
+
+  it("collects multiple import names from the same importer into a sorted importNames list", () => {
+    const graph = {
+      sessions: [],
+      nodes: [
+        {
+          id: "S:Target",
+          theoryName: "Target",
+          declaredName: undefined,
+          sessionName: "S",
+          path: "/p/Target.thy",
+          imports: [],
+          importedBy: ["S:Importer"]
+        },
+        {
+          id: "S:Importer",
+          theoryName: "Importer",
+          declaredName: undefined,
+          sessionName: "S",
+          path: "/p/Importer.thy",
+          imports: [],
+          importedBy: []
+        }
+      ],
+      edges: [
+        { sourceId: "S:Importer", targetId: "S:Target", importName: "Z_alias" },
+        { sourceId: "S:Importer", targetId: "S:Target", importName: "A_alias" },
+        { sourceId: "S:Importer", targetId: "S:Target", importName: "A_alias" }
+      ]
+    };
+
+    const reverse = computeReverseDependencies(graph);
+    expect(reverse.get("S:Target")).toEqual([
+      {
+        importerId: "S:Importer",
+        importerTheoryName: "Importer",
+        importerSessionName: "S",
+        importerPath: "/p/Importer.thy",
+        importNames: ["A_alias", "Z_alias"]
+      }
+    ]);
+  });
+
+  it("sorts reverse entries by session, then theory name", () => {
+    const graph = {
+      sessions: [],
+      nodes: [
+        {
+          id: "S:Target",
+          theoryName: "Target",
+          declaredName: undefined,
+          sessionName: "S",
+          path: undefined,
+          imports: [],
+          importedBy: []
+        },
+        {
+          id: "BetaSession:Beta",
+          theoryName: "Beta",
+          declaredName: undefined,
+          sessionName: "BetaSession",
+          path: undefined,
+          imports: [],
+          importedBy: []
+        },
+        {
+          id: "AlphaSession:Zulu",
+          theoryName: "Zulu",
+          declaredName: undefined,
+          sessionName: "AlphaSession",
+          path: undefined,
+          imports: [],
+          importedBy: []
+        },
+        {
+          id: "AlphaSession:Alpha",
+          theoryName: "Alpha",
+          declaredName: undefined,
+          sessionName: "AlphaSession",
+          path: undefined,
+          imports: [],
+          importedBy: []
+        }
+      ],
+      edges: [
+        { sourceId: "BetaSession:Beta", targetId: "S:Target", importName: "Target" },
+        { sourceId: "AlphaSession:Zulu", targetId: "S:Target", importName: "Target" },
+        { sourceId: "AlphaSession:Alpha", targetId: "S:Target", importName: "Target" }
+      ]
+    };
+
+    const reverse = computeReverseDependencies(graph);
+    expect(reverse.get("S:Target")?.map((entry) => entry.importerId)).toEqual([
+      "AlphaSession:Alpha",
+      "AlphaSession:Zulu",
+      "BetaSession:Beta"
+    ]);
   });
 });
 

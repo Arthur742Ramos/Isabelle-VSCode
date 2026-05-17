@@ -58,6 +58,8 @@
     "onCommand:isabelle.previewRepairPatch",
     "onCommand:isabelle.checkRepairWorkspace",
     "onCommand:isabelle.refreshTheoryGraph",
+    "onCommand:isabelle.showTheoryDependents",
+    "onCommand:isabelle.toggleTheoryGraphMode",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -178,6 +180,15 @@
         "command": "isabelle.refreshTheoryGraph",
         "title": "Isabelle: Refresh Theory Graph",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "isabelle.showTheoryDependents",
+        "title": "Isabelle: Show Theory Dependents"
+      },
+      {
+        "command": "isabelle.toggleTheoryGraphMode",
+        "title": "Isabelle: Toggle Theory Graph Direction",
+        "icon": "$(arrow-swap)"
       }
     ],
     "views": {
@@ -253,6 +264,11 @@
         },
         {
           "command": "isabelle.refreshTheoryGraph",
+          "when": "view == isabelle.theoryGraph",
+          "group": "navigation"
+        },
+        {
+          "command": "isabelle.toggleTheoryGraphMode",
           "when": "view == isabelle.theoryGraph",
           "group": "navigation"
         }
