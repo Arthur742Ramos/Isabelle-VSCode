@@ -22,6 +22,7 @@ import {
   PideInsertPayload,
   requestPideInsert
 } from "./pideSledgehammerInsert";
+import { PideQuiescenceTracker } from "./PideQuiescenceTracker";
 import { PideSledgehammerProversCache } from "./PideSledgehammerProversCache";
 import { SledgehammerHistory, SledgehammerHistoryEntry } from "./sledgehammerHistory";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
@@ -49,7 +50,8 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     private readonly output: vscode.OutputChannel,
     private readonly getActiveSessionName: () => string | undefined,
     private readonly languageClient?: IsabelleLanguageClient,
-    private readonly proversCache?: PideSledgehammerProversCache
+    private readonly proversCache?: PideSledgehammerProversCache,
+    private readonly quiescenceTracker?: PideQuiescenceTracker
   ) {
     this.updateContexts();
     if (this.languageClient) {
@@ -108,6 +110,29 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       vscode.window.showInformationMessage(
         "Sledgehammer cancel sent to isabelle vscode_server."
       );
+      return;
+    }
+
+    // LSP-mode cancel while still in the quiescence wait, before any
+    // session has been constructed: clear the active id so the queued
+    // dispatchLspRunAfterQuiescence bails when it wakes up.
+    if (this.activeLspRequestId !== undefined && !this.activeLspSession) {
+      const requestId = this.activeLspRequestId;
+      this.activeLspRequestId = undefined;
+      const message = "Sledgehammer cancelled before dispatch (quiescence gate).";
+      this.history.recordCancellation(requestId, message, new Date().toISOString());
+      if (this.lastResult?.requestId === requestId) {
+        this.lastResult = {
+          ...this.lastResult,
+          status: "cancelled",
+          message,
+          raw: message
+        };
+      }
+      this.output.appendLine(`Sledgehammer (LSP) cancelled before dispatch: ${requestId}`);
+      vscode.window.showInformationMessage(message);
+      this.render();
+      this.updateContexts();
       return;
     }
 
@@ -344,14 +369,21 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     const startedAt = new Date().toISOString();
 
     this.activeLspRequestId = requestId;
+    const requiredDelay = this.quiescenceTracker?.computeRequiredDelay(uri, settings.quiescenceDelayMs) ?? 0;
+    const initialRaw = requiredDelay > 0
+      ? `Waiting ${requiredDelay} ms for isabelle vscode_server to finish processing the theory (quiescence gate).`
+      : "Dispatching Sledgehammer request via isabelle vscode_server (LSP mode).";
+    const initialMessage = requiredDelay > 0
+      ? `Waiting ${requiredDelay} ms before dispatching Sledgehammer (quiescence gate).`
+      : "Sledgehammer request dispatched to isabelle vscode_server.";
     this.lastResult = {
       requestId,
       uri,
       version,
       status: "running",
       suggestions: [],
-      raw: "Dispatching Sledgehammer request via isabelle vscode_server (LSP mode).",
-      message: "Sledgehammer request dispatched to isabelle vscode_server."
+      raw: initialRaw,
+      message: initialMessage
     };
     this.lastOutputNodes = [];
     this.history.recordStart({
@@ -364,6 +396,39 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     });
     this.render();
     this.updateContexts();
+
+    void this.dispatchLspRunAfterQuiescence(
+      requestId,
+      editor,
+      uri,
+      version,
+      settings.quiescenceDelayMs,
+      fallbackProvers,
+      settings
+    );
+  }
+
+  private async dispatchLspRunAfterQuiescence(
+    requestId: string,
+    editor: vscode.TextEditor,
+    uri: string,
+    version: number,
+    quiescenceDelayMs: number,
+    fallbackProvers: string,
+    settings: ReturnType<typeof readSledgehammerSettings>
+  ): Promise<void> {
+    if (this.quiescenceTracker && quiescenceDelayMs > 0) {
+      await this.quiescenceTracker.waitForQuiescence(uri, quiescenceDelayMs);
+    }
+    // The user may have cancelled or another run may have superseded
+    // this one during the quiescence wait. Bail without dispatching
+    // if our request id is no longer the active one.
+    if (this.activeLspRequestId !== requestId) {
+      return;
+    }
+    if (!this.languageClient) {
+      return;
+    }
 
     this.activeLspSession = new LspSledgehammerSession(
       this.languageClient,

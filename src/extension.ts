@@ -42,6 +42,7 @@ import { TheoryOutlineTreeProvider } from "./semantic/TheoryOutlineTreeProvider"
 import { SessionService } from "./session/SessionService";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
+import { PideQuiescenceTracker } from "./sledgehammer/PideQuiescenceTracker";
 import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerProversCache";
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
@@ -53,6 +54,7 @@ let documentStatusService: DocumentStatusService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let languageClient: IsabelleLanguageClient | undefined;
 let languageServerStatusBar: LanguageServerStatusBar | undefined;
+let pideQuiescenceTracker: PideQuiescenceTracker | undefined;
 let pideSledgehammerProversCache: PideSledgehammerProversCache | undefined;
 let proofOutlineProvider: ProofOutlineProvider | undefined;
 let proofStatePanel: ProofStatePanel | undefined;
@@ -77,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
   languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
   languageServerStatusBar = new LanguageServerStatusBar(languageClient);
   pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
+  pideQuiescenceTracker = new PideQuiescenceTracker(vscode.workspace);
   commandSpanDecorationsService = new CommandSpanDecorationsService(documentSyncService, languageClient);
   proofStatePanel = new ProofStatePanel(backendManager, output);
   proofOutlineProvider = new ProofOutlineProvider(documentSyncService, sessions);
@@ -85,7 +88,8 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     () => sessions.getActiveSessionName(),
     languageClient,
-    pideSledgehammerProversCache
+    pideSledgehammerProversCache,
+    pideQuiescenceTracker
   );
   repairPreviewProvider = new RepairPreviewProvider();
   repairService = new RepairService(backendManager, output, repairPreviewProvider, createRepairVerificationContext);
@@ -106,6 +110,7 @@ export function activate(context: vscode.ExtensionContext): void {
     documentSyncService,
     languageClient,
     languageServerStatusBar,
+    pideQuiescenceTracker,
     pideSledgehammerProversCache,
     proofOutlineProvider,
     proofStatePanel,
@@ -226,6 +231,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export async function deactivate(): Promise<void> {
   pideSledgehammerProversCache?.dispose();
   pideSledgehammerProversCache = undefined;
+  pideQuiescenceTracker?.dispose();
+  pideQuiescenceTracker = undefined;
   await languageClient?.shutdown();
   languageClient = undefined;
   languageServerStatusBar?.dispose();
