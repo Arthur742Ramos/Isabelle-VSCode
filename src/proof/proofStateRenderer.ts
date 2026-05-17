@@ -1,7 +1,26 @@
+import { PideOutputNode, renderPideOutputHtml } from "../sledgehammer/pideSledgehammerOutput";
 import { ProofStateResult } from "../protocol/messages";
 
-export function renderProofStateHtml(state: ProofStateResult | undefined): string {
-  const body = state ? renderState(state) : renderEmpty();
+export interface PideProofStateView {
+  /** Parsed Isabelle XML markup nodes from the latest PIDE/state_output snapshot. */
+  readonly outputNodes: readonly PideOutputNode[];
+  /** Whether the upstream State_Panel's auto-update is currently enabled. */
+  readonly autoUpdate: boolean;
+  /** Optional human-readable status caption. */
+  readonly status?: string;
+  /** Optional error message; rendered as a warning section. */
+  readonly errorMessage?: string;
+}
+
+export function renderProofStateHtml(
+  state: ProofStateResult | undefined,
+  pideView?: PideProofStateView
+): string {
+  const body = pideView
+    ? renderPideState(pideView, state)
+    : state
+      ? renderState(state)
+      : renderEmpty();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,10 +33,43 @@ export function renderProofStateHtml(state: ProofStateResult | undefined): strin
     .section { border-top: 1px solid var(--vscode-panel-border); margin-top: 14px; padding-top: 10px; }
     pre { background: var(--vscode-textCodeBlock-background); padding: 8px; white-space: pre-wrap; }
     code { font-family: var(--vscode-editor-font-family); }
+    .pide-sledgehammer-message { padding: 6px 8px; margin: 6px 0; border-left: 3px solid var(--vscode-panel-border); background: var(--vscode-textBlockQuote-background); }
+    .pide-sledgehammer-error { border-left-color: var(--vscode-editorError-foreground); }
+    .pide-sledgehammer-warning { border-left-color: var(--vscode-editorWarning-foreground); }
+    .pide-sledgehammer-information { border-left-color: var(--vscode-editorInfo-foreground); }
+    .pide-sledgehammer-sendback { background: var(--vscode-textCodeBlock-background); padding: 1px 4px; border-radius: 2px; }
+    .pide-sledgehammer-text { white-space: pre-wrap; }
+    .lsp-banner { background: var(--vscode-editorInfo-background); border-left: 3px solid var(--vscode-editorInfo-foreground); padding: 6px 8px; margin-bottom: 10px; }
+    .auto-update-on { color: var(--vscode-testing-iconPassed); }
+    .auto-update-off { color: var(--vscode-testing-iconQueued); }
   </style>
 </head>
 <body>${body}</body>
 </html>`;
+}
+
+function renderPideState(view: PideProofStateView, state: ProofStateResult | undefined): string {
+  const autoClass = view.autoUpdate ? "auto-update-on" : "auto-update-off";
+  const autoLabel = view.autoUpdate ? "auto-update on" : "auto-update off";
+  const banner = `<div class="lsp-banner">Live proof state from <code>isabelle vscode_server</code> (PIDE state panel) — <span class="${autoClass}">${autoLabel}</span>.</div>`;
+
+  const command = state?.command
+    ? `<p><strong>Current command:</strong> <code>${escapeHtml(state.command.kind)}${state.command.name ? ` ${escapeHtml(state.command.name)}` : ""}</code></p>`
+    : "";
+
+  const status = view.status
+    ? `<p class="muted">${escapeHtml(view.status)}</p>`
+    : "";
+
+  const error = view.errorMessage
+    ? `<div class="section"><h3>Error</h3><pre>${escapeHtml(view.errorMessage)}</pre></div>`
+    : "";
+
+  const pideBody = view.outputNodes.length > 0
+    ? `<div class="section"><h3>Proof state</h3>${renderPideOutputHtml(view.outputNodes)}</div>`
+    : `<div class="section"><h3>Proof state</h3><p class="muted">Waiting for isabelle vscode_server to publish state for the current caret position.</p></div>`;
+
+  return `<h2>Proof State</h2>${banner}${status}${command}${pideBody}${error}`;
 }
 
 function renderState(state: ProofStateResult): string {

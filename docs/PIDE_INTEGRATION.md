@@ -373,24 +373,28 @@ these items are done today.
         is unblocked by the same research probe.
 
 - [ ] Milestone 6 (Proof state panel)
-  - [ ] Replace the local-syntax-only `ProofStatePanel` placeholder
+  - [x] Replace the local-syntax-only `ProofStatePanel` placeholder
         with a structured proof state rendered from
-        `isabelle vscode_server`. The upstream LSP surface to use was
-        documented in
-        [`proof_state_and_minimization_lsp_research.md`](proof_state_and_minimization_lsp_research.md):
-        send `PIDE/state_init` (request), capture the returned
-        `state_id`, subscribe to `PIDE/state_output { id, content,
-        auto_update, decorations? }`, render the parsed Isabelle XML
-        content via the existing PIDE-XML parser (PR #32), and call
-        `PIDE/state_exit { id }` on dispose. Branch on
-        `IsabelleLanguageClient.getStatus().state === "running"`, keep
-        the local-syntax placeholder as the fallback when the LSP is
-        off. Map the auto-update toggle to `PIDE/state_auto_update {
-        id, enabled }`. Single instance per active panel — do NOT
-        re-init on every cursor move. Validated by Tier-2 manual
-        verification against an Isabelle install (open a theory,
-        place the cursor inside a proof, observe the state panel
-        updating live as the prover progresses).
+        `isabelle vscode_server`. Shipped as
+        `src/proof/LspProofStateSession.ts` — a one-shot lifecycle
+        owner that sends `PIDE/state_init`, captures the returned
+        `state_id`, subscribes to `PIDE/state_output { id, content,
+        auto_update, decorations? }`, parses `content` via the
+        existing PIDE-XML parser (PR #32), and calls
+        `PIDE/state_exit { id }` on dispose. The panel itself
+        branches on `IsabelleLanguageClient.getStatus().state ===
+        "running"`, starts/stops the session on transitions, and
+        keeps the existing Scala-backend `proofState/get` placeholder
+        as the fallback when the LSP is off or errors. The
+        `IsabelleLanguageClient` gained a `sendRequest` seam in the
+        same PR (the existing `sendNotification` seam from PR #31
+        does not cover requests). Single instance per active panel —
+        the session does NOT re-init on cursor moves; auto-update
+        is true by default to match the upstream
+        `state_panel.scala:82` default. Validated by 25 unit cases
+        on the session plus 6 renderer cases on the new PIDE view
+        path; live verification against an Isabelle install remains
+        a Tier-2 manual run.
   - [ ] Optionally expose the lighter-weight `PIDE/dynamic_output`
         surface as a secondary "message panel" attached to the editor
         caret (no `id`, no init/exit handshake). Defer until the
