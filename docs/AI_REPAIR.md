@@ -6,16 +6,24 @@ safety contract it sits behind.
 
 ## TL;DR
 
-- The extension does **not** ship with any default AI provider.
-- The new commands `Isabelle: Copy Checked Repair Request to
-  Clipboard` and `Isabelle: Request AI Repair Suggestion` are
-  additive — the original `Isabelle: Create Checked Repair Request`
-  workflow is unchanged and still strictly local.
-- Even when a provider is registered, the request command refuses
-  to call it until you have explicitly set
-  `isabelle.repair.aiAcknowledgedSharing` to `true`. This is the
-  gate the extension uses to make sure no proof context can be
-  silently exfiltrated to a third-party service.
+- The extension does **not** ship with any default AI provider that calls a third-party network service.
+- A built-in **"manual paste-back" provider** ships under the id `manual-paste-back`. It satisfies the provider contract without making any network call: it copies the request to the clipboard and waits for you to point at a `.patch` file containing the AI's response. See [Built-in `manual-paste-back` provider](#built-in-manual-paste-back-provider) below.
+- The new commands `Isabelle: Copy Checked Repair Request to Clipboard` and `Isabelle: Request AI Repair Suggestion` are additive — the original `Isabelle: Create Checked Repair Request` workflow is unchanged and still strictly local.
+- Even when a provider is selected, the request command refuses to call it until you have explicitly set `isabelle.repair.aiAcknowledgedSharing` to `true`. The acknowledgement applies whether the network call is made by the extension or by you in another tool.
+
+## Built-in `manual-paste-back` provider
+
+To use it:
+
+1. Set `"isabelle.repair.aiProvider": "manual-paste-back"`.
+2. Set `"isabelle.repair.aiAcknowledgedSharing": true`. The acknowledgement is still required because you ARE sharing the captured request with whatever AI tool you paste it into — the extension just isn't transmitting it.
+3. Run `Isabelle: Request AI Repair Suggestion (Experimental)`. The provider:
+   - Copies the same request bundle the clipboard command produces to your clipboard.
+   - Shows a prompt naming the document URI, version, and captured timestamp so you can confirm which run the patch will correspond to.
+   - When you click **Open patch file...**, opens a file picker scoped to `.patch` / `.diff`.
+   - Reads the chosen file and returns it through the existing preview pipeline — the patch is still validated by `Isabelle: Preview Repair Patch` before any edit is applied.
+
+The provider returns a typed failure (with a descriptive reason) if you dismiss the prompt, cancel the picker, the file is missing or empty, or the clipboard write fails. Aborts (e.g. via the coordinator timeout) are honoured at every step.
 
 ## Two new commands
 
