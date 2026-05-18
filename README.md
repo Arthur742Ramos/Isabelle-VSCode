@@ -143,6 +143,8 @@ Implemented foundation:
   - `Isabelle: Reset Spell-Checker Session Words`
   - `Isabelle: Toggle Proof State Auto-Update`
   - `Isabelle: Re-anchor Proof State to Cursor`
+  - `Isabelle: Check Setup Prerequisites`
+  - `Isabelle: Explain Current Mode`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and backend-backed `session/discover`.
@@ -172,7 +174,7 @@ Implemented foundation:
 - Proof state panel controls (LSP-mode): three new user-facing controls map onto the upstream `PIDE/state_*` and `PIDE/output_set_margin` notifications the proof state panel already supports internally. Settings: `isabelle.proofState.autoUpdate` (default `true`, mirrors upstream `state_panel.scala`), `isabelle.proofState.margin` (pretty-printer margin for the main state, default 80, clamped 20–400), `isabelle.dynamicOutput.margin` (pretty-printer margin for the caret-driven dynamic output sub-panel, default 80). Commands: `Isabelle: Toggle Proof State Auto-Update` (flips the setting and forwards `PIDE/state_auto_update`) and `Isabelle: Re-anchor Proof State to Cursor` (sends `PIDE/state_locate` to re-anchor the panel without restarting it). Settings changes are picked up live without requiring a workspace reload.
 - Unit tests for protocol framing, request correlation, ROOT parsing, workspace session discovery, theory graph construction, build command generation, diagnostic parsing, semantic tokenization, repair request capture, patch preview safety, command-span extraction, document status summaries, language-server command construction, proof-outline helpers, and the PIDE decoration parser + apply-policy helpers.
 
-The theory graph, theory outline, proof outline, document status surface, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction; they are not live PIDE dependency, diagnostics, or semantic markup yet. The theory-graph reverse navigation is derived from the same parsed `.thy` headers and only reports importers that were locally discovered. This milestone does **not** implement PIDE document processing, live proof checking, PIDE semantic markup/entity metadata, live Sledgehammer proof search, minimization, automatic proof insertion from real suggestions, or automatic AI repair yet. Those require the Scala backend to integrate with Isabelle/PIDE internals rather than only invoking the Isabelle CLI or exposing safe placeholders. The proof actions are conservative affordances and the checked repair loop is local-only: they do not call external AI services, claim verification, or apply proposed edits automatically.
+The theory graph, theory outline, proof outline, document status surface, document symbols, local import links, and in-file definition navigation are local foundations that refresh from session discovery, `.thy` headers, synchronized command spans, and local syntax extraction. The theory-graph reverse navigation is derived from the same parsed `.thy` headers and only reports importers that were locally discovered. The Scala backend path remains local-syntax-only — its `PideBridge` seam still defaults to a `LocalSyntaxPideBridge`, and the proof actions stay conservative affordances that do not claim verification. Real PIDE behavior is currently delivered through the optional Isabelle LSP relay (see "Isabelle language server" below): when `isabelle.languageServer.enabled` is `running`, diagnostics, hover/definition/completion, the `PIDE/decoration` overlay, the proof state panel, dynamic output, Sledgehammer (minimization remains upstream-blocked at the LSP level), live theory preview, abbreviation completion, the documentation browser, and spell-checker dictionary commands all route through that LSP. The checked AI repair loop never auto-applies edits and never calls a third-party network service without explicit per-provider opt-in (see [docs/AI_REPAIR.md](docs/AI_REPAIR.md)). A future Scala `PideBridge` implementation may replace or supplement the LSP path for features the upstream LSP does not expose (notably Sledgehammer minimization); see [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md) for the current shipped / open / upstream-blocked breakdown.
 
 ## Checked repair workflow
 
@@ -300,19 +302,19 @@ For a packaged extension, `npm run package` (or `npm run install:extension` for 
 
 ## Roadmap
 
-For the consolidated current status of every milestone (what is shipped, what remains, what is upstream-blocked), see [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md).
+For the consolidated current status of every milestone (what is shipped, what remains, what is upstream-blocked), see [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md). For the end-to-end manual verification gate every release should pass, see [docs/SMOKE_THEORY_CHECKLIST.md](docs/SMOKE_THEORY_CHECKLIST.md) (driven by the [`examples/Smoke.thy`](examples/Smoke.thy) theory).
 
 The high-level roadmap is:
 
 1. Skeleton: extension activation, backend launch, health/version protocol.
 2. Session discovery: ROOT/ROOTS/AFP discovery, active session selection, theory tree.
 3. Build integration: `isabelle build`, streamed output, clickable diagnostics.
-4. PIDE document connection: live edits, local command spans, and a local status surface exist; PIDE status updates and diagnostics remain future work.
-5. Semantic markup: local hovers, navigation, semantic tokens, and document symbols exist; PIDE entity metadata remains future work.
-6. Proof state panel: cursor-aware structured goals/context.
-7. Sledgehammer workflow surface: typed run/cancel boundary and guarded proof insertion; PIDE-backed proof search and minimization remain future work.
+4. PIDE document connection: live edits, local command spans, a local status surface, AND (when the optional Isabelle language server is `running`) live LSP diagnostics that coexist with CLI-build diagnostics on separate `DiagnosticCollection` owners.
+5. Semantic markup: local hovers, navigation, semantic tokens, and document symbols are the always-on foundation; when the LSP is `running`, hover / definition / completion / `PIDE/decoration` overlay / abbreviation completion / documentation browser / live theory preview / spell-checker dictionary commands all route through it. `textDocument/documentSymbol` remains upstream-blocked.
+6. Proof state panel: cursor-aware structured goals/context, LSP-backed via `PIDE/state_init` + `PIDE/state_output` + dynamic-output sub-surface, with auto-update / margin / re-anchor user controls.
+7. Sledgehammer workflow: PIDE-backed proof search live in LSP mode (via `PIDE/sledgehammer_request` + sendback insert flow with quiescence gate); minimization remains upstream-blocked at the LSP level.
 8. Theory graph and proof-engineering tools.
-9. Checked AI repair loop that only reports success after Isabelle verifies the patch.
+9. Checked AI repair loop: capture diagnostics + proof context, opt-in third-party provider seam with strict diff preview, no auto-apply.
 
 Motto: VS Code for UI, Isabelle/Scala for semantics, Isabelle/ML for truth.
 

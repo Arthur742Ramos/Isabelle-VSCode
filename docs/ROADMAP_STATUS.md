@@ -28,7 +28,7 @@ single page to read for "what is shipped, what is still open, why."
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
 | Install UX — bundled per-platform JRE | ✅ 8 per-platform `.vsix` files (win32 / linux / alpine / darwin × x64 / arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback |
 
-Vitest baseline: **719 cases, all green**.
+Vitest baseline: **749 cases, all green**.
 
 ## What is fully shipped
 
@@ -281,6 +281,8 @@ values for the bumping procedure.
 - Milestone 7 Sledgehammer minimization at the LSP level.
 
 ### Tier-2 manual verifications (need a live Isabelle install)
+
+For the end-to-end walkthrough of every Tier-2 capability against a single tiny theory, see [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md) (driven by [`examples/Smoke.thy`](../examples/Smoke.thy)). The per-capability list below is the master inventory each release dogfood should still cover individually.
 
 Documented per checkbox in `PIDE_INTEGRATION.md`:
 

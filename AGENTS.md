@@ -8,7 +8,7 @@ If you change something in this repo, read this file first. Updating it when you
 
 ```text
 1. Run `npm install` once (Tier-1 toolchain).
-2. Run `npm run check` to compile + run the 639-test vitest suite.
+2. Run `npm run check` to compile + run the 749-test vitest suite.
 3. Branch from origin/main with a kebab-case name.
 4. Commit messages use Conventional Commits + a Copilot Co-authored-by trailer.
 5. Open a focused PR. Use the PR template.
@@ -67,7 +67,7 @@ If you don't have Tier 2 installed, you can still do meaningful work — see the
 npm install               # Once, after clone
 npm run compile           # tsc -> out/*.js (development emit, not the bundle)
 npm run watch             # tsc -watch
-npm run test              # vitest run (639 cases, ~2 s)
+npm run test              # vitest run (749 cases, ~3 s)
 npm run check             # compile + test (CI uses this)
 npm run bundle            # esbuild -> single out/extension.js for packaging
 
@@ -112,7 +112,7 @@ CI (`.github/workflows/ci.yml`) runs `npm run check`, `npm audit --audit-level=m
 
 ### Test conventions — **structural / vscode-free**
 
-**Verified universal:** all 62 test files (`test/**/*.test.ts`) avoid importing `vscode` directly. They exercise pure modules with injected fakes for `fs`, `child_process.spawn`, `vscode` UI surfaces, etc.
+**Verified universal:** all 66 test files (`test/**/*.test.ts`) avoid importing `vscode` directly. They exercise pure modules with injected fakes for `fs`, `child_process.spawn`, `vscode` UI surfaces, etc.
 
 When you add a new module:
 

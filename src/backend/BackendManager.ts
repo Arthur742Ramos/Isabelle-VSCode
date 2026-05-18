@@ -23,6 +23,16 @@ export class BackendManager implements vscode.Disposable {
   ) {}
 
   /**
+   * `true` once {@link getClient} has actually constructed the backend
+   * `BackendClient` (i.e. the Scala child process has been spawned).
+   * Used by `Isabelle: Explain Current Mode` to report the live backend
+   * state without itself triggering a spawn.
+   */
+  public isClientStarted(): boolean {
+    return this.client !== undefined;
+  }
+
+  /**
    * Record the Java command the prerequisite probe actually validated
    * (e.g. `"java"` after the too-old-bundled-JRE fallback, or an absolute
    * path to a bundled binary that passed the spawn + version check). The
