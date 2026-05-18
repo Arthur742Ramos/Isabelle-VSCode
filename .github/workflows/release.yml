@@ -1,0 +1,152 @@
+name: Release
+
+# Builds a downloadable .vsix on every v* tag push and uploads it as a GitHub
+# Release asset, so end-users can install the Isabelle PIDE extension without
+# building from source. When a VSCE_PAT repository secret is configured the
+# same job also publishes the .vsix to the VS Code Marketplace. Manual runs
+# (workflow_dispatch) build the same .vsix and upload it as a workflow
+# artifact only (no release, no Marketplace publish).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build VSIX and publish release
+    runs-on: ubuntu-latest
+
+    # Job-level env so step-level `if:` evaluation can see the secret value
+    # (or the empty string) without GitHub's secret-context warnings.
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Read extension version
+        id: pkg
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Extension version from package.json: $version"
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          expected="v${PKG_VERSION}"
+          if [ "$REF_NAME" != "$expected" ]; then
+            echo "::error::Tag '$REF_NAME' does not match package.json version (expected '$expected'). Bump package.json and re-tag, or delete the mismatched tag."
+            exit 1
+          fi
+          echo "Tag '$REF_NAME' matches package.json version."
+
+      - name: Build extension and package VSIX
+        run: npm run package
+
+      - name: Rename VSIX with version suffix
+        id: rename
+        env:
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          src="isabelle-pide-vscode.vsix"
+          dest="isabelle-pide-vscode-${PKG_VERSION}.vsix"
+          if [ ! -f "$src" ]; then
+            echo "::error::Expected $src to exist after 'npm run package' but it was not produced."
+            exit 1
+          fi
+          mv "$src" "$dest"
+          echo "vsix_path=$dest" >> "$GITHUB_OUTPUT"
+          ls -lh "$dest"
+
+      - name: Confirm VSIX contents
+        env:
+          VSIX: ${{ steps.rename.outputs.vsix_path }}
+        run: |
+          set -e
+          echo "Listing files in $VSIX:"
+          unzip -l "$VSIX"
+          echo ""
+          echo "Checking required files are present..."
+          unzip -l "$VSIX" | grep -q "extension/out/extension.js" \
+            || { echo "::error::Bundled extension/out/extension.js missing from VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "extension/backend/dist/isabelle-vscode-server.jar" \
+            || { echo "::error::Backend jar (extension/backend/dist/isabelle-vscode-server.jar) missing from VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "extension/package.json" \
+            || { echo "::error::extension/package.json missing from VSIX"; exit 1; }
+          echo "VSIX contents look good."
+
+      - name: Upload VSIX as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: isabelle-pide-vscode-vsix
+          path: ${{ steps.rename.outputs.vsix_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.rename.outputs.vsix_path }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            ## Installing this build
+
+            Download `${{ steps.rename.outputs.vsix_path }}` from the assets below, then either:
+
+            - **VS Code GUI** — open the **Extensions** view, click the `…` menu, choose **Install from VSIX…**, and pick the downloaded file; or
+            - **Command line** — run `code --install-extension ${{ steps.rename.outputs.vsix_path }}`.
+
+            ### Runtime prerequisites
+
+            - **Java 21+** on `PATH` (needed by the bundled Isabelle/Scala backend).
+            - **Isabelle 2019 or newer** with `isabelle` on `PATH` (or set `isabelle.executablePath`) if you want to use build, language-server, sledgehammer, or any feature that talks to Isabelle.
+
+            See the [README](https://github.com/${{ github.repository }}#installation) for the full installation guide.
+
+      - name: Publish to VS Code Marketplace
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != ''
+        env:
+          VSIX: ${{ steps.rename.outputs.vsix_path }}
+        run: |
+          set -e
+          echo "Publishing $VSIX to the VS Code Marketplace..."
+          npx --yes @vscode/vsce@^3.9.1 publish --packagePath "$VSIX" --pat "$VSCE_PAT"
+
+      - name: Note Marketplace publish skipped
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT == ''
+        run: |
+          echo "::notice::Skipped Marketplace publish: repository secret VSCE_PAT is not configured. Add a Marketplace PAT under repo Settings -> Secrets and variables -> Actions to enable automatic publishing on subsequent tag pushes."
