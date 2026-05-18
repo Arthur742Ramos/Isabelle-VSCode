@@ -168,6 +168,7 @@ function buildChecker(opts: {
   ui?: UiFake;
   autoDetect?: AutoDetectDependencies;
   javaCommand?: string;
+  isabellePathLookup?: (name: string) => string | undefined;
 }): { checker: PrerequisiteChecker; ui: UiFake; logs: string[]; calls: SpawnRequest[] } {
   const ui = opts.ui ?? makeUi();
   const logs: string[] = [];
@@ -179,7 +180,8 @@ function buildChecker(opts: {
     logger: { log: (m) => logs.push(m) },
     walkthroughId: "pub.ext#isabelle.getStarted",
     checkTimeoutMs: 5000,
-    javaCommand: opts.javaCommand
+    javaCommand: opts.javaCommand,
+    isabellePathLookup: opts.isabellePathLookup
   };
   return { checker: new PrerequisiteChecker(deps), ui, logs, calls };
 }
@@ -249,6 +251,85 @@ describe("PrerequisiteChecker.runCheck", () => {
     expect(isabelleSpawn.args).toContain("-File");
     expect(isabelleSpawn.args).toContain("C:\\Program Files\\Isabelle2025\\bin\\isabelle.ps1");
     expect(isabelleSpawn.args).toContain("version");
+  });
+
+  it("uses isabellePathLookup to resolve a bare 'isabelle' to an absolute .ps1 on Windows", async () => {
+    let lookupCalls = 0;
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: ok },
+        {
+          matcher: (r) => r.command === "powershell.exe",
+          result: { ...ok, stdout: "Isabelle2025: October 2025" }
+        }
+      ],
+      autoDetect: {
+        platform: "win32",
+        env: {},
+        fs: { isDirectory: () => false, isFile: () => false, readDirectoryNames: () => [] },
+        join: (...p) => p.join("\\")
+      },
+      isabellePathLookup: (name) => {
+        lookupCalls++;
+        return name === "isabelle" ? "C:\\Tools\\bin\\isabelle.ps1" : undefined;
+      }
+    });
+    const state = await checker.runCheck();
+    expect(lookupCalls).toBe(1);
+    expect(state.isabelle).toBe(true);
+    const isabelleSpawn = calls.find((c) => c.command !== "java")!;
+    expect(isabelleSpawn.command).toBe("powershell.exe");
+    expect(isabelleSpawn.args).toContain("-File");
+    expect(isabelleSpawn.args).toContain("C:\\Tools\\bin\\isabelle.ps1");
+    expect(isabelleSpawn.args).toContain("version");
+  });
+
+  it("falls back to spawning the bare 'isabelle' on Windows when isabellePathLookup returns undefined", async () => {
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: ok },
+        // The bare "isabelle" spawn fails with ENOENT on real Windows
+        // because spawn does not honor `.PS1` via PATHEXT. Matching the
+        // current behavior here.
+        { matcher: (r) => r.command === "isabelle", result: fail }
+      ],
+      autoDetect: {
+        platform: "win32",
+        env: {},
+        fs: { isDirectory: () => false, isFile: () => false, readDirectoryNames: () => [] },
+        join: (...p) => p.join("\\")
+      },
+      isabellePathLookup: () => undefined
+    });
+    const state = await checker.runCheck();
+    expect(state.isabelle).toBe(false);
+    const isabelleSpawn = calls.find((c) => c.command !== "java")!;
+    expect(isabelleSpawn.command).toBe("isabelle");
+  });
+
+  it("does not invoke isabellePathLookup on non-Windows platforms", async () => {
+    let lookupCalls = 0;
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: ok },
+        { matcher: (r) => r.command === "isabelle", result: { ...ok, stdout: "Isabelle2025" } }
+      ],
+      autoDetect: {
+        platform: "linux",
+        env: {},
+        fs: { isDirectory: () => false, isFile: () => false, readDirectoryNames: () => [] },
+        join: (...p) => p.join("/")
+      },
+      isabellePathLookup: () => {
+        lookupCalls++;
+        return "/should/not/be/used";
+      }
+    });
+    const state = await checker.runCheck();
+    expect(lookupCalls).toBe(0);
+    expect(state.isabelle).toBe(true);
+    const isabelleSpawn = calls.find((c) => c.command !== "java")!;
+    expect(isabelleSpawn.command).toBe("isabelle");
   });
 });
 

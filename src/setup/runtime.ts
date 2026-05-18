@@ -4,6 +4,7 @@ import * as path from "path";
 import type { AutoDetectDependencies, AutoDetectFs } from "./isabelleAutoDetect";
 import type { SpawnFn, SpawnRequest, SpawnResult } from "./PrerequisiteChecker";
 import { JavaResolveDeps, resolveJavaCommand } from "../backend/resolveJavaCommand";
+import { makeWindowsIsabellePathLookup } from "../lsp/languageServerArgs";
 
 /**
  * Production wiring for the setup module. Lives next to the pure module so
@@ -168,3 +169,34 @@ export const realJavaResolveDeps: JavaResolveDeps = {
 export function resolveActivationJavaCommand(extensionPath: string): string {
   return resolveJavaCommand(extensionPath, process.platform, realJavaResolveDeps);
 }
+
+/**
+ * Production PATH lookup for the Isabelle launcher. Returns a Windows
+ * scanner that walks `process.env.PATH` for `isabelle.ps1` /
+ * `isabelle.cmd` / `isabelle.exe` / `isabelle.bat` (in that order per
+ * directory) when running on Windows; `undefined` everywhere else so
+ * POSIX callers don't pay for a PATH walk that `spawn` already does.
+ *
+ * Why this exists: Node's `child_process.spawn("isabelle", ...)` on
+ * Windows does not honor `.PS1` in `PATHEXT`, so users with the upstream
+ * Isabelle Windows distribution (which ships ONLY `isabelle.ps1`) would
+ * otherwise see "Isabelle missing" toasts even though `where.exe
+ * isabelle` finds the launcher. Wiring this into
+ * `resolveIsabelleCommand`'s optional `pathLookup` makes the bare default
+ * `"isabelle"` Just Work on Windows.
+ */
+export const realIsabellePathLookup: ((name: string) => string | undefined) | undefined =
+  process.platform === "win32"
+    ? makeWindowsIsabellePathLookup({
+        readPath: () => process.env.PATH,
+        isFile: (p: string): boolean => {
+          try {
+            return fs.statSync(p).isFile();
+          } catch {
+            return false;
+          }
+        },
+        pathDelimiter: path.delimiter,
+        join: (...parts: string[]) => path.join(...parts)
+      })
+    : undefined;

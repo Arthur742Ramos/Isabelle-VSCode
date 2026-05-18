@@ -85,6 +85,18 @@ export interface PrerequisiteCheckerDependencies {
    * stale.
    */
   readonly javaCommand?: string;
+  /**
+   * Optional PATH lookup for the Isabelle launcher. When provided AND the
+   * configured `isabelle.executablePath` is a bare name like `"isabelle"`
+   * on Windows, the prerequisite probe consults this to find an absolute
+   * `.ps1`/`.cmd`/`.exe` launcher on PATH and routes the spawn through
+   * the PowerShell wrapper when appropriate. See
+   * `resolveIsabelleCommand` for the underlying rationale (Node's
+   * `child_process.spawn` does not honor `.PS1` in `PATHEXT`). Production
+   * activation wires {@link realIsabellePathLookup}; tests pass a fake
+   * or omit it.
+   */
+  readonly isabellePathLookup?: (name: string) => string | undefined;
 }
 
 export interface PrerequisiteState {
@@ -155,7 +167,12 @@ export class PrerequisiteChecker {
     const [primaryJavaResult, isabelleResult] = await Promise.all([
       this.safeSpawn({ command: primaryJavaCommand, args: ["-version"], timeoutMs }),
       this.safeSpawn(
-        spawnIsabelleVersion(isabelleExecutable, this.deps.autoDetect.platform, timeoutMs)
+        spawnIsabelleVersion(
+          isabelleExecutable,
+          this.deps.autoDetect.platform,
+          timeoutMs,
+          this.deps.isabellePathLookup
+        )
       )
     ]);
 
@@ -378,9 +395,10 @@ export class PrerequisiteChecker {
 function spawnIsabelleVersion(
   executablePath: string,
   platform: NodeJS.Platform,
-  timeoutMs: number
+  timeoutMs: number,
+  pathLookup?: (name: string) => string | undefined
 ): SpawnRequest {
-  const resolved = resolveIsabelleCommand(executablePath, ["version"], { platform });
+  const resolved = resolveIsabelleCommand(executablePath, ["version"], { platform, pathLookup });
   return { command: resolved.command, args: resolved.args, timeoutMs };
 }
 
