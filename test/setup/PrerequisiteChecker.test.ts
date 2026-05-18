@@ -3,6 +3,7 @@ import {
   AutoDetectDependencies
 } from "../../src/setup/isabelleAutoDetect";
 import {
+  MIN_JAVA_MAJOR_VERSION,
   PREREQ_CONTEXT_ALL,
   PREREQ_CONTEXT_ISABELLE,
   PREREQ_CONTEXT_JAVA,
@@ -11,7 +12,8 @@ import {
   PrerequisiteCheckerDependencies,
   SpawnFn,
   SpawnRequest,
-  SpawnResult
+  SpawnResult,
+  parseJavaMajorVersion
 } from "../../src/setup/PrerequisiteChecker";
 
 interface SpawnExpectation {
@@ -35,6 +37,17 @@ function makeSpawn(expectations: readonly SpawnExpectation[]): { spawn: SpawnFn;
 
 const ok: SpawnResult = { exitCode: 0, stdout: "openjdk version \"21.0.1\"", stderr: "", spawnFailed: false, timedOut: false };
 const fail: SpawnResult = { exitCode: null, stdout: "", stderr: "", spawnFailed: true, timedOut: false };
+
+function javaSpawnResult(versionLiteral: string): SpawnResult {
+  return {
+    exitCode: 0,
+    stdout: "",
+    // Real `java -version` writes the version line to stderr.
+    stderr: `openjdk version "${versionLiteral}" 2024-04-21 LTS\nOpenJDK Runtime Environment ...`,
+    spawnFailed: false,
+    timedOut: false
+  };
+}
 
 interface UiFake extends PrereqUi {
   readonly info: { message: string; actions: readonly string[] }[];
@@ -412,5 +425,101 @@ describe("PrerequisiteChecker.dispose", () => {
     await checker.notifyIfMissing(state, { force: true });
     expect(ui.info).toHaveLength(0);
     expect(ui.warning).toHaveLength(0);
+  });
+});
+
+describe("parseJavaMajorVersion", () => {
+  it("parses modern openjdk output (21)", () => {
+    expect(parseJavaMajorVersion('openjdk version "21.0.1" 2023-10-17 LTS')).toBe(21);
+  });
+
+  it("parses Oracle-style output", () => {
+    expect(parseJavaMajorVersion('java version "17.0.10" 2024-01-16 LTS')).toBe(17);
+  });
+
+  it("parses legacy 1.8 output as major 8", () => {
+    expect(parseJavaMajorVersion('java version "1.8.0_392"')).toBe(8);
+  });
+
+  it("parses 11", () => {
+    expect(parseJavaMajorVersion('openjdk version "11.0.21" 2023-10-17')).toBe(11);
+  });
+
+  it("returns undefined for unrecognized output", () => {
+    expect(parseJavaMajorVersion("no version here")).toBeUndefined();
+  });
+
+  it("returns undefined for empty input", () => {
+    expect(parseJavaMajorVersion("")).toBeUndefined();
+  });
+});
+
+describe("PrerequisiteChecker — Java minimum-version gating", () => {
+  it("classifies Java 21 as ok", async () => {
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("21.0.1") },
+        { matcher: (r) => r.command !== "java", result: fail }
+      ]
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(true);
+    expect(state.javaVersionMajor).toBe(21);
+    expect(state.javaTooOld).toBeUndefined();
+    expect(ui.contexts[PREREQ_CONTEXT_JAVA]).toBe(true);
+  });
+
+  it("classifies Java 17 as too-old and surfaces the differentiated toast", async () => {
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("17.0.10") },
+        { matcher: (r) => r.command !== "java", result: fail }
+      ]
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaTooOld).toBe(true);
+    expect(state.javaVersionMajor).toBe(17);
+    expect(ui.contexts[PREREQ_CONTEXT_JAVA]).toBe(false);
+
+    await checker.notifyIfMissing(state);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toMatch(/Java 17 is too old/);
+    expect(ui.warning[0].message).toMatch(new RegExp(`Java ${MIN_JAVA_MAJOR_VERSION}\\+`));
+  });
+
+  it("classifies legacy Java 8 (1.8.0_x) as too-old", async () => {
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("1.8.0_392") },
+        { matcher: (r) => r.command !== "java", result: fail }
+      ]
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaTooOld).toBe(true);
+    expect(state.javaVersionMajor).toBe(8);
+    await checker.notifyIfMissing(state);
+    expect(ui.warning[0].message).toMatch(/Java 8 is too old/);
+  });
+
+  it("shows the generic install-Java toast when java -version output cannot be parsed", async () => {
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [
+        {
+          matcher: (r) => r.command === "java",
+          result: { ...ok, stderr: "garbled output", stdout: "" }
+        },
+        { matcher: (r) => r.command !== "java", result: fail }
+      ]
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaVersionMajor).toBeUndefined();
+    expect(state.javaTooOld).toBeUndefined();
+    await checker.notifyIfMissing(state);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toMatch(new RegExp(`Java ${MIN_JAVA_MAJOR_VERSION}\\+ is required`));
+    expect(ui.warning[0].message).not.toMatch(/too old/);
   });
 });

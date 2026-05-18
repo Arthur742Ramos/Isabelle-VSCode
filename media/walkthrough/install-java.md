@@ -23,4 +23,4 @@ You should see something like `openjdk version "21.0.x" 2024-04-21 LTS`.
 
 ## After installing
 
-Click **Re-check setup** below to refresh this walkthrough.
+[**Re-check setup**](command:isabelle.checkPrerequisites) refreshes this walkthrough so the green tick appears once Java is reachable.

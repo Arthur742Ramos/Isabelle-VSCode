@@ -152,13 +152,27 @@ describe("detectIsabelleInstallPath — Windows", () => {
 });
 
 describe("detectIsabelleInstallPath — macOS", () => {
-  it("finds Isabelle inside the standard /Applications layout", () => {
+  it("finds Isabelle inside the standard /Applications/.app layout", () => {
+    const launcher = "/Applications/Isabelle2025.app/Isabelle/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps("darwin", {
+        directories: ["/Applications"],
+        listings: { "/Applications": ["Isabelle2025.app", "Firefox.app"] },
+        files: [launcher]
+      })
+    );
+    expect(result?.path).toBe(launcher);
+    expect(result?.versionYear).toBe(2025);
+    expect(result?.versionLabel).toBe("Isabelle2025.app");
+  });
+
+  it("finds Isabelle inside a flat /Applications/Isabelle2025/ directory (post-install copy)", () => {
     const root = "/Applications/Isabelle2025";
     const launcher = `${root}/Isabelle/bin/isabelle`;
     const result = detectIsabelleInstallPath(
       deps("darwin", {
         directories: ["/Applications"],
-        listings: { "/Applications": ["Isabelle2025.app", "Isabelle2025", "Firefox.app"] },
+        listings: { "/Applications": ["Isabelle2025"] },
         files: [launcher]
       })
     );
@@ -237,5 +251,58 @@ describe("detectIsabelleInstallPath — Linux", () => {
       })
     );
     expect(result).toBeUndefined();
+  });
+});
+
+describe("detectIsabelleInstallPath — minimum version filter", () => {
+  it("excludes Isabelle directories older than the minimum supported year", () => {
+    const installs = ["Isabelle2017", "Isabelle2018"];
+    const files = installs.map((d) => `/opt/${d}/bin/isabelle`);
+    const result = detectIsabelleInstallPath(
+      deps("linux", {
+        directories: ["/opt"],
+        listings: { "/opt": installs },
+        files
+      })
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("includes 2019 (the minimum supported year)", () => {
+    const launcher = "/opt/Isabelle2019/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps("linux", {
+        directories: ["/opt"],
+        listings: { "/opt": ["Isabelle2019"] },
+        files: [launcher]
+      })
+    );
+    expect(result?.versionYear).toBe(2019);
+  });
+
+  it("ignores the too-old install when a supported install is also present", () => {
+    const installs = ["Isabelle2017", "Isabelle2025"];
+    const files = installs.map((d) => `/opt/${d}/bin/isabelle`);
+    const result = detectIsabelleInstallPath(
+      deps("linux", {
+        directories: ["/opt"],
+        listings: { "/opt": installs },
+        files
+      })
+    );
+    expect(result?.versionYear).toBe(2025);
+  });
+
+  it("includes year-less Isabelle directories (best-effort)", () => {
+    const launcher = "/opt/Isabelle/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps("linux", {
+        directories: ["/opt"],
+        listings: { "/opt": ["Isabelle"] },
+        files: [launcher]
+      })
+    );
+    expect(result?.path).toBe(launcher);
+    expect(result?.versionYear).toBeUndefined();
   });
 });
