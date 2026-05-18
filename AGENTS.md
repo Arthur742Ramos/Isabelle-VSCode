@@ -296,6 +296,16 @@ The Release workflow (`.github/workflows/release.yml`) ships TWO flavors per tag
 - **macOS Gatekeeper:** the bundled Temurin binaries are signed by Eclipse Adoptium, but the surrounding `.vsix` is not notarized by us. The README documents the `xattr -dr com.apple.quarantine ~/.vscode/extensions/...jre` workaround.
 - **State semantics:** after this PR, `PrerequisiteState.java === true` means "*a working Java runtime for the extension backend is available*", not "system PATH java is installed". Marketplace users may have `java: true` without any system Java. Walkthrough card + README reflect this.
 
+### 10. Never set `transport: TransportKind.stdio` on the Isabelle LSP `ServerOptions`
+
+Isabelle's bundled `isabelle vscode_server` tool **only accepts single-dash options** (`-A`, `-L`, `-l`, `-v`, ...) and always communicates over stdin/stdout. There is no `--stdio` / `--socket=...` / `--pipe=...` flag. Run `isabelle vscode_server -?` upstream to confirm.
+
+`vscode-languageclient` v9's `Executable` ServerOptions handling (`node_modules/vscode-languageclient/lib/node/main.js` ~L405) auto-appends a transport argument *only* when `transport` is explicitly set. Setting `transport: TransportKind.stdio` makes it push `--stdio` onto the args; Isabelle's bash `getopts` then parses that as `--` (end-of-options) + `stdio` and the server exits 1 with `*** Illegal command-line option "--"` before any LSP traffic. The activation path subsequently logs `Pending response rejected since connection got disposed`, the language client retries on a backoff, and the user sees a stream of confusing reach-check failures.
+
+Always build the executable ServerOptions through `buildExecutableServerOptions(cmd)` in `src/lsp/languageServerArgs.ts`. That helper deliberately returns `{ command, args }` only, never a `transport` field. The omission is pinned by `test/lsp/languageServerArgs.test.ts::buildExecutableServerOptions` (`expect("transport" in opts).toBe(false)`), so a future refactor cannot silently regress this.
+
+When `transport` is undefined, vscode-languageclient still wires stdout/stdin to the protocol reader/writer — you get stdio behavior without the rejected argument. If you ever genuinely need to set `transport` (e.g. socket fallback for remote/SSH dev containers), first verify that the running upstream `isabelle vscode_server` build actually accepts the corresponding `--...` switch — most likely it does not.
+
 ---
 
 ## When opening a PR

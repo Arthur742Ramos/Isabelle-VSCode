@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildExecutableServerOptions,
   buildLanguageServerCommand,
   IsabellePathLookupDeps,
   makeWindowsIsabellePathLookup,
@@ -390,5 +391,51 @@ describe("makeWindowsIsabellePathLookup", () => {
     );
     expect(lookup("./isabelle")).toBeUndefined();
     expect(lookup("C:\\Tools\\bin\\isabelle.ps1")).toBeUndefined();
+  });
+});
+
+describe("buildExecutableServerOptions", () => {
+  // Regression pin. Isabelle's `vscode_server` only accepts single-dash
+  // options and always uses stdio. If `transport: TransportKind.stdio` is
+  // ever set on the ServerOptions we hand to vscode-languageclient, the
+  // client appends `--stdio` to the args, which Isabelle's bash getopts
+  // rejects with `*** Illegal command-line option "--"` and the server
+  // exits 1 before any LSP traffic. These assertions intentionally pin the
+  // executable-mode shape so a future refactor cannot silently re-introduce
+  // the bug.
+  it("returns only `command` and `args`, never a transport field", () => {
+    const opts = buildExecutableServerOptions({
+      command: "isabelle",
+      args: ["vscode_server"]
+    });
+    expect(opts.command).toBe("isabelle");
+    expect(opts.args).toEqual(["vscode_server"]);
+    expect(Object.keys(opts).sort()).toEqual(["args", "command"]);
+    expect("transport" in opts).toBe(false);
+    expect("runtime" in opts).toBe(false);
+    expect("options" in opts).toBe(false);
+  });
+
+  it("does not append any --stdio / --pipe / --socket argument", () => {
+    const opts = buildExecutableServerOptions({
+      command: "powershell.exe",
+      args: ["-NoLogo", "-NoProfile", "-File", "C:\\Tools\\bin\\isabelle.ps1", "vscode_server"]
+    });
+    expect(opts.args).toEqual([
+      "-NoLogo",
+      "-NoProfile",
+      "-File",
+      "C:\\Tools\\bin\\isabelle.ps1",
+      "vscode_server"
+    ]);
+    expect(opts.args.some((a) => a === "--stdio" || a.startsWith("--pipe=") || a.startsWith("--socket="))).toBe(false);
+  });
+
+  it("preserves user-supplied extra arguments verbatim", () => {
+    const opts = buildExecutableServerOptions({
+      command: "isabelle",
+      args: ["vscode_server", "-L", "./isabelle.log", "-v"]
+    });
+    expect(opts.args).toEqual(["vscode_server", "-L", "./isabelle.log", "-v"]);
   });
 });

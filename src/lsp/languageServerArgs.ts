@@ -202,3 +202,54 @@ export function buildLanguageServerCommand(
     options
   );
 }
+
+/**
+ * Shape of `vscode-languageclient`'s `Executable` ServerOptions discriminant.
+ * Re-declared as a structural type so this module stays `vscode`-free and
+ * can be unit-tested under vitest. Production callers cast through to the
+ * real `ServerOptions` import — TypeScript accepts the cast because the
+ * field set matches `Executable` exactly (no `transport`, no `runtime`,
+ * no `options`). `args` is intentionally a mutable `string[]` to match the
+ * upstream type; we return a fresh array per call so callers cannot mutate
+ * shared state.
+ */
+export interface ExecutableServerOptionsShape {
+  readonly command: string;
+  readonly args: string[];
+}
+
+/**
+ * Build the executable-mode ServerOptions for the Isabelle language server.
+ *
+ * **Why no `transport` field is set:** Isabelle's bundled `vscode_server`
+ * tool only accepts single-dash options (see `isabelle vscode_server -?`
+ * for the full list) and always communicates over stdin/stdout. There is
+ * no `--stdio` / `--socket=...` / `--pipe=...` flag to opt into.
+ *
+ * `vscode-languageclient` v9's `Executable` ServerOptions handling
+ * (`vscode-languageclient/lib/node/main.js`) auto-appends a transport
+ * argument *only* when `transport` is explicitly set: stdio adds
+ * `--stdio`, pipe adds `--pipe=<name>`, socket adds `--socket=<port>`.
+ * When `transport` is left undefined, no extra argument is pushed and the
+ * spawned child's stdout/stdin are still wired to the protocol reader and
+ * writer respectively — which is exactly what stdio mode looks like.
+ *
+ * Passing `--stdio` to `isabelle vscode_server` makes its bash `getopts`
+ * parser bail out with `*** Illegal command-line option "--"`, killing
+ * the spawn. So this helper intentionally omits `transport` to get the
+ * stdio behavior without the rejected argument.
+ *
+ * If you find yourself wanting to add a transport here later, first verify
+ * that the running upstream `isabelle vscode_server` build actually
+ * accepts the corresponding `--...` switch — most likely it does not.
+ *
+ * Pure: no `vscode`, no `child_process`, no I/O. Safe to import from tests.
+ */
+export function buildExecutableServerOptions(
+  cmd: LanguageServerCommand
+): ExecutableServerOptionsShape {
+  return {
+    command: cmd.command,
+    args: [...cmd.args]
+  };
+}

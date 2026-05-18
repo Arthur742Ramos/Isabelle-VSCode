@@ -5,10 +5,13 @@ import {
   LanguageClientOptions,
   RevealOutputChannelOn,
   ServerOptions,
-  State,
-  TransportKind
+  State
 } from "vscode-languageclient/node";
-import { buildLanguageServerCommand, resolveIsabelleCommand } from "./languageServerArgs";
+import {
+  buildExecutableServerOptions,
+  buildLanguageServerCommand,
+  resolveIsabelleCommand
+} from "./languageServerArgs";
 import {
   LspNotificationHandler,
   LspNotificationRegistry,
@@ -310,11 +313,12 @@ export class IsabelleLanguageClient implements vscode.Disposable {
 
     let client: LanguageClient | undefined;
     try {
-      const serverOptions: ServerOptions = {
-        command: cmd.command,
-        args: cmd.args,
-        transport: TransportKind.stdio
-      };
+      // Intentionally omits `transport` — see
+      // `buildExecutableServerOptions` for why setting
+      // `transport: TransportKind.stdio` here breaks `isabelle vscode_server`
+      // (vscode-languageclient would append `--stdio`, which Isabelle's
+      // bash getopts rejects with `Illegal command-line option "--"`).
+      const serverOptions: ServerOptions = buildExecutableServerOptions(cmd);
 
       const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: "file", language: "isabelle" }],
