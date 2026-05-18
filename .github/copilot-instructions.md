@@ -38,4 +38,4 @@ CI runs `npm run check`, `npm audit --audit-level=moderate`, `npm run backend:co
 - **Fat-jar required**: `sbt package` produces a thin jar that won't run via `java -jar`. Always use `sbt assembly` — the `backend:package` script already does.
 - **`.vscodeignore` excludes `node_modules`** on purpose: the bundle is the shipping artifact, and `vsce package --no-dependencies` matches. Don't add `node_modules` back.
 
-See `AGENTS.md` for the full agent guide, architecture map, validation matrix, secrets/local-path policy, and contributor checklist.
+See `AGENTS.md` for the full agent guide, architecture map, validation matrix, secrets/local-path policy, and contributor checklist. See `skills/` for per-workflow playbooks (release, adding commands, addressing review comments) that any agent can read on demand.
