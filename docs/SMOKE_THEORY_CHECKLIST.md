@@ -16,7 +16,7 @@ This checklist exercises every LSP-mode capability the extension advertises agai
 Use this as the **single happy path** every release should pass. The full per-capability checklist follows.
 
 1. Open `examples/Smoke.thy` in VS Code.
-2. Wait for the status bar to show **Isabelle LSP: running** (or use `Isabelle: Show Language Server Status` to confirm).
+2. Wait for the status bar to show **Isabelle LSP: running** (or use `Isabelle: Show Language Server Status` to confirm). For a fuller picture, run `Isabelle: Explain Current Mode` — it prints whether PIDE features are available and, if not, exactly why.
 3. Place the cursor on the `sorry` in `conj_commute_smoke`.
 4. **Sledgehammer panel:** run `Isabelle: Run Sledgehammer`. Wait for "Prover output" to render at least one suggestion (typically `blast` / `metis`).
 5. Run `Isabelle: Insert Sledgehammer Proof` to replace `sorry` with the suggestion. Confirm the file compiles (no Problems panel entries).
@@ -24,6 +24,8 @@ Use this as the **single happy path** every release should pass. The full per-ca
 7. **Preview:** run `Isabelle: Preview Theory in Split`. Confirm the rendered HTML matches the source and updates as you type.
 
 If all seven steps work cleanly, the alpha is healthy enough to share.
+
+> **If anything fails:** run `Isabelle: Explain Current Mode` first. It is the single most efficient way to identify whether the cause is a missing prerequisite, an LSP that never started, a deliberately disabled language server, or a stale auto-start failure key. Most "the extension doesn't work" reports turn out to be one of those four.
 
 ## Capability-by-capability checklist
 

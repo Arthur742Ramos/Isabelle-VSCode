@@ -83,6 +83,7 @@
     "onCommand:isabelle.toggleProofStateAutoUpdate",
     "onCommand:isabelle.relocateProofState",
     "onCommand:isabelle.checkPrerequisites",
+    "onCommand:isabelle.explainCurrentMode",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -306,6 +307,10 @@
       {
         "command": "isabelle.checkPrerequisites",
         "title": "Isabelle: Check Setup Prerequisites"
+      },
+      {
+        "command": "isabelle.explainCurrentMode",
+        "title": "Isabelle: Explain Current Mode"
       }
     ],
     "views": {

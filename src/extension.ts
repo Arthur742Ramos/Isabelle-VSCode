@@ -87,6 +87,12 @@ import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerPro
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
+import {
+  ExplainModeAccessors,
+  LanguageServerEnabledSetting,
+  buildExplainModeReport
+} from "./setup/explainCurrentMode";
+import { formatExplainModeReport } from "./setup/explainCurrentModeFormatter";
 import { realAutoDetectDependencies, realIsabellePathLookup, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
 import {
   LanguageServerStartupDecision,
@@ -122,6 +128,26 @@ let statusBar: vscode.StatusBarItem | undefined;
 let theoryGraphTree: TheoryGraphTreeProvider | undefined;
 let theoryOutlineTree: TheoryOutlineTreeProvider | undefined;
 let prerequisiteChecker: PrerequisiteChecker | undefined;
+/**
+ * Most recent {@link PrerequisiteState} produced by
+ * `runPrerequisiteCheck()`. Cached so `Isabelle: Explain Current Mode`
+ * can render a snapshot without re-spawning `java -version` /
+ * `isabelle version` on every invocation.
+ */
+let lastPrerequisiteState: PrerequisiteState | undefined;
+/**
+ * Java command resolved at activation time (either the bundled
+ * `extension/jre/...` path on a per-platform `.vsix` or the literal
+ * `"java"` on the universal `.vsix`). Cached so the Explain Current Mode
+ * accessor can report whether the prereq probe accepted the bundled
+ * candidate or fell back to PATH.
+ */
+let activationJavaCommand: string | undefined;
+/**
+ * Dedicated output channel for `Isabelle: Explain Current Mode`. Created
+ * lazily on first command invocation so cold startup does not pay for it.
+ */
+let explainCurrentModeOutput: vscode.OutputChannel | undefined;
 
 export function activate(context: vscode.ExtensionContext): IsabellePideExtensionApi {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
@@ -305,6 +331,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.toggleProofStateAutoUpdate", () => toggleProofStateAutoUpdateCommand()),
     vscode.commands.registerCommand("isabelle.relocateProofState", () => relocateProofStateCommand()),
     vscode.commands.registerCommand("isabelle.checkPrerequisites", () => runPrerequisiteCheck({ force: true })),
+    vscode.commands.registerCommand("isabelle.explainCurrentMode", () => showExplainCurrentMode()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -396,6 +423,7 @@ function createPrerequisiteChecker(
 ): PrerequisiteChecker {
   const walkthroughId = `${context.extension.id}#isabelle.getStarted`;
   const javaCommand = resolveActivationJavaCommand(context.extensionPath);
+  activationJavaCommand = javaCommand;
   if (javaCommand !== "java") {
     output.appendLine(`Isabelle setup: using bundled Java runtime at ${javaCommand}`);
   }
@@ -456,6 +484,7 @@ async function runPrerequisiteCheck(
   // resolver. Guarded so it works for both the activation-time path and
   // the manual "Isabelle: Check Setup Prerequisites" command.
   backendManager?.setJavaCommand(state.javaCommand);
+  lastPrerequisiteState = state;
   await prerequisiteChecker.notifyIfMissing(state, options);
   return state;
 }
@@ -654,6 +683,10 @@ export async function deactivate(): Promise<void> {
   theoryOutlineTree = undefined;
   statusBar?.dispose();
   statusBar = undefined;
+  explainCurrentModeOutput?.dispose();
+  explainCurrentModeOutput = undefined;
+  lastPrerequisiteState = undefined;
+  activationJavaCommand = undefined;
 }
 
 async function setAiProviderSecret(output: vscode.OutputChannel): Promise<void> {
@@ -1304,6 +1337,55 @@ function showLanguageServerStatus(): void {
     formatLanguageServerStatus(status),
     { modal: false }
   );
+}
+
+function showExplainCurrentMode(): void {
+  const accessors = createExplainModeAccessors();
+  const report = buildExplainModeReport(accessors);
+  const text = formatExplainModeReport(report);
+  if (!explainCurrentModeOutput) {
+    explainCurrentModeOutput = vscode.window.createOutputChannel("Isabelle PIDE — Current Mode");
+  }
+  explainCurrentModeOutput.clear();
+  explainCurrentModeOutput.appendLine(text);
+  explainCurrentModeOutput.show(true);
+}
+
+function createExplainModeAccessors(): ExplainModeAccessors {
+  return {
+    getLanguageServerStatus: () => languageClient?.getStatus(),
+    getPrerequisiteState: () => lastPrerequisiteState,
+    getBackendRunning: () => backendManager?.isClientStarted() ?? false,
+    getActiveSessionName: () => sessionService?.getActiveSessionName(),
+    getLanguageServerEnabledSetting: (): LanguageServerEnabledSetting => {
+      const { userExplicitlySet, effectiveEnabled } = inspectLanguageServerEnabledAcrossScopes();
+      if (!userExplicitlySet) return "default";
+      return effectiveEnabled ? "true" : "false";
+    },
+    getLanguageServerAutoStart: () =>
+      vscode.workspace.getConfiguration("isabelle").get<boolean>("languageServer.autoStart", true),
+    getIsabelleExecutablePathSetting: () => getIsabelleExecutablePath(),
+    getBackendCommandSetting: () => {
+      const configured = vscode.workspace
+        .getConfiguration("isabelle")
+        .get<string>("backend.command", "")
+        .trim();
+      return configured.length > 0 ? configured : undefined;
+    },
+    getJavaIsBundled: () => {
+      const command = lastPrerequisiteState?.javaCommand;
+      if (!command) return undefined;
+      // The bundled JRE path is whatever `resolveActivationJavaCommand`
+      // produced at activation. If the accepted command differs from
+      // that bundled candidate (because the probe fell back to PATH
+      // "java" or the universal VSIX never injected a candidate), it
+      // is system-provided.
+      if (activationJavaCommand && activationJavaCommand !== "java") {
+        return command === activationJavaCommand;
+      }
+      return false;
+    }
+  };
 }
 
 async function browseDocumentationCommand(output: vscode.OutputChannel): Promise<void> {

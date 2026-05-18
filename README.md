@@ -143,6 +143,8 @@ Implemented foundation:
   - `Isabelle: Reset Spell-Checker Session Words`
   - `Isabelle: Toggle Proof State Auto-Update`
   - `Isabelle: Re-anchor Proof State to Cursor`
+  - `Isabelle: Check Setup Prerequisites`
+  - `Isabelle: Explain Current Mode`
 - `Content-Length` framed JSON-RPC-style protocol with request IDs and a protocol version.
 - Backend process manager with stderr routed to the Isabelle PIDE output channel.
 - Scala backend skeleton with `server/health`, `isabelle/version`, and backend-backed `session/discover`.
