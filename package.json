@@ -435,7 +435,12 @@
         "isabelle.languageServer.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Opt in to running Isabelle's bundled `isabelle vscode_server` as a language server. When enabled, the extension spawns the server and routes LSP features (diagnostics, hover, definition, completion, document symbols) through it. Requires Isabelle 2019 or newer installed and reachable via the path in `isabelle.executablePath`. Cross-platform (Linux, macOS, Windows). Default off keeps existing local-only behavior."
+          "description": "Explicit override for whether `isabelle vscode_server` runs as a language server. Leave at the default (unset) and the extension auto-starts the server when Isabelle is detected (see `isabelle.languageServer.autoStart`). Set to `true` to force-start regardless of detection, or `false` to keep the LSP off even when Isabelle is reachable. Requires Isabelle 2019 or newer."
+        },
+        "isabelle.languageServer.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "When `isabelle.languageServer.enabled` has not been explicitly set, automatically start the Isabelle language server if the activation-time prerequisite check finds a working Java 21+ runtime and a reachable Isabelle 2019+. A failed auto-start is remembered per resolved Isabelle runtime so the extension does not retry indefinitely; changing `isabelle.executablePath` or `isabelle.languageServer.extraArgs` clears the flag. Set this to `false` to require an explicit `isabelle.languageServer.enabled` toggle for every install."
         },
         "isabelle.languageServer.extraArgs": {
           "type": "array",

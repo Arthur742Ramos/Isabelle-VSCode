@@ -164,7 +164,9 @@ Two additional, additive entry points sit on top of the same local request bundl
 
 ## Isabelle language server
 
-The extension can optionally relay an Isabelle session through Isabelle's own bundled language server, `isabelle vscode_server`. This is an opt-in seam toward milestones 4/5/7 (live PIDE document status, PIDE-flavoured semantic markup, and proof tooling): when enabled, the extension spawns the language server as a child process and routes LSP traffic (diagnostics, hover, definition, completion, document symbols) through `vscode-languageclient`.
+The extension can run Isabelle's bundled `isabelle vscode_server` as a child language server and route PIDE-flavoured LSP traffic (diagnostics, hover, definition, completion, document symbols, decorations, sledgehammer, theory preview, …) through `vscode-languageclient`.
+
+**By default, the language server auto-starts whenever the activation-time prerequisite check finds a working Java 21+ runtime and a reachable Isabelle 2019+.** On a fresh install with Isabelle on PATH, you get the rich PIDE experience with **zero configuration**. On a machine without Isabelle, the activation toast guides you to the [setup walkthrough](#installation) and the LSP stays off until prerequisites are met.
 
 Prerequisites:
 
@@ -172,21 +174,29 @@ Prerequisites:
 - On Windows, the official Isabelle distribution ships its launcher as `isabelle.ps1`. The extension detects `.ps1`/`.psm1` paths and automatically invokes them via `powershell.exe -File <path>` so Node's `child_process.spawn` (which does not resolve `.ps1` via PATHEXT) does not ENOENT. No user configuration is required for this; simply pointing `isabelle.executablePath` at `isabelle.ps1` (or leaving the default if it resolves on `PATH`) works.
 - A workspace that contains `.thy` files with `language: isabelle` (the default for this extension).
 
-To enable:
+Lifecycle:
 
-1. Set `"isabelle.languageServer.enabled": true` (or run `Isabelle: Start Language Server`, which sets the workspace setting and starts the client).
-2. The extension first runs `isabelle version` with a 10 s timeout to verify reachability. On failure (Isabelle missing, path wrong, timeout), the language client transitions to a `failed` state and surfaces the error in the `Isabelle Language Server` output channel and the status bar; no LSP child is spawned.
-3. On success, the LSP child is started over stdio. Its connection state appears as a status-bar item (`Isabelle LSP: starting / running / stopping / failed`). Click it to see the latest snapshot, including the command line, Isabelle version line, and last error.
-4. To stop, run `Isabelle: Stop Language Server` or set `"isabelle.languageServer.enabled": false`. `Isabelle: Restart Language Server` performs a clean stop/start cycle.
-5. When both the CLI-build runner has published diagnostics and the language server is enabled and publishes diagnostics for the same file, VS Code keeps them in two separate `DiagnosticCollection` owners and aggregates them in the Problems panel. CLI-build diagnostics appear with the `Source` column set to `isabelle build`. LSP-published diagnostics carry whatever `source` label Isabelle's `vscode_server` includes (if any); that label is supplied by the server and may vary by Isabelle release, so it is not pinned by this extension. The structural separation between the two collections is verified by `test/lsp/diagnosticsCoexistence.test.ts`; the live Problems-panel behavior still requires a running VS Code session against an Isabelle install.
+1. On activation the extension runs a non-blocking prerequisite probe (`java -version`, `isabelle version`) with short timeouts.
+2. If both succeed and `isabelle.languageServer.enabled` has not been explicitly set, the LSP auto-starts and writes a one-line note to the `Isabelle PIDE` output channel.
+3. The LSP's connection state appears as a status-bar item (`Isabelle LSP: starting / running / stopping / failed`). Click it for the latest snapshot, including the command line, Isabelle version line, and last error.
+4. If an auto-start fails, the failure is remembered **per resolved Isabelle runtime** (executable path + extra args) so the extension does not retry the same broken configuration on every activation. Change `isabelle.executablePath` or `isabelle.languageServer.extraArgs` to clear the failure flag, or run `Isabelle: Start Language Server` to retry.
+5. Run `Isabelle: Stop Language Server` to stop a running LSP, or `Isabelle: Restart Language Server` to perform a clean stop/start cycle.
+6. When both the CLI-build runner and the LSP publish diagnostics for the same file, VS Code aggregates them in the Problems panel. CLI-build diagnostics appear with the `Source` column set to `isabelle build`; LSP diagnostics carry whatever `source` label `isabelle vscode_server` includes.
+
+Overrides:
+
+- **Force the LSP on**, regardless of detection — set `"isabelle.languageServer.enabled": true`.
+- **Force the LSP off**, even when Isabelle is reachable — set `"isabelle.languageServer.enabled": false`.
+- **Disable auto-start globally** but keep the explicit override working — set `"isabelle.languageServer.autoStart": false`.
 
 Settings:
 
-- `isabelle.languageServer.enabled` — opt in to the language server (default: `false`).
+- `isabelle.languageServer.enabled` — explicit override. When unset (the default), see `autoStart`. When `true`, the LSP starts regardless of detection. When `false`, the LSP stays off even when Isabelle is reachable.
+- `isabelle.languageServer.autoStart` — auto-start the LSP on detection when `enabled` is unset (default: `true`).
 - `isabelle.languageServer.extraArgs` — extra arguments passed to `isabelle vscode_server` (for example `["-L", "./isabelle.log"]`).
 - `isabelle.languageServer.logVerbose` — when `true`, full LSP traffic is logged to a separate `Isabelle Language Server Trace` output channel (helpful for debugging; noisy).
 
-Honest disclaimer: when the language server is enabled, VS Code aggregates results from **both** the LSP-provided features and the extension's existing local syntax-only providers (semantic tokens, hover, document symbols, in-file definitions, document links, theory outline, status decorations, etc.). The local foundation is intentionally left in place so the existing milestone-3/5/7 behavior remains the default whenever the language server is off or unavailable. Live PIDE-backed document status, structured proof state, Sledgehammer proof search, and AI repair verification still require the Scala backend work outlined in the roadmap.
+Honest disclaimer: when the language server is running, VS Code aggregates results from **both** the LSP-provided features and the extension's existing local syntax-only providers (semantic tokens, hover, document symbols, in-file definitions, document links, theory outline, status decorations, etc.). The local foundation is intentionally left in place so the existing local behavior remains the default whenever the language server is off or unavailable. Live PIDE-backed document status, structured proof state, Sledgehammer proof search, and AI repair verification still require the Scala backend work outlined in the roadmap.
 
 ## Contributing
 

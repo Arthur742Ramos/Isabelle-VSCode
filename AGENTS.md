@@ -273,7 +273,15 @@ Walkthrough cards do support `[Re-check setup](command:isabelle.checkPrerequisit
 
 ### 7. The "52 commands" trap (never hard-code counts)
 
-`media/walkthrough/open-theory.md` used to say "52 commands in the Command Palette". Actual count was 48 and would have drifted. Hard-coded counts in docs go stale the moment someone adds or removes a command. Use "the full set" or compute the number dynamically. (Same lesson applies to test counts — write "639 tests pass" only in commit messages and PR descriptions, not in docs.)
+`media/walkthrough/open-theory.md` used to say "52 commands in the Command Palette". Actual count was 48 and would have drifted. Hard-coded counts in docs go stale the moment someone adds or removes a command. Use "the full set" or compute the number dynamically. (Same lesson applies to test counts — write "689 tests pass" only in commit messages and PR descriptions, not in docs.)
+
+### 8. LSP auto-start respects explicit overrides
+
+The Isabelle language server auto-starts on activation when both Java and Isabelle are reachable AND `isabelle.languageServer.enabled` has not been explicitly set at any scope (user, workspace, or workspace folder). The detection lives in `src/setup/lspAutoStart.ts::decideLanguageServerStartup` (pure function, fully tested under `test/setup/lspAutoStart.test.ts`). Three things to know when working on this surface:
+
+- **Don't change the package.json default for `isabelle.languageServer.enabled`.** Keep it `false`. The auto-start is driven by `inspect().{global,workspace,workspaceFolder}Value === undefined`, which means "user has not touched the setting". Changing the package default would make every existing user's machine look like "default", flipping behavior under their feet.
+- **Auto-start failures are remembered per resolved Isabelle runtime.** The key is `isabelle.lsp.autoStartFailed.<hash(executable + extraArgs)>` in `workspaceState`. Changing any of `isabelle.executablePath`, `isabelle.languageServer.enabled`, `isabelle.languageServer.extraArgs`, or `isabelle.languageServer.autoStart` clears every such key; a successful auto-start clears its own key. The key shape comes from `computeAutoStartFailureKey()` — don't compute it ad hoc elsewhere.
+- **`languageClient.start()` doesn't throw on reach-check / spawn failure.** It sets `state: "failed"` internally. Always check `languageClient.getStatus().state` after awaiting `start()` to detect failures from the auto-start path; the `.catch()` block only catches actual exceptions.
 
 ---
 

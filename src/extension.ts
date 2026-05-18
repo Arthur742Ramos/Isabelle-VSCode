@@ -85,8 +85,13 @@ import { PideQuiescenceTracker } from "./sledgehammer/PideQuiescenceTracker";
 import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerProversCache";
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
-import { PrerequisiteChecker } from "./setup/PrerequisiteChecker";
+import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
 import { realAutoDetectDependencies, realSpawn } from "./setup/runtime";
+import {
+  LanguageServerStartupDecision,
+  computeAutoStartFailureKey,
+  decideLanguageServerStartup
+} from "./setup/lspAutoStart";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
@@ -298,6 +303,17 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
       }
+      if (
+        event.affectsConfiguration("isabelle.executablePath") ||
+        event.affectsConfiguration("isabelle.languageServer.enabled") ||
+        event.affectsConfiguration("isabelle.languageServer.extraArgs") ||
+        event.affectsConfiguration("isabelle.languageServer.autoStart")
+      ) {
+        // Any of these changes invalidate a previously recorded auto-start
+        // failure: the user might have fixed the underlying problem (new
+        // Isabelle path, different args) or explicitly toggled enabled.
+        clearAutoStartFailureFlags(context);
+      }
       if (event.affectsConfiguration("isabelle.languageServer.enabled")) {
         const enabled = vscode.workspace
           .getConfiguration("isabelle")
@@ -328,18 +344,12 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   commandSpanDecorationsService.start();
   pideDecorationOverlayService.start();
 
-  void runPrerequisiteCheck().catch((error) => {
-    output.appendLine(
-      `Isabelle prerequisite check: unexpected failure: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-  });
-
-  const initiallyEnabled = vscode.workspace
-    .getConfiguration("isabelle")
-    .get<boolean>("languageServer.enabled", false);
-  if (initiallyEnabled) {
+  // Explicit-enable path stays fast: if the user has *explicitly* set
+  // `isabelle.languageServer.enabled: true` at any scope, start the
+  // client immediately in parallel with the prerequisite probe so we
+  // don't add startup latency to users who deliberately opted in.
+  const initialDecision = decideExtensionLanguageServerStartup(context);
+  if (initialDecision === "explicit-start") {
     void languageClient.start().catch((error) => {
       output.appendLine(
         `Isabelle language server: initial start failed: ${
@@ -348,6 +358,28 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       );
     });
   }
+
+  // Auto-start path: kick off the prerequisite check, then conditionally
+  // start the LSP once the probe finishes. Decision-making goes through
+  // the pure helper so the policy is unit-tested.
+  void (async () => {
+    try {
+      const state = await runPrerequisiteCheck();
+      if (!state) {
+        return;
+      }
+      const decision = decideExtensionLanguageServerStartup(context, state);
+      if (decision === "auto-start") {
+        await attemptLanguageServerAutoStart(context, output);
+      }
+    } catch (error) {
+      output.appendLine(
+        `Isabelle prerequisite check: unexpected failure: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  })();
 
   return createIsabellePideExtensionApi(repairAiProviderRegistry, repairAiSecretStore);
 }
@@ -394,12 +426,140 @@ function createPrerequisiteChecker(
   });
 }
 
-async function runPrerequisiteCheck(options: { readonly force?: boolean } = {}): Promise<void> {
+async function runPrerequisiteCheck(
+  options: { readonly force?: boolean } = {}
+): Promise<PrerequisiteState | undefined> {
   if (!prerequisiteChecker) {
-    return;
+    return undefined;
   }
   const state = await prerequisiteChecker.runCheck();
   await prerequisiteChecker.notifyIfMissing(state, options);
+  return state;
+}
+
+/**
+ * Snapshot of the `isabelle.languageServer.enabled` setting across every
+ * scope so we can distinguish "user explicitly set it" from "it's still at
+ * the package default of false". Iterating workspace folders catches the
+ * multi-root case the rubber-duck flagged.
+ */
+function inspectLanguageServerEnabledAcrossScopes(): {
+  explicitEnabled: boolean;
+  explicitDisabled: boolean;
+} {
+  const inspections = [
+    vscode.workspace.getConfiguration("isabelle").inspect<boolean>("languageServer.enabled"),
+    ...(vscode.workspace.workspaceFolders ?? []).map((folder) =>
+      vscode.workspace
+        .getConfiguration("isabelle", folder.uri)
+        .inspect<boolean>("languageServer.enabled")
+    )
+  ];
+  let explicitEnabled = false;
+  let explicitDisabled = false;
+  for (const inspection of inspections) {
+    if (!inspection) continue;
+    for (const value of [
+      inspection.globalValue,
+      inspection.workspaceValue,
+      inspection.workspaceFolderValue
+    ]) {
+      if (value === true) explicitEnabled = true;
+      if (value === false) explicitDisabled = true;
+    }
+  }
+  return { explicitEnabled, explicitDisabled };
+}
+
+function resolveAutoStartFailureKey(): string {
+  const config = vscode.workspace.getConfiguration("isabelle");
+  const executable = config.get<string>("executablePath", "isabelle");
+  const extraArgs = config.get<readonly string[]>("languageServer.extraArgs", []);
+  return computeAutoStartFailureKey(executable, extraArgs);
+}
+
+function decideExtensionLanguageServerStartup(
+  context: vscode.ExtensionContext,
+  prereqState?: PrerequisiteState
+): LanguageServerStartupDecision {
+  const { explicitEnabled, explicitDisabled } = inspectLanguageServerEnabledAcrossScopes();
+  const autoStartSetting = vscode.workspace
+    .getConfiguration("isabelle")
+    .get<boolean>("languageServer.autoStart", true);
+  const failureKey = resolveAutoStartFailureKey();
+  const autoStartFailedForResolved = Boolean(context.workspaceState.get<boolean>(failureKey));
+  return decideLanguageServerStartup({
+    explicitEnabled,
+    explicitDisabled,
+    autoStartSetting,
+    javaOk: prereqState?.java ?? false,
+    isabelleOk: prereqState?.isabelle ?? false,
+    autoStartFailedForResolved
+  });
+}
+
+async function attemptLanguageServerAutoStart(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel
+): Promise<void> {
+  if (!languageClient) return;
+  output.appendLine(
+    "Isabelle language server: Isabelle detected, auto-starting. " +
+      "To opt out, set `isabelle.languageServer.enabled` to false or " +
+      "`isabelle.languageServer.autoStart` to false."
+  );
+  try {
+    await languageClient.start();
+  } catch (error) {
+    output.appendLine(
+      `Isabelle language server: auto-start threw: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+  // start() swallows reach-check / spawn failures and transitions the
+  // client to state: "failed" internally — checking the status is the
+  // only reliable way to detect that case.
+  const status = languageClient.getStatus();
+  const failureKey = resolveAutoStartFailureKey();
+  if (status.state === "failed") {
+    await context.workspaceState.update(failureKey, true);
+    const openSettings = "Open Settings";
+    const showOutput = "Show Output";
+    const choice = await vscode.window.showWarningMessage(
+      `Isabelle PIDE: language server auto-start failed (${
+        status.lastError ?? "see output"
+      }). Auto-start is disabled for this runtime until you change the configuration.`,
+      openSettings,
+      showOutput
+    );
+    if (choice === openSettings) {
+      void vscode.commands.executeCommand("workbench.action.openSettings", "isabelle.languageServer");
+    } else if (choice === showOutput) {
+      output.show(true);
+    }
+  } else {
+    // Successful auto-start clears any stale failure flag for this exact
+    // resolved runtime so the next activation won't second-guess it.
+    if (context.workspaceState.get<boolean>(failureKey)) {
+      await context.workspaceState.update(failureKey, undefined);
+    }
+  }
+}
+
+/**
+ * Wipe every workspaceState entry whose key starts with the
+ * auto-start-failure prefix. Called when any setting that affects the
+ * resolved runtime changes, so a user fixing the underlying issue
+ * (different Isabelle path, different args, explicit toggle) gets a
+ * fresh chance on the next activation.
+ */
+function clearAutoStartFailureFlags(context: vscode.ExtensionContext): void {
+  for (const key of context.workspaceState.keys()) {
+    if (key.startsWith("isabelle.lsp.autoStartFailed.")) {
+      void context.workspaceState.update(key, undefined);
+    }
+  }
 }
 
 export async function deactivate(): Promise<void> {
