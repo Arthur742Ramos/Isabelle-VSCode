@@ -282,7 +282,7 @@ Walkthrough cards do support `[Re-check setup](command:isabelle.checkPrerequisit
 1. Use the PR template (`.github/PULL_REQUEST_TEMPLATE.md`).
 2. Fill in **Test evidence** with the actual command(s) you ran and the result. Reviewers should not have to guess what you validated.
 3. Keep PRs focused — one logical change per PR. A "feat + ci + docs" mega-PR is hard to review and hard to revert.
-4. If you addressed review comments on a previous PR, post a summary in the body and **resolve** the threads as you go. (For Copilot CLI: `gh api graphql` with the `resolveReviewThread` mutation, see `agent-merge` skill.)
+4. If you addressed review comments on a previous PR, post a summary in the body and **resolve** the threads as you go. See `skills/address-pr-review-comments.md` for the reply-then-resolve playbook using `gh api graphql` + the `resolveReviewThread` mutation, and the Windows Git Bash path-mangling workaround.
 5. Don't comment on the PR to ask for review or ping CODEOWNERS — assume the user owns sharing.
 
 ---
@@ -305,13 +305,31 @@ If you find yourself wanting to add live theorem proving or AI repair-applicatio
 - **`sledgehammer_lsp_research.md`** — PIDE/sledgehammer wire format research.
 - **`proof_state_and_minimization_lsp_research.md`** — proof-state LSP surface research.
 
----
+## Cross-agent skills (`skills/`)
+
+Workflow-specific playbooks that any agent (Claude Code, GitHub Copilot, Cursor, Aider, codex, …) can read on demand. Each file is markdown with optional YAML frontmatter — no tooling required.
+
+- **`skills/prepare-release.md`** — cut a new versioned release (bump, tag, push, watch the Release workflow).
+- **`skills/add-vs-code-command.md`** — register a new `Isabelle:` command in the palette, wire the handler, and add a structural test.
+- **`skills/address-pr-review-comments.md`** — fetch unresolved threads, reply, and resolve via GraphQL (includes the Windows `gh api` direct-call fallback for Git Bash path mangling).
+
+Add new skills as `skills/<kebab-case-name>.md` and update the index in `skills/README.md`.
+
+## Copilot CLI extension (`.github/extensions/isabelle-pide-helpers/`)
+
+Optional, **Copilot CLI-only**. Registers two repo-specific tools the agent can call:
+
+- `isabelle_lint_walkthrough` — verifies `media/walkthrough/*.md` `command:` links resolve to real `package.json` commands and flags drift-prone counts like "52 commands".
+- `isabelle_check_setup` — probes the local toolchain (Node, Java, sbt, Isabelle, `code`/`code-insiders`) and reports which Tier of changes are buildable.
+
+Other agents safely ignore the `.github/extensions/` directory; nothing depends on the extension being loaded.
 
 ## Future agent enablement (not yet built)
 
-The following ideas were considered for this PR and rejected for scope:
+The following ideas were considered for the current agent-enablement work and rejected for scope:
 
-- **Project-local Copilot CLI extension** (`.github/extensions/isabelle-pide-helpers/extension.mjs`) — custom tools like `validate_extension_vsix(path)`, `check_isabelle_path()`, `lint_walkthrough_md(path)`. Useful but adds reviewer burden and Copilot CLI-specific knowledge. File a follow-up if you want this.
 - **Bundled per-platform JRE** (Tier 2 from the install-UX roadmap) — per-platform `.vsix` with `extension/jre/` so end users don't need Java. Big PR; own scope.
+- **CI invariant on test count drift** — would catch sudden test-count drops in PRs. Useful but adds reviewer noise; defer.
+- **Additional skills** — `add-pide-lsp-capability.md`, `add-new-setting.md`, `investigate-flaky-test.md`. Add as concrete need arises.
 
 Open an issue with the `meta` label to discuss.
