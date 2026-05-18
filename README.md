@@ -13,6 +13,47 @@ Isabelle/PIDE
 
 The current foundation establishes the extension/backend boundary and keeps future PIDE work explicit instead of pretending it already exists.
 
+## Installation
+
+The extension is not yet on the VS Code Marketplace. For now, install it via one of the two paths below.
+
+### Option 1 — Install a pre-built `.vsix` from GitHub Releases (recommended for end-users)
+
+> Available once the first `v*` tag has been pushed and the [Release workflow](.github/workflows/release.yml) has run. Check the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) — if it is empty, use Option 2.
+
+1. Open the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) and download the latest `isabelle-pide-vscode-<version>.vsix` asset.
+2. Install it in VS Code using either:
+   - **GUI** — open the **Extensions** view, click the `…` menu in its title bar, choose **Install from VSIX…**, and pick the downloaded file; or
+   - **Command line** — run
+     ```powershell
+     code --install-extension isabelle-pide-vscode-<version>.vsix
+     ```
+3. Reload VS Code if prompted.
+
+Runtime prerequisites on the machine running VS Code:
+
+- **Java 21 or newer** on `PATH`. The bundled Isabelle/Scala backend ships as a fat jar and is launched with `java -jar`.
+- **Isabelle 2019 or newer**, with `isabelle` on `PATH` or `isabelle.executablePath` configured. Required for build, language-server, sledgehammer, and any other feature that actually talks to Isabelle. The extension activates without Isabelle, but those features will be inert.
+
+### Option 2 — Build and install from source (one command)
+
+Prerequisites: **Node.js 20+**, **Java 21**, **sbt**, plus the `code` CLI on `PATH` (in VS Code, run `Shell Command: Install 'code' command in PATH` from the Command Palette).
+
+```powershell
+git clone https://github.com/Arthur742Ramos/Isabelle-VSCode.git
+cd Isabelle-VSCode
+npm install
+npm run install:extension
+```
+
+`npm run install:extension` compiles the TypeScript, bundles it with esbuild, builds the Scala backend as a fat jar via `sbt assembly`, packages everything into `isabelle-pide-vscode.vsix`, and installs it into your local VS Code via `code --install-extension`. Use the same command to re-install after pulling changes.
+
+If you only want the `.vsix` (for example to share with a teammate), run `npm run package` instead — it produces `isabelle-pide-vscode.vsix` without installing it.
+
+### Option 3 — VS Code Marketplace
+
+Not yet. See [Roadmap](#roadmap). Until then, use Option 1 or 2.
+
 ## Current milestone
 
 Implemented foundation:
@@ -158,6 +199,18 @@ Validate the VS Code extension package contents after compiling, testing, and pa
 npm run package:validate
 ```
 
+Produce a redistributable `.vsix` (compiles, bundles with esbuild, builds the backend fat jar via `sbt assembly`, and packages everything):
+
+```powershell
+npm run package
+```
+
+Produce that same `.vsix` **and** install it into your local VS Code in one shot:
+
+```powershell
+npm run install:extension
+```
+
 Compile the Scala backend if `sbt` is available:
 
 ```powershell
@@ -190,7 +243,7 @@ Then configure VS Code:
 }
 ```
 
-For a packaged extension, `npm run package:validate` builds and includes `backend/dist/isabelle-vscode-server.jar`. You can still override `isabelle.backend.command` to use another backend launcher or place an `isabelle-vscode-server` launcher on `PATH`. The extension runs as a workspace extension so the backend starts near the workspace files in remote or container development.
+For a packaged extension, `npm run package` (or `npm run install:extension` for one-step local install) builds and includes `backend/dist/isabelle-vscode-server.jar` as a fat jar runnable with plain `java -jar`. You can still override `isabelle.backend.command` to use another backend launcher or place an `isabelle-vscode-server` launcher on `PATH`. The extension runs as a workspace extension so the backend starts near the workspace files in remote or container development.
 
 ## Roadmap
 
