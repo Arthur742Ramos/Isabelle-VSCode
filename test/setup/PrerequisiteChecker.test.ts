@@ -521,6 +521,102 @@ describe("PrerequisiteChecker — bundled JRE wiring", () => {
     // Only one java probe happened (the default), no second one.
     expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
   });
+
+  it("falls back to PATH 'java' when the bundled probe reports a too-old Java", async () => {
+    const { checker, ui, calls, logs } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: javaSpawnResult("17.0.10") },
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("21.0.5") },
+        {
+          matcher: (r) => r.command !== bundledPath && r.command !== "java",
+          result: { ...ok, stdout: "Isabelle2025" }
+        }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(true);
+    expect(state.javaCommand).toBe("java");
+    expect(state.javaVersionMajor).toBe(21);
+    expect(state.javaTooOld).toBeUndefined();
+    expect(ui.contexts[PREREQ_CONTEXT_JAVA]).toBe(true);
+    expect(calls.filter((c) => c.command === bundledPath)).toHaveLength(1);
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
+    expect(
+      logs.some((m) => m.includes("reported major 17") && m.includes("falling back to PATH java"))
+    ).toBe(true);
+  });
+
+  it("keeps the bundled too-old diagnostic when PATH java is also too-old", async () => {
+    const { checker, ui, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: javaSpawnResult("17.0.10") },
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("11.0.21") },
+        { matcher: (r) => r.command !== bundledPath && r.command !== "java", result: fail }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaTooOld).toBe(true);
+    // Bundled was the primary candidate; its diagnostic wins so the toast
+    // names the bundled major rather than the PATH one.
+    expect(state.javaVersionMajor).toBe(17);
+    expect(state.javaCommand).toBe(bundledPath);
+    expect(calls.filter((c) => c.command === bundledPath)).toHaveLength(1);
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
+
+    await checker.notifyIfMissing(state);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toMatch(/Java 17 is too old/);
+    expect(ui.warning[0].message).toMatch(new RegExp(`Java ${MIN_JAVA_MAJOR_VERSION}\\+`));
+  });
+
+  it("keeps the bundled too-old diagnostic when PATH java spawn fails entirely", async () => {
+    const { checker, ui, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: javaSpawnResult("17.0.10") },
+        { matcher: (r) => r.command === "java", result: fail },
+        { matcher: (r) => r.command !== bundledPath && r.command !== "java", result: fail }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaTooOld).toBe(true);
+    // PATH java was unreachable; we must not silently downgrade the
+    // bundled too-old result to a generic "missing" outcome.
+    expect(state.javaVersionMajor).toBe(17);
+    expect(state.javaCommand).toBe(bundledPath);
+    expect(calls.filter((c) => c.command === bundledPath)).toHaveLength(1);
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
+
+    await checker.notifyIfMissing(state);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toMatch(/Java 17 is too old/);
+  });
+
+  it("does not retry when the bundled probe already reports a usable Java 21+", async () => {
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: javaSpawnResult("21.0.5") },
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("17.0.10") },
+        {
+          matcher: (r) => r.command !== bundledPath && r.command !== "java",
+          result: { ...ok, stdout: "Isabelle2025" }
+        }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(true);
+    expect(state.javaCommand).toBe(bundledPath);
+    expect(state.javaVersionMajor).toBe(21);
+    // Bundled was already a usable Java 21+; the PATH fallback must not
+    // fire (and must not be able to demote the result by reporting a
+    // too-old or otherwise inferior runtime).
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(0);
+  });
 });
 
 describe("PrerequisiteChecker — Java minimum-version gating", () => {

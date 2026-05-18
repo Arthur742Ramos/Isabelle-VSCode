@@ -77,10 +77,12 @@ export interface PrerequisiteCheckerDependencies {
    * builds bundle an Eclipse Temurin 21 JRE and inject the absolute path
    * to `extension/jre/bin/java[.exe]` (or
    * `extension/jre/Contents/Home/bin/java` on macOS) here. If the probe
-   * against this candidate fails AND the candidate differs from `"java"`,
-   * {@link PrerequisiteChecker.runCheck} retries with the literal `"java"`
-   * so universal-VSIX users still surface the existing "Install Java"
-   * toast when a bundled candidate is broken.
+   * against this candidate fails (spawn error, non-zero exit, or a major
+   * version below {@link MIN_JAVA_MAJOR_VERSION}) AND the candidate
+   * differs from `"java"`, {@link PrerequisiteChecker.runCheck} retries
+   * with the literal `"java"` so universal-VSIX users still surface the
+   * existing "Install Java" toast when a bundled candidate is broken or
+   * stale.
    */
   readonly javaCommand?: string;
 }
@@ -157,25 +159,43 @@ export class PrerequisiteChecker {
       )
     ]);
 
-    // If a bundled JRE was injected but its probe failed (spawn error or
-    // non-zero exit) we retry with PATH `"java"` so the existing onboarding
-    // toast still appears for users who installed a corrupt platform VSIX
-    // but DO have a working system Java. Universal-VSIX users skip this
-    // retry: their injected javaCommand was already `"java"`.
-    const primaryProbeOk = !primaryJavaResult.spawnFailed && primaryJavaResult.exitCode === 0;
-    const shouldRetryWithPath = !primaryProbeOk && primaryJavaCommand !== "java";
+    // If a bundled JRE was injected but its probe is not a usable Java 21+
+    // (spawn error, non-zero exit, OR a major version below the minimum) we
+    // retry with PATH `"java"` so the existing onboarding toast still
+    // appears for users who installed a corrupt or stale platform VSIX but
+    // DO have a working system Java. Universal-VSIX users skip this retry:
+    // their injected javaCommand was already `"java"`.
+    const primaryEval = evaluateJavaProbe(primaryJavaResult);
+    const shouldRetryWithPath = !primaryEval.ok && primaryJavaCommand !== "java";
 
     let javaCommand = primaryJavaCommand;
     let javaResult = primaryJavaResult;
     if (shouldRetryWithPath) {
       this.deps.logger.log(
-        `Bundled Java probe at ${primaryJavaCommand} failed (spawnFailed=${primaryJavaResult.spawnFailed} exit=${primaryJavaResult.exitCode}); falling back to PATH java.`
+        primaryEval.spawnOk
+          ? `Bundled Java probe at ${primaryJavaCommand} reported major ${
+              primaryEval.major ?? "?"
+            } (need ${MIN_JAVA_MAJOR_VERSION}+); falling back to PATH java.`
+          : `Bundled Java probe at ${primaryJavaCommand} failed (spawnFailed=${primaryJavaResult.spawnFailed} exit=${primaryJavaResult.exitCode}); falling back to PATH java.`
       );
       const pathProbe = await this.safeSpawn({ command: "java", args: ["-version"], timeoutMs });
-      if (!pathProbe.spawnFailed && pathProbe.exitCode === 0) {
+      const pathEval = evaluateJavaProbe(pathProbe);
+      if (pathEval.ok) {
+        // PATH gave us a working Java >= MIN; prefer it over a too-old or
+        // failed primary.
+        javaCommand = "java";
+        javaResult = pathProbe;
+      } else if (!primaryEval.spawnOk && pathEval.spawnOk) {
+        // Primary spawn-failed but PATH at least responded; even if PATH is
+        // too-old or unparseable, its diagnostic is more actionable than a
+        // raw spawn failure.
         javaCommand = "java";
         javaResult = pathProbe;
       }
+      // Otherwise: primary is spawn-OK but too-old / unparseable, and PATH
+      // did not improve on it. Keep the primary diagnostic so the toast
+      // reports the bundled version rather than silently downgrading to a
+      // generic "missing" outcome.
     }
 
     const javaPresent = !javaResult.spawnFailed && javaResult.exitCode === 0;
@@ -403,6 +423,27 @@ export function parseJavaMajorVersion(output: string): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+/**
+ * Evaluate a `java -version` probe result in one pass: did it spawn cleanly,
+ * what major version (if any) did it report, and is that version usable
+ * (i.e. `>= MIN_JAVA_MAJOR_VERSION`).
+ *
+ * Used by {@link PrerequisiteChecker.runCheck} to decide whether a bundled
+ * JRE candidate is good enough or whether to fall back to PATH `"java"`.
+ */
+interface JavaProbeEvaluation {
+  readonly spawnOk: boolean;
+  readonly major: number | undefined;
+  readonly ok: boolean;
+}
+
+function evaluateJavaProbe(result: SpawnResult): JavaProbeEvaluation {
+  const spawnOk = !result.spawnFailed && result.exitCode === 0;
+  const major = spawnOk ? parseJavaMajorVersion(result.stderr || result.stdout) : undefined;
+  const ok = major !== undefined && major >= MIN_JAVA_MAJOR_VERSION;
+  return { spawnOk, major, ok };
 }
 
 function emptyState(): PrerequisiteState {
