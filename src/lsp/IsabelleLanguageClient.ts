@@ -14,6 +14,7 @@ import {
   LspNotificationRegistry,
   LspNotificationSubscription
 } from "./lspNotificationRegistry";
+import { resolveLanguageServerRuntime } from "./languageServerRuntime";
 import { IsabelleLanguageServerState, IsabelleLanguageServerStatus } from "./lspTypes";
 
 const REACH_CHECK_TIMEOUT_MS = 10_000;
@@ -263,11 +264,15 @@ export class IsabelleLanguageClient implements vscode.Disposable {
     });
 
     const config = vscode.workspace.getConfiguration("isabelle");
-    const executablePath = this.getExecutablePath();
-    const rawExtraArgs = config.get<unknown>("languageServer.extraArgs", []);
-    const extraArgs = Array.isArray(rawExtraArgs)
-      ? rawExtraArgs.filter((value): value is string => typeof value === "string")
-      : [];
+    // Route both the executable path and extraArgs through the shared
+    // resolver in `languageServerRuntime` so the runtime identity used
+    // here cannot drift from the one used by
+    // `resolveAutoStartFailureKey` in `extension.ts`. `logVerbose` is
+    // a presentation-only knob (controls trace output channel wiring)
+    // and not part of the runtime identity, so it stays inline.
+    const runtime = resolveLanguageServerRuntime(this.getExecutablePath, config);
+    const executablePath = runtime.executable;
+    const extraArgs = runtime.extraArgs;
     const logVerbose = config.get<boolean>("languageServer.logVerbose", false);
 
     const cmd = buildLanguageServerCommand(executablePath, extraArgs);

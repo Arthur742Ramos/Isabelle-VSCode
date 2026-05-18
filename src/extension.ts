@@ -41,6 +41,7 @@ import { DocumentSyncService } from "./document/DocumentSyncService";
 import { PideDecorationOverlayService } from "./document/PideDecorationOverlayService";
 import { IsabelleLanguageClient } from "./lsp/IsabelleLanguageClient";
 import { LanguageServerStatusBar } from "./lsp/LanguageServerStatusBar";
+import { resolveLanguageServerRuntime } from "./lsp/languageServerRuntime";
 import { IsabelleLanguageServerStatus } from "./lsp/lspTypes";
 import { ProofOutlineProvider } from "./proof/ProofOutlineProvider";
 import {
@@ -483,10 +484,14 @@ function inspectLanguageServerEnabledAcrossScopes(): {
 }
 
 function resolveAutoStartFailureKey(): string {
-  const config = vscode.workspace.getConfiguration("isabelle");
-  const executable = config.get<string>("executablePath", "isabelle");
-  const extraArgs = config.get<readonly string[]>("languageServer.extraArgs", []);
-  return computeAutoStartFailureKey(executable, extraArgs);
+  // Route both inputs through the shared `resolveLanguageServerRuntime`
+  // helper so the failure-key identity cannot drift from the runtime
+  // that `IsabelleLanguageClient.doStart` actually spawns.
+  const runtime = resolveLanguageServerRuntime(
+    getIsabelleExecutablePath,
+    vscode.workspace.getConfiguration("isabelle")
+  );
+  return computeAutoStartFailureKey(runtime.executable, runtime.extraArgs);
 }
 
 function decideExtensionLanguageServerStartup(
