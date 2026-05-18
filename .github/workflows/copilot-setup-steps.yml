@@ -1,0 +1,61 @@
+name: "Copilot Setup Steps"
+
+# Pre-installs the toolchain GitHub Copilot's cloud agent needs to work on
+# this repo, so it doesn't have to discover Node / Java / sbt on every
+# session. See AGENTS.md "Local toolchain" for the human-readable matrix.
+#
+# The job runs in the cloud agent's ephemeral environment BEFORE the agent
+# starts work. It must be named exactly `copilot-setup-steps` and must live
+# at .github/workflows/copilot-setup-steps.yml for Copilot to pick it up.
+
+on:
+  # Manual runs from the Actions tab let you smoke-test the steps.
+  workflow_dispatch:
+  # Re-run automatically when the setup itself changes so a broken update
+  # is caught in PR review.
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be named `copilot-setup-steps`.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Need read so the steps below can install deps from package-lock.
+      # Copilot is given its own scoped token for its actual work later.
+      contents: read
+
+    # 59 is the hard maximum the platform allows for this job.
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      # Intentionally do NOT run `npm run check`, `npm run bundle`, or any
+      # `sbt` task here. Setup should be cheap so the agent boots quickly.
+      # Let the agent run those commands only when its task actually needs
+      # them. See AGENTS.md "Validation matrix" for what to run when.

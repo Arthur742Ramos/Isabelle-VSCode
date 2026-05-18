@@ -188,6 +188,12 @@ Settings:
 
 Honest disclaimer: when the language server is enabled, VS Code aggregates results from **both** the LSP-provided features and the extension's existing local syntax-only providers (semantic tokens, hover, document symbols, in-file definitions, document links, theory outline, status decorations, etc.). The local foundation is intentionally left in place so the existing milestone-3/5/7 behavior remains the default whenever the language server is off or unavailable. Live PIDE-backed document status, structured proof state, Sledgehammer proof search, and AI repair verification still require the Scala backend work outlined in the roadmap.
 
+## Contributing
+
+- **Humans:** start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for the quick-start and PR checklist.
+- **AI coding agents** (Copilot CLI, GitHub Copilot Coding Agent, Claude Code, Cursor, Aider, …): read [`AGENTS.md`](AGENTS.md) — it documents the architecture map, validation matrix, repo conventions (TS strict, vscode-free structural tests, conventional commits, `windowsHide: true` for spawns), and the gotchas that have bitten previous contributors (workflow-scope OAuth pushes, fat-jar packaging, `.ps1` launcher handling on Windows). [`.github/copilot-instructions.md`](.github/copilot-instructions.md) is the compact pointer file GitHub Copilot reads automatically.
+- The GitHub Copilot Coding Agent boots into a pre-configured environment via [`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml) (Node 20, Java 21, sbt, `npm ci`).
+
 ## Development
 
 Install dependencies:
