@@ -442,10 +442,17 @@ async function runPrerequisiteCheck(
  * scope so we can distinguish "user explicitly set it" from "it's still at
  * the package default of false". Iterating workspace folders catches the
  * multi-root case the rubber-duck flagged.
+ *
+ * Returns both whether the user set the value anywhere (so we know to
+ * defer to it instead of the auto-start branch) and the effective
+ * resolved value VS Code computes via its normal scope precedence
+ * (folder > workspace > user). The latter is what the LSP toggle in
+ * `onDidChangeConfiguration` already reads, so using it here keeps
+ * activation and later toggles consistent for the same user.
  */
 function inspectLanguageServerEnabledAcrossScopes(): {
-  explicitEnabled: boolean;
-  explicitDisabled: boolean;
+  userExplicitlySet: boolean;
+  effectiveEnabled: boolean;
 } {
   const inspections = [
     vscode.workspace.getConfiguration("isabelle").inspect<boolean>("languageServer.enabled"),
@@ -455,8 +462,7 @@ function inspectLanguageServerEnabledAcrossScopes(): {
         .inspect<boolean>("languageServer.enabled")
     )
   ];
-  let explicitEnabled = false;
-  let explicitDisabled = false;
+  let userExplicitlySet = false;
   for (const inspection of inspections) {
     if (!inspection) continue;
     for (const value of [
@@ -464,11 +470,15 @@ function inspectLanguageServerEnabledAcrossScopes(): {
       inspection.workspaceValue,
       inspection.workspaceFolderValue
     ]) {
-      if (value === true) explicitEnabled = true;
-      if (value === false) explicitDisabled = true;
+      if (value !== undefined) {
+        userExplicitlySet = true;
+      }
     }
   }
-  return { explicitEnabled, explicitDisabled };
+  const effectiveEnabled = vscode.workspace
+    .getConfiguration("isabelle")
+    .get<boolean>("languageServer.enabled", false);
+  return { userExplicitlySet, effectiveEnabled };
 }
 
 function resolveAutoStartFailureKey(): string {
@@ -482,15 +492,15 @@ function decideExtensionLanguageServerStartup(
   context: vscode.ExtensionContext,
   prereqState?: PrerequisiteState
 ): LanguageServerStartupDecision {
-  const { explicitEnabled, explicitDisabled } = inspectLanguageServerEnabledAcrossScopes();
+  const { userExplicitlySet, effectiveEnabled } = inspectLanguageServerEnabledAcrossScopes();
   const autoStartSetting = vscode.workspace
     .getConfiguration("isabelle")
     .get<boolean>("languageServer.autoStart", true);
   const failureKey = resolveAutoStartFailureKey();
   const autoStartFailedForResolved = Boolean(context.workspaceState.get<boolean>(failureKey));
   return decideLanguageServerStartup({
-    explicitEnabled,
-    explicitDisabled,
+    userExplicitlySet,
+    effectiveEnabled,
     autoStartSetting,
     javaOk: prereqState?.java ?? false,
     isabelleOk: prereqState?.isabelle ?? false,

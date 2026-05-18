@@ -8,8 +8,8 @@ import {
 
 function baseInputs(overrides: Partial<LanguageServerStartupInputs> = {}): LanguageServerStartupInputs {
   return {
-    explicitEnabled: false,
-    explicitDisabled: false,
+    userExplicitlySet: false,
+    effectiveEnabled: false,
     autoStartSetting: true,
     javaOk: true,
     isabelleOk: true,
@@ -28,24 +28,38 @@ describe("decideLanguageServerStartup", () => {
   });
 
   it("returns 'explicit-start' when the user explicitly enabled the LSP", () => {
-    expect(decision({ explicitEnabled: true })).toBe("explicit-start");
+    expect(decision({ userExplicitlySet: true, effectiveEnabled: true })).toBe("explicit-start");
   });
 
   it("explicit-enable wins even when autoStart is off and prereqs are missing", () => {
     expect(
-      decision({ explicitEnabled: true, autoStartSetting: false, javaOk: false, isabelleOk: false })
+      decision({
+        userExplicitlySet: true,
+        effectiveEnabled: true,
+        autoStartSetting: false,
+        javaOk: false,
+        isabelleOk: false
+      })
     ).toBe("explicit-start");
   });
 
   it("returns 'do-not-start' when the user explicitly disabled the LSP", () => {
-    expect(decision({ explicitDisabled: true })).toBe("do-not-start");
+    expect(decision({ userExplicitlySet: true, effectiveEnabled: false })).toBe("do-not-start");
   });
 
-  it("explicit-disable wins over an explicit enable on a different scope", () => {
-    // If both explicit signals are present, disable wins — VS Code's own
-    // setting resolution will pick one, but defensively we still refuse
-    // to start so a workspace-level "off" is honored.
-    expect(decision({ explicitEnabled: true, explicitDisabled: true })).toBe("do-not-start");
+  it("honors VS Code scope precedence: workspace true beats user false (effective=true)", () => {
+    // VS Code resolves folder > workspace > user > default. When the
+    // user opted out globally but explicitly opted in for this
+    // workspace, the effective value is `true` and we start. This
+    // matches the `onDidChangeConfiguration` toggle handler in
+    // `extension.ts`, which reads the same setting via plain `.get()`.
+    expect(decision({ userExplicitlySet: true, effectiveEnabled: true })).toBe("explicit-start");
+  });
+
+  it("honors VS Code scope precedence: workspace false beats user true (effective=false)", () => {
+    // The symmetric case: opted in globally but disabled per-workspace.
+    // The effective value is `false`, so we do not start.
+    expect(decision({ userExplicitlySet: true, effectiveEnabled: false })).toBe("do-not-start");
   });
 
   it("does not auto-start when autoStartSetting is false", () => {
@@ -65,9 +79,13 @@ describe("decideLanguageServerStartup", () => {
   });
 
   it("explicit-enable overrides a prior auto-start failure", () => {
-    expect(decision({ explicitEnabled: true, autoStartFailedForResolved: true })).toBe(
-      "explicit-start"
-    );
+    expect(
+      decision({
+        userExplicitlySet: true,
+        effectiveEnabled: true,
+        autoStartFailedForResolved: true
+      })
+    ).toBe("explicit-start");
   });
 });
 

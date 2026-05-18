@@ -30,17 +30,24 @@ export type LanguageServerStartupDecision = "explicit-start" | "auto-start" | "d
 
 export interface LanguageServerStartupInputs {
   /**
-   * True when `isabelle.languageServer.enabled` is explicitly set to true at
-   * any scope (user / workspace / folder). When true the LSP starts
-   * regardless of every other input.
+   * True when the user has explicitly set
+   * `isabelle.languageServer.enabled` at any scope (user / workspace /
+   * folder), i.e. `inspect()` returned a non-undefined value at one of
+   * `globalValue` / `workspaceValue` / `workspaceFolderValue`. When
+   * false the setting is still at its package default and the
+   * auto-start branch is allowed to run.
    */
-  readonly explicitEnabled: boolean;
+  readonly userExplicitlySet: boolean;
   /**
-   * True when `isabelle.languageServer.enabled` is explicitly set to false
-   * at any scope. When true the LSP does not start, regardless of
-   * everything else.
+   * The effective resolved value of `isabelle.languageServer.enabled`
+   * for the active resource, computed via VS Code's normal scope
+   * precedence (folder > workspace > user > default). Only consulted
+   * when `userExplicitlySet` is true; this is what guarantees we honor
+   * the same precedence that `getConfiguration("isabelle").get(...)`
+   * uses everywhere else in the extension (e.g. the
+   * `onDidChangeConfiguration` toggle handler).
    */
-  readonly explicitDisabled: boolean;
+  readonly effectiveEnabled: boolean;
   /**
    * Effective value of the new `isabelle.languageServer.autoStart`
    * opt-out (default true). When false the auto-start branch is off,
@@ -66,11 +73,15 @@ export interface LanguageServerStartupInputs {
 }
 
 export function decideLanguageServerStartup(inputs: LanguageServerStartupInputs): LanguageServerStartupDecision {
-  if (inputs.explicitDisabled) {
-    return "do-not-start";
-  }
-  if (inputs.explicitEnabled) {
-    return "explicit-start";
+  if (inputs.userExplicitlySet) {
+    // The user has touched the setting somewhere. Honor VS Code's
+    // normal scope precedence (folder > workspace > user) by using the
+    // effective resolved value the caller looked up via `.get(...)`.
+    // This matches every other code path in the extension that reads
+    // the same setting (e.g. the `onDidChangeConfiguration` handler in
+    // `extension.ts`), so activation and a later toggle behave the
+    // same way for the same user.
+    return inputs.effectiveEnabled ? "explicit-start" : "do-not-start";
   }
   if (!inputs.autoStartSetting) {
     return "do-not-start";
