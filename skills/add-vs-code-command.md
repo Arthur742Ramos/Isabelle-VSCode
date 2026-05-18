@@ -1,7 +1,7 @@
 ---
 name: add-vs-code-command
 description: Add a new entry to the Isabelle PIDE command palette and wire it through to a handler.
-when-to-use: When the user asks for a new "Isabelle: …" command in the Command Palette. This skill covers the full wiring from `package.json` to the handler to the test, and the conventions that keep the command consistent with the existing 48.
+when-to-use: When the user asks for a new "Isabelle: …" command in the Command Palette. This skill covers the full wiring from `package.json` to the handler to the test, and the conventions that keep new commands consistent with the existing ones.
 ---
 
 # Add a new VS Code command
@@ -102,13 +102,13 @@ If the command should have a keybinding, add it to `contributes.keybindings`. De
 
 ### 7. Document if user-visible
 
-- **`README.md` "Current milestone" → "Commands"** lists every command. Add yours alphabetically within the existing list.
-- If the command is part of an onboarding flow, also add a reference in the appropriate `media/walkthrough/*.md` card — but **use a markdown command link** (`[**Run it**](command:isabelle.yourNewCommand)`) and **don't** hard-code counts ("the X commands"). See [`AGENTS.md`](../AGENTS.md) "Known gotchas" → the 52-commands trap.
+- **`README.md` "Current milestone"** mentions the high-impact commands. Update the user-facing docs (README, walkthrough cards, settings page) wherever the new command meaningfully changes the surface area. Don't try to keep an exhaustive command list in sync — link to "the full set" or to the Command Palette instead.
+- If the command is part of an onboarding flow, add a reference in the appropriate `media/walkthrough/*.md` card — but **use a markdown command link** (`[**Run it**](command:isabelle.yourNewCommand)`) and **don't** hard-code counts. See [`AGENTS.md`](../AGENTS.md) "Known gotchas" → the 52-commands trap.
 
 ### 8. Verify
 
 ```powershell
-npm run check    # compile + 639+N tests pass (where N is your new tests)
+npm run check    # compile + the full vitest suite (your new tests included)
 npm run bundle   # confirm the bundle still produces a clean out/extension.js
 ```
 

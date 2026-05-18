@@ -25,7 +25,9 @@ If you want one of these added, open an issue or send a PR.
 
 - Pure ESM. No build step. `npm install` doesn't touch it.
 - Imports `@github/copilot-sdk/extension` — resolved automatically by Copilot CLI's module resolver at runtime, **not** installed via npm. Don't add it to `package.json`.
+- Pure parsing / matching logic lives in `helpers.mjs` and is exercised by `test/copilot-cli-extension/helpers.test.ts` under the project's standard structural-test convention (see [`AGENTS.md`](../../../AGENTS.md) "Test conventions"). `npm run check` covers it.
 - Failures from either tool surface as `resultType: "failure"` so the agent can react instead of the extension process crashing.
+- Spawn timeouts are *hard*: the promise resolves immediately on timeout and an unref'd SIGKILL follows up so a process that ignores SIGTERM cannot hold the Copilot CLI extension process open. Mirrors the production pattern at `src/setup/runtime.ts`.
 - The `lint_walkthrough` tool reads `package.json` and `media/walkthrough/*.md` directly via `node:fs`; if the repo layout changes (e.g. walkthrough cards move), update the `WALKTHROUGH_DIR` constant in `extension.mjs`.
 
 ## How to reload after editing

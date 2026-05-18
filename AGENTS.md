@@ -282,7 +282,7 @@ Walkthrough cards do support `[Re-check setup](command:isabelle.checkPrerequisit
 1. Use the PR template (`.github/PULL_REQUEST_TEMPLATE.md`).
 2. Fill in **Test evidence** with the actual command(s) you ran and the result. Reviewers should not have to guess what you validated.
 3. Keep PRs focused — one logical change per PR. A "feat + ci + docs" mega-PR is hard to review and hard to revert.
-4. If you addressed review comments on a previous PR, post a summary in the body and **resolve** the threads as you go. (For Copilot CLI: `gh api graphql` with the `resolveReviewThread` mutation, see `agent-merge` skill.)
+4. If you addressed review comments on a previous PR, post a summary in the body and **resolve** the threads as you go. See `skills/address-pr-review-comments.md` for the reply-then-resolve playbook using `gh api graphql` + the `resolveReviewThread` mutation, and the Windows Git Bash path-mangling workaround.
 5. Don't comment on the PR to ask for review or ping CODEOWNERS — assume the user owns sharing.
 
 ---

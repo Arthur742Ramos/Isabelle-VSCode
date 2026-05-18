@@ -1,7 +1,7 @@
 ---
 name: address-pr-review-comments
 description: Respond to inline review threads on an open or merged PR — evaluate each, fix what's actionable, reply, and resolve via GraphQL.
-when-to-use: When a reviewer (human or automated, e.g. copilot-pull-request-reviewer) leaves inline comments on a PR. This skill walks the full reply-and-resolve loop and includes the Windows-specific fallback when the built-in helper script trips on Git Bash path mangling.
+when-to-use: When a reviewer (human or automated, e.g. copilot-pull-request-reviewer) leaves inline comments on a PR. This skill walks the full reply-and-resolve loop including the Windows-specific direct-PowerShell fallback used when an agent's `bash`/`gh` toolchain mangles the API URL.
 ---
 
 # Address inline PR review comments
@@ -32,6 +32,8 @@ gh api graphql -f query='
 ```
 
 The output is an array of unresolved threads. Capture each thread's `threadId` (GraphQL node ID, format `PRRT_…`) and `latestCommentDatabaseId` (numeric REST ID) — you need both for the reply + resolve step.
+
+> **Pagination:** the query caps at `first: 100` threads. The vast majority of PRs never approach that, but on a long-lived or extremely-reviewed PR you'll need to extend the query with `pageInfo { hasNextPage endCursor }` and re-issue with `reviewThreads(first: 100, after: "<endCursor>")` until `hasNextPage` is false. The same applies to the verification query at the end of this skill.
 
 ### 2. Evaluate each thread on its merits
 
@@ -82,16 +84,16 @@ After this both calls succeed for a thread, it's considered handled.
 
 ## Windows gotcha — Git Bash path mangling
 
-The repository ships a helper script for reply-and-resolve, but on Windows under Git Bash MSYS (which is what `bash` resolves to on a default `gh`/`git` install) the leading slash in `/repos/...` gets rewritten to a Windows filesystem path, breaking the API call:
+If you run `gh api -X POST /repos/...` under Git Bash MSYS on Windows (which is what `bash` resolves to on a default Git for Windows install), the leading slash in the endpoint gets rewritten to a Windows filesystem path and the call breaks:
 
 ```
 invalid API endpoint: "C:/Program Files/Git/repos/<owner>/<repo>/pulls/<pr>/..."
 Your shell might be rewriting URL paths as filesystem paths.
 ```
 
-**Workaround:** invoke `gh api` directly from PowerShell — it doesn't suffer the path-mangling — using the two-step pattern above (POST reply, then GraphQL resolve). This is what's coded in the `skills/address-pr-review-comments.md` skill and what was used in PR #61 to resolve all 8 threads on PR #60.
+This bites Copilot CLI specifically when an agent-provided reply-and-resolve helper script is invoked through `bash`. **Workaround:** invoke `gh api` directly from PowerShell — it doesn't suffer the path-mangling — using the two-step pattern above (POST reply, then GraphQL resolve). This is the technique that cleared PR #60's eight outstanding threads in PR #61.
 
-If you're on macOS or Linux, the original helper script works fine.
+If you're on macOS or Linux, calling `gh api` from any shell works fine.
 
 ## Verification
 
