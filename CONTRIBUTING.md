@@ -90,6 +90,7 @@ Be kind. Assume good faith. If you disagree with someone's PR, explain why on th
 ## More
 
 - [`AGENTS.md`](AGENTS.md) — full agent / contributor deep dive (architecture, conventions, validation matrix, gotchas).
+- [`skills/`](skills/) — cross-agent workflow playbooks (release, adding commands, addressing review comments).
 - [`docs/ROADMAP_STATUS.md`](docs/ROADMAP_STATUS.md) — what's shipped, what's roadmapped, what's upstream-blocked.
 - [`docs/PIDE_INTEGRATION.md`](docs/PIDE_INTEGRATION.md) — how the LSP relay and Scala backend fit together.
 - [`docs/AI_REPAIR.md`](docs/AI_REPAIR.md) — checked-repair safety contract for AI provider integrations.
