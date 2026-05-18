@@ -87,7 +87,7 @@ import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerPro
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
-import { realAutoDetectDependencies, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
+import { realAutoDetectDependencies, realIsabellePathLookup, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
 import {
   LanguageServerStartupDecision,
   autoStartOutcomeIsFailure,
@@ -133,7 +133,11 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   sessionService = sessions;
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
-  languageClient = new IsabelleLanguageClient(output, () => getIsabelleExecutablePath());
+  languageClient = new IsabelleLanguageClient(
+    output,
+    () => getIsabelleExecutablePath(),
+    realIsabellePathLookup
+  );
   languageServerStatusBar = new LanguageServerStatusBar(languageClient);
   pideSledgehammerProversCache = new PideSledgehammerProversCache(languageClient, output);
   pideQuiescenceTracker = new PideQuiescenceTracker(vscode.workspace);
@@ -400,6 +404,7 @@ function createPrerequisiteChecker(
     autoDetect: realAutoDetectDependencies(),
     walkthroughId,
     javaCommand,
+    isabellePathLookup: realIsabellePathLookup,
     logger: {
       log: (message) => output.appendLine(`Isabelle setup: ${message}`)
     },

@@ -65,7 +65,8 @@ export class IsabelleLanguageClient implements vscode.Disposable {
 
   public constructor(
     private readonly output: vscode.OutputChannel,
-    private readonly getExecutablePath: () => string
+    private readonly getExecutablePath: () => string,
+    private readonly isabellePathLookup?: (name: string) => string | undefined
   ) {
     this.lspOutput = vscode.window.createOutputChannel("Isabelle Language Server");
     this.lspTraceOutput = vscode.window.createOutputChannel("Isabelle Language Server Trace");
@@ -275,7 +276,9 @@ export class IsabelleLanguageClient implements vscode.Disposable {
     const extraArgs = runtime.extraArgs;
     const logVerbose = config.get<boolean>("languageServer.logVerbose", false);
 
-    const cmd = buildLanguageServerCommand(executablePath, extraArgs);
+    const cmd = buildLanguageServerCommand(executablePath, extraArgs, {
+      pathLookup: this.isabellePathLookup
+    });
     this.commandLine = formatCommandLine(cmd.command, cmd.args);
 
     this.output.appendLine(`Isabelle language server: verifying reachability (${executablePath} version)`);
@@ -472,7 +475,9 @@ export class IsabelleLanguageClient implements vscode.Disposable {
 
   private runReachCheck(executablePath: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      const reachCheckCommand = resolveIsabelleCommand(executablePath, ["version"]);
+      const reachCheckCommand = resolveIsabelleCommand(executablePath, ["version"], {
+        pathLookup: this.isabellePathLookup
+      });
       let child: ChildProcessWithoutNullStreams;
       try {
         child = spawn(reachCheckCommand.command, reachCheckCommand.args, {
