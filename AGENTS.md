@@ -160,6 +160,7 @@ The scope (`setup`, `build`, `ci`, `roadmap-status`, etc) usually maps to the to
 | `out/` | tsc / esbuild output |
 | `backend/target/`, `backend/project/target/` | sbt output |
 | `backend/dist/` | bundled fat jar (only exists locally and inside the .vsix) |
+| `jre/` | bundled Eclipse Temurin JRE downloaded by the per-platform release job (only exists in CI and inside per-platform `.vsix`) |
 | `*.vsix` | packaging output |
 | `.bsp/`, `.metals/` | sbt / metals IDE state |
 | `.vscode-test/` | extension test harness state |
@@ -283,6 +284,18 @@ The Isabelle language server auto-starts on activation when both Java and Isabel
 - **Auto-start failures are remembered per resolved Isabelle runtime.** The key is `isabelle.lsp.autoStartFailed.<hash(executable + extraArgs)>` in `workspaceState`. Changing any of `isabelle.executablePath`, `isabelle.languageServer.enabled`, `isabelle.languageServer.extraArgs`, or `isabelle.languageServer.autoStart` clears every such key; a successful auto-start clears its own key. The key shape comes from `computeAutoStartFailureKey()` — don't compute it ad hoc elsewhere.
 - **`languageClient.start()` doesn't throw on reach-check / spawn failure.** It sets `state: "failed"` internally. Always check `languageClient.getStatus().state` after awaiting `start()` to detect failures from the auto-start path; the `.catch()` block only catches actual exceptions.
 
+### 9. Per-platform VSIX with bundled JRE
+
+The Release workflow (`.github/workflows/release.yml`) ships TWO flavors per tag: a **universal** `.vsix` (no JRE bundled, requires `java` 21+ on `PATH`) plus **eight per-platform** `.vsix` files (`win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`) that embed Eclipse Temurin 21 under `extension/jre/`. Notes for anyone working on this surface:
+
+- **Resolver:** `src/backend/resolveJavaCommand.ts` is the single source of truth for "where is the bundled Java?". `BackendManager` and `PrerequisiteChecker` both consult it. Path layout is platform-aware — macOS keeps the vendor `Contents/Home/` tree (so Eclipse Adoptium's signatures stay intact), Windows uses `.exe`, Linux/other POSIX uses plain `bin/java`. Validation requires `isFile()` + (POSIX) `X_OK`. A corrupt local `jre/` falls through to PATH `"java"` rather than wedging activation.
+- **Bumping the bundled Temurin version:** edit the three `TEMURIN_*` env values at the top of `release.yml`. The SHA256 is fetched from Adoptium and verified inline, so no separate hash table needs updating. Verify by triggering a `workflow_dispatch` run before tagging.
+- **`.vscodeignore` is the universal manifest; `.vscodeignore.platform` mirrors it but does NOT exclude `jre/**`.** Per-platform builds pass `vsce package --ignoreFile .vscodeignore.platform`. Keep the two in sync — the release job will fail-fast if the universal VSIX ever contains `extension/jre/`.
+- **Platform-mismatched install:** users who download `-win32-x64.vsix` on macOS get a hard "not compatible" error from VS Code. The release notes table is the safety net; the README install table mirrors it. The universal `.vsix` is the fallback for everything not in the matrix (NixOS, *BSD, exotic CPU archs).
+- **`linux-armhf` is intentionally NOT in the matrix.** Adoptium 21 does not ship a 32-bit ARM Linux JRE. Such users fall back to the universal `.vsix`.
+- **macOS Gatekeeper:** the bundled Temurin binaries are signed by Eclipse Adoptium, but the surrounding `.vsix` is not notarized by us. The README documents the `xattr -dr com.apple.quarantine ~/.vscode/extensions/...jre` workaround.
+- **State semantics:** after this PR, `PrerequisiteState.java === true` means "*a working Java runtime for the extension backend is available*", not "system PATH java is installed". Marketplace users may have `java: true` without any system Java. Walkthrough card + README reflect this.
+
 ---
 
 ## When opening a PR
@@ -336,7 +349,6 @@ Other agents safely ignore the `.github/extensions/` directory; nothing depends 
 
 The following ideas were considered for the current agent-enablement work and rejected for scope:
 
-- **Bundled per-platform JRE** (Tier 2 from the install-UX roadmap) — per-platform `.vsix` with `extension/jre/` so end users don't need Java. Big PR; own scope.
 - **CI invariant on test count drift** — would catch sudden test-count drops in PRs. Useful but adds reviewer noise; defer.
 - **Additional skills** — `add-pide-lsp-capability.md`, `add-new-setting.md`, `investigate-flaky-test.md`. Add as concrete need arises.
 

@@ -1,6 +1,16 @@
 # Install Java 21+
 
-The Isabelle PIDE extension ships a bundled Scala backend that runs as a fat jar via `java -jar`. You need any **Java 21 or newer** runtime (any vendor: Microsoft OpenJDK, Adoptium Temurin, Oracle, etc.).
+> **You can probably skip this step.** Per-platform `.vsix` builds from the
+> VS Code Marketplace and GitHub Releases (`-win32-x64.vsix`,
+> `-linux-x64.vsix`, `-darwin-arm64.vsix`, …) embed Eclipse Temurin 21
+> under `extension/jre/`, so there is nothing to install on your machine.
+> You only need to install Java yourself if you:
+>
+> - downloaded the **universal** `isabelle-pide-vscode-<version>.vsix` (no
+>   suffix in the filename), or
+> - built the extension **from source** (`npm run install:extension`).
+
+The Isabelle PIDE extension ships a bundled Scala backend that runs as a fat jar via `java -jar`. For the two install paths above you need any **Java 21 or newer** runtime (any vendor: Microsoft OpenJDK, Adoptium Temurin, Oracle, etc.).
 
 ## Quick install
 

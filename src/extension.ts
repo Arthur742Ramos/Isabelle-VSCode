@@ -87,7 +87,7 @@ import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerPro
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
-import { realAutoDetectDependencies, realSpawn } from "./setup/runtime";
+import { realAutoDetectDependencies, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
 import {
   LanguageServerStartupDecision,
   autoStartOutcomeIsFailure,
@@ -391,10 +391,15 @@ function createPrerequisiteChecker(
   output: vscode.OutputChannel
 ): PrerequisiteChecker {
   const walkthroughId = `${context.extension.id}#isabelle.getStarted`;
+  const javaCommand = resolveActivationJavaCommand(context.extensionPath);
+  if (javaCommand !== "java") {
+    output.appendLine(`Isabelle setup: using bundled Java runtime at ${javaCommand}`);
+  }
   return new PrerequisiteChecker({
     spawn: realSpawn,
     autoDetect: realAutoDetectDependencies(),
     walkthroughId,
+    javaCommand,
     logger: {
       log: (message) => output.appendLine(`Isabelle setup: ${message}`)
     },
@@ -435,6 +440,17 @@ async function runPrerequisiteCheck(
     return undefined;
   }
   const state = await prerequisiteChecker.runCheck();
+  // Push the prereq-validated Java command into the backend so its
+  // `getClient()` launch path uses the same runtime the activation-time
+  // probe accepted. This closes a divergence where a bundled JRE that is
+  // filesystem-executable but fails the version check would be rejected
+  // by the prereq probe AND still picked up by `BackendManager`'s
+  // filesystem-only `resolveJavaCommand`. When the probe could not even
+  // determine a working command, `state.javaCommand` is undefined and we
+  // clear any prior override so the backend falls back to its own
+  // resolver. Guarded so it works for both the activation-time path and
+  // the manual "Isabelle: Check Setup Prerequisites" command.
+  backendManager?.setJavaCommand(state.javaCommand);
   await prerequisiteChecker.notifyIfMissing(state, options);
   return state;
 }

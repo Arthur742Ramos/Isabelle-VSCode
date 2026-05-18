@@ -3,14 +3,39 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { BackendClient } from "./BackendClient";
 import { ProcessTransport } from "./ProcessTransport";
+import { chooseJavaCommand, JavaResolveDeps } from "./resolveJavaCommand";
 
 export class BackendManager implements vscode.Disposable {
   private client: BackendClient | undefined;
+  /**
+   * Java command validated by the activation-time prerequisite probe, when
+   * available. When set, {@link resolveBackendLaunch} prefers it over the
+   * filesystem-only `resolveJavaCommand` result so a bundled JRE that the
+   * prereq probe rejected (e.g. too-old major version) is also skipped by
+   * the backend launch path. Wired in by `extension.ts` after each
+   * `PrerequisiteChecker.runCheck()` resolves. See {@link setJavaCommand}.
+   */
+  private javaCommandOverride: string | undefined;
 
   public constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly output: vscode.OutputChannel
   ) {}
+
+  /**
+   * Record the Java command the prerequisite probe actually validated
+   * (e.g. `"java"` after the too-old-bundled-JRE fallback, or an absolute
+   * path to a bundled binary that passed the spawn + version check). The
+   * next `getClient()` call uses this override for the bundled / dev jar
+   * launch branches; the configured-command and env-command branches are
+   * unaffected because they bypass the Java resolver entirely.
+   *
+   * Pass `undefined` (or an empty string) to clear the override and fall
+   * back to the filesystem-only `resolveJavaCommand` behavior.
+   */
+  public setJavaCommand(command: string | undefined): void {
+    this.javaCommandOverride = command;
+  }
 
   public getClient(): BackendClient {
     if (this.client) {
@@ -18,7 +43,7 @@ export class BackendManager implements vscode.Disposable {
     }
 
     const config = vscode.workspace.getConfiguration("isabelle");
-    const launch = resolveBackendLaunch(this.context, config);
+    const launch = resolveBackendLaunch(this.context, config, this.javaCommandOverride);
     this.output.appendLine(`Starting Isabelle backend: ${launch.command} ${launch.args.join(" ")}`.trim());
 
     const transport = new ProcessTransport(launch);
@@ -44,9 +69,40 @@ interface BackendLaunch {
   env?: NodeJS.ProcessEnv;
 }
 
+/**
+ * Filesystem facade used by {@link resolveJavaCommand} from the production
+ * backend-launch path. Exported for tests and for the activation-time
+ * prereq probe that wants identical semantics. On Windows we treat a
+ * regular file as executable (Windows uses extension-based execution);
+ * on POSIX targets we additionally require the `X_OK` access bit.
+ */
+export const backendJavaResolveDeps: JavaResolveDeps = {
+  isExecutableFile(candidate: string): boolean {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(candidate);
+    } catch {
+      return false;
+    }
+    if (!stat.isFile()) {
+      return false;
+    }
+    if (process.platform === "win32") {
+      return true;
+    }
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+
 function resolveBackendLaunch(
   context: vscode.ExtensionContext,
-  config: vscode.WorkspaceConfiguration
+  config: vscode.WorkspaceConfiguration,
+  javaCommandOverride: string | undefined
 ): BackendLaunch {
   const configuredCommand = config.get<string>("backend.command", "").trim();
   const configuredArgs = config.get<string[]>("backend.args", []);
@@ -71,10 +127,17 @@ function resolveBackendLaunch(
     };
   }
 
+  const javaCommand = chooseJavaCommand(
+    javaCommandOverride,
+    context.extensionPath,
+    process.platform,
+    backendJavaResolveDeps
+  );
+
   const bundledJar = path.join(context.extensionPath, "backend", "dist", "isabelle-vscode-server.jar");
   if (fs.existsSync(bundledJar)) {
     return {
-      command: "java",
+      command: javaCommand,
       args: ["-jar", bundledJar, ...configuredArgs],
       cwd
     };
@@ -83,7 +146,7 @@ function resolveBackendLaunch(
   const developmentJar = path.join(context.extensionPath, "backend", "target", "scala-2.13", "isabelle-vscode-server.jar");
   if (fs.existsSync(developmentJar)) {
     return {
-      command: "java",
+      command: javaCommand,
       args: ["-jar", developmentJar, ...configuredArgs],
       cwd
     };

@@ -72,6 +72,19 @@ export interface PrerequisiteCheckerDependencies {
   readonly walkthroughId: string;
   /** Spawn timeout for `java -version` / `isabelle version`. Default 5 s. */
   readonly checkTimeoutMs?: number;
+  /**
+   * Java command to probe. Defaults to `"java"`. Per-platform `.vsix`
+   * builds bundle an Eclipse Temurin 21 JRE and inject the absolute path
+   * to `extension/jre/bin/java[.exe]` (or
+   * `extension/jre/Contents/Home/bin/java` on macOS) here. If the probe
+   * against this candidate fails (spawn error, non-zero exit, or a major
+   * version below {@link MIN_JAVA_MAJOR_VERSION}) AND the candidate
+   * differs from `"java"`, {@link PrerequisiteChecker.runCheck} retries
+   * with the literal `"java"` so universal-VSIX users still surface the
+   * existing "Install Java" toast when a bundled candidate is broken or
+   * stale.
+   */
+  readonly javaCommand?: string;
 }
 
 export interface PrerequisiteState {
@@ -83,6 +96,13 @@ export interface PrerequisiteState {
    * "Java not installed" from "Java too old".
    */
   readonly java: boolean;
+  /**
+   * The java command that actually answered `-version`. Will equal
+   * {@link PrerequisiteCheckerDependencies.javaCommand} when the bundled
+   * candidate worked, or `"java"` when the checker fell back to PATH.
+   * `undefined` when no probe succeeded.
+   */
+  readonly javaCommand?: string;
   /** Raw first line of `java -version` output when the spawn succeeded. */
   readonly javaVersion?: string;
   /** Parsed major version (e.g. `21`) when extractable. */
@@ -130,13 +150,53 @@ export class PrerequisiteChecker {
     }
     const timeoutMs = this.deps.checkTimeoutMs ?? 5000;
     const isabelleExecutable = this.deps.ui.getConfig<string>(EXECUTABLE_PATH_SETTING, "isabelle");
+    const primaryJavaCommand = this.deps.javaCommand ?? "java";
 
-    const [javaResult, isabelleResult] = await Promise.all([
-      this.safeSpawn({ command: "java", args: ["-version"], timeoutMs }),
+    const [primaryJavaResult, isabelleResult] = await Promise.all([
+      this.safeSpawn({ command: primaryJavaCommand, args: ["-version"], timeoutMs }),
       this.safeSpawn(
         spawnIsabelleVersion(isabelleExecutable, this.deps.autoDetect.platform, timeoutMs)
       )
     ]);
+
+    // If a bundled JRE was injected but its probe is not a usable Java 21+
+    // (spawn error, non-zero exit, OR a major version below the minimum) we
+    // retry with PATH `"java"` so the existing onboarding toast still
+    // appears for users who installed a corrupt or stale platform VSIX but
+    // DO have a working system Java. Universal-VSIX users skip this retry:
+    // their injected javaCommand was already `"java"`.
+    const primaryEval = evaluateJavaProbe(primaryJavaResult);
+    const shouldRetryWithPath = !primaryEval.ok && primaryJavaCommand !== "java";
+
+    let javaCommand = primaryJavaCommand;
+    let javaResult = primaryJavaResult;
+    if (shouldRetryWithPath) {
+      this.deps.logger.log(
+        primaryEval.spawnOk
+          ? `Bundled Java probe at ${primaryJavaCommand} reported major ${
+              primaryEval.major ?? "?"
+            } (need ${MIN_JAVA_MAJOR_VERSION}+); falling back to PATH java.`
+          : `Bundled Java probe at ${primaryJavaCommand} failed (spawnFailed=${primaryJavaResult.spawnFailed} exit=${primaryJavaResult.exitCode}); falling back to PATH java.`
+      );
+      const pathProbe = await this.safeSpawn({ command: "java", args: ["-version"], timeoutMs });
+      const pathEval = evaluateJavaProbe(pathProbe);
+      if (pathEval.ok) {
+        // PATH gave us a working Java >= MIN; prefer it over a too-old or
+        // failed primary.
+        javaCommand = "java";
+        javaResult = pathProbe;
+      } else if (!primaryEval.spawnOk && pathEval.spawnOk) {
+        // Primary spawn-failed but PATH at least responded; even if PATH is
+        // too-old or unparseable, its diagnostic is more actionable than a
+        // raw spawn failure.
+        javaCommand = "java";
+        javaResult = pathProbe;
+      }
+      // Otherwise: primary is spawn-OK but too-old / unparseable, and PATH
+      // did not improve on it. Keep the primary diagnostic so the toast
+      // reports the bundled version rather than silently downgrading to a
+      // generic "missing" outcome.
+    }
 
     const javaPresent = !javaResult.spawnFailed && javaResult.exitCode === 0;
     const javaVersionLine = javaPresent
@@ -156,6 +216,7 @@ export class PrerequisiteChecker {
 
     const state: PrerequisiteState = {
       java: javaOk,
+      javaCommand: javaPresent ? javaCommand : undefined,
       javaVersion: javaVersionLine,
       javaVersionMajor,
       javaTooOld: javaTooOld || undefined,
@@ -168,9 +229,9 @@ export class PrerequisiteChecker {
     this.deps.logger.log(
       `Prerequisite check: java=${
         javaOk
-          ? `ok (${javaVersionMajor})`
+          ? `ok (${javaVersionMajor}) via ${javaCommand}`
           : javaTooOld
-            ? `too-old (${javaVersionMajor ?? "?"})`
+            ? `too-old (${javaVersionMajor ?? "?"}) via ${javaCommand}`
             : "missing"
       } isabelle=${isabelleOk ? "ok" : "missing"}${
         detectedIsabelle ? ` autodetect=${detectedIsabelle.path}` : ""
@@ -362,6 +423,27 @@ export function parseJavaMajorVersion(output: string): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+/**
+ * Evaluate a `java -version` probe result in one pass: did it spawn cleanly,
+ * what major version (if any) did it report, and is that version usable
+ * (i.e. `>= MIN_JAVA_MAJOR_VERSION`).
+ *
+ * Used by {@link PrerequisiteChecker.runCheck} to decide whether a bundled
+ * JRE candidate is good enough or whether to fall back to PATH `"java"`.
+ */
+interface JavaProbeEvaluation {
+  readonly spawnOk: boolean;
+  readonly major: number | undefined;
+  readonly ok: boolean;
+}
+
+function evaluateJavaProbe(result: SpawnResult): JavaProbeEvaluation {
+  const spawnOk = !result.spawnFailed && result.exitCode === 0;
+  const major = spawnOk ? parseJavaMajorVersion(result.stderr || result.stdout) : undefined;
+  const ok = major !== undefined && major >= MIN_JAVA_MAJOR_VERSION;
+  return { spawnOk, major, ok };
 }
 
 function emptyState(): PrerequisiteState {

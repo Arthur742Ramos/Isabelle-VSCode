@@ -15,3 +15,5 @@ vitest.config.ts
 *.vsix
 *.map
 out/**/*.map
+jre/**
+.vscodeignore.platform

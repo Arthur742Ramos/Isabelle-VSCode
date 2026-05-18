@@ -1,0 +1,28 @@
+# vsce --ignoreFile target used by per-platform release builds.
+#
+# Mirrors the default .vscodeignore except that it does NOT exclude `jre/**`,
+# so a platform-targeted `vsce package --target <target> --ignoreFile
+# .vscodeignore.platform` bakes the per-platform Temurin JRE that the release
+# workflow staged at `./jre/` into the resulting VSIX.
+#
+# Keep this file in sync with `.vscodeignore` when you add or remove
+# top-level exclusions. The CI release workflow validates each per-platform
+# VSIX after packaging.
+node_modules/**
+.git/**
+.git*
+.github/**
+.vscode/**
+src/**
+test/**
+backend/src/**
+backend/project/**
+backend/target/**
+backend/build.sbt
+package-lock.json
+tsconfig.json
+vitest.config.ts
+*.vsix
+*.map
+out/**/*.map
+.vscodeignore.platform
