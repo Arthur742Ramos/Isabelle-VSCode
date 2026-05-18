@@ -85,6 +85,8 @@ import { PideQuiescenceTracker } from "./sledgehammer/PideQuiescenceTracker";
 import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerProversCache";
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
+import { PrerequisiteChecker } from "./setup/PrerequisiteChecker";
+import { realAutoDetectDependencies, realSpawn } from "./setup/runtime";
 
 let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
@@ -112,6 +114,7 @@ let sledgehammerPanel: SledgehammerPanel | undefined;
 let statusBar: vscode.StatusBarItem | undefined;
 let theoryGraphTree: TheoryGraphTreeProvider | undefined;
 let theoryOutlineTree: TheoryOutlineTreeProvider | undefined;
+let prerequisiteChecker: PrerequisiteChecker | undefined;
 
 export function activate(context: vscode.ExtensionContext): IsabellePideExtensionApi {
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
@@ -173,6 +176,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       }
     })
   );
+  prerequisiteChecker = createPrerequisiteChecker(context, output);
   repairService = new RepairService(
     backendManager,
     output,
@@ -212,6 +216,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     theoryGraphTree,
     theoryOutlineTree,
     statusBar,
+    prerequisiteChecker,
     vscode.languages.registerDocumentSemanticTokensProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleSemanticTokensProvider(),
@@ -288,6 +293,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand(RESET_WORDS_COMMAND_ID, () => spellCheckerResetCommand(output)),
     vscode.commands.registerCommand("isabelle.toggleProofStateAutoUpdate", () => toggleProofStateAutoUpdateCommand()),
     vscode.commands.registerCommand("isabelle.relocateProofState", () => relocateProofStateCommand()),
+    vscode.commands.registerCommand("isabelle.checkPrerequisites", () => runPrerequisiteCheck({ force: true })),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("isabelle.session.active")) {
         updateSessionStatus();
@@ -322,6 +328,14 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   commandSpanDecorationsService.start();
   pideDecorationOverlayService.start();
 
+  void runPrerequisiteCheck().catch((error) => {
+    output.appendLine(
+      `Isabelle prerequisite check: unexpected failure: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  });
+
   const initiallyEnabled = vscode.workspace
     .getConfiguration("isabelle")
     .get<boolean>("languageServer.enabled", false);
@@ -336,6 +350,56 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   }
 
   return createIsabellePideExtensionApi(repairAiProviderRegistry, repairAiSecretStore);
+}
+
+function createPrerequisiteChecker(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel
+): PrerequisiteChecker {
+  const walkthroughId = `${context.extension.id}#isabelle.getStarted`;
+  return new PrerequisiteChecker({
+    spawn: realSpawn,
+    autoDetect: realAutoDetectDependencies(),
+    walkthroughId,
+    logger: {
+      log: (message) => output.appendLine(`Isabelle setup: ${message}`)
+    },
+    ui: {
+      showInformation: (message, ...actions) =>
+        Promise.resolve(vscode.window.showInformationMessage(message, ...actions)),
+      showWarning: (message, ...actions) =>
+        Promise.resolve(vscode.window.showWarningMessage(message, ...actions)),
+      executeCommand: (command, ...args) =>
+        Promise.resolve(vscode.commands.executeCommand(command, ...args)),
+      setContext: (key, value) =>
+        Promise.resolve(vscode.commands.executeCommand("setContext", key, value)),
+      hasWorkspaceFolders: () => Boolean(vscode.workspace.workspaceFolders?.length),
+      getConfig: <T,>(section: string, defaultValue: T): T =>
+        vscode.workspace.getConfiguration("isabelle").get<T>(section, defaultValue),
+      updateConfig: (section, value, target) =>
+        Promise.resolve(
+          vscode.workspace
+            .getConfiguration("isabelle")
+            .update(
+              section,
+              value,
+              target === 1
+                ? vscode.ConfigurationTarget.Global
+                : target === 2
+                  ? vscode.ConfigurationTarget.Workspace
+                  : vscode.ConfigurationTarget.WorkspaceFolder
+            )
+        )
+    }
+  });
+}
+
+async function runPrerequisiteCheck(options: { readonly force?: boolean } = {}): Promise<void> {
+  if (!prerequisiteChecker) {
+    return;
+  }
+  const state = await prerequisiteChecker.runCheck();
+  await prerequisiteChecker.notifyIfMissing(state, options);
 }
 
 export async function deactivate(): Promise<void> {

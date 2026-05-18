@@ -82,6 +82,7 @@
     "onCommand:isabelle.resetWords",
     "onCommand:isabelle.toggleProofStateAutoUpdate",
     "onCommand:isabelle.relocateProofState",
+    "onCommand:isabelle.checkPrerequisites",
     "onView:isabelle.sessions",
     "onView:isabelle.proofOutline",
     "onView:isabelle.proofState",
@@ -301,6 +302,10 @@
       {
         "command": "isabelle.relocateProofState",
         "title": "Isabelle: Re-anchor Proof State to Cursor"
+      },
+      {
+        "command": "isabelle.checkPrerequisites",
+        "title": "Isabelle: Check Setup Prerequisites"
       }
     ],
     "views": {
@@ -521,9 +526,68 @@
           "minimum": 20,
           "maximum": 400,
           "description": "Pretty-printer margin (in columns) for the caret-driven dynamic output sub-panel shown beneath the proof state. Maps onto the upstream `PIDE/output_set_margin` notification."
+        },
+        "isabelle.setup.suppressNotifications": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the extension stops surfacing the activation-time onboarding toast for missing Java / Isabelle prerequisites. The `Isabelle: Check Setup Prerequisites` command still works on demand. Defaults to workspace scope so dismissing it in one project does not silence it everywhere."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "isabelle.getStarted",
+        "title": "Get started with Isabelle PIDE",
+        "description": "Install the runtime prerequisites, open a theory, and verify the extension is wired to your Isabelle installation.",
+        "steps": [
+          {
+            "id": "installJava",
+            "title": "Install Java 21+",
+            "description": "The bundled Scala backend runs as a fat jar. Any Java 21+ runtime works.",
+            "media": {
+              "markdown": "media/walkthrough/install-java.md"
+            },
+            "completionEvents": [
+              "onContext:isabelle.setup.javaDetected"
+            ]
+          },
+          {
+            "id": "installIsabelle",
+            "title": "Install Isabelle 2019+",
+            "description": "Install Isabelle and either put `isabelle` on `PATH` or point the `isabelle.executablePath` setting at it.",
+            "media": {
+              "markdown": "media/walkthrough/install-isabelle.md"
+            },
+            "completionEvents": [
+              "onContext:isabelle.setup.isabelleDetected",
+              "onSettingChanged:isabelle.executablePath"
+            ]
+          },
+          {
+            "id": "openTheory",
+            "title": "Open a .thy theory file",
+            "description": "The extension activates on Isabelle theory files. Open one to wake up the panels and commands.",
+            "media": {
+              "markdown": "media/walkthrough/open-theory.md"
+            },
+            "completionEvents": [
+              "onLanguage:isabelle"
+            ]
+          },
+          {
+            "id": "runBuild",
+            "title": "Try `Isabelle: Build Active Session`",
+            "description": "End-to-end check: pick a session and run an Isabelle CLI build to confirm everything is wired up.",
+            "media": {
+              "markdown": "media/walkthrough/run-build.md"
+            },
+            "completionEvents": [
+              "onCommand:isabelle.buildActiveSession"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",
