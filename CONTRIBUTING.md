@@ -8,7 +8,7 @@ Thank you for thinking about contributing! This file is the **human onboarding**
 git clone https://github.com/Arthur742Ramos/Isabelle-VSCode.git
 cd Isabelle-VSCode
 npm install
-npm run check     # compile + 639 vitest cases (~2 s on a warm cache)
+npm run check     # compile + 749 vitest cases (~3 s on a warm cache)
 ```
 
 If `npm run check` is green, you're set up for **any TypeScript-only change**. For backend (Scala) or full-build work, see "Tier 2 toolchain" below.
@@ -60,7 +60,7 @@ npm run backend:test        # sbt test    (Tier 2)
 
 ## Test conventions
 
-All 62 test files under `test/**` are **structural** — they avoid importing `vscode` and exercise pure modules with injected fakes (for `fs`, `child_process.spawn`, VS Code UI surfaces, …). The cleanest current examples are under `src/setup/` + `test/setup/`. New tests should follow this pattern.
+All 66 test files under `test/**` are **structural** — they avoid importing `vscode` and exercise pure modules with injected fakes (for `fs`, `child_process.spawn`, VS Code UI surfaces, …). The cleanest current examples are under `src/setup/` + `test/setup/`. New tests should follow this pattern.
 
 Add VS Code-hosted integration tests only when behavior cannot be tested structurally.
 
