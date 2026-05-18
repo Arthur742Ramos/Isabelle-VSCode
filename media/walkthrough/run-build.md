@@ -26,4 +26,4 @@ Long builds can be aborted with **`Isabelle: Cancel Build`**.
 
 ## After this
 
-You're set up. Explore the other commands and panels — and if you want PIDE-flavoured live diagnostics, flip `isabelle.languageServer.enabled` to `true`.
+You're set up. Explore the other commands and panels. The Isabelle language server auto-starts as soon as the activation-time check sees both Java and Isabelle on PATH, so you should see live PIDE features (real diagnostics, proof state, decorations, sledgehammer) without any extra configuration. To force it off, set `isabelle.languageServer.enabled` to `false`.
