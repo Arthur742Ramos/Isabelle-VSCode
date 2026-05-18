@@ -17,6 +17,20 @@ The current foundation establishes the extension/backend boundary and keeps futu
 
 The extension is not yet on the VS Code Marketplace. For now, install it via one of the two paths below.
 
+### Runtime prerequisites (any path)
+
+| OS | Java 21+ | Isabelle 2019+ |
+| --- | --- | --- |
+| **Windows** | `winget install Microsoft.OpenJDK.21` | Installer from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
+| **macOS** | `brew install --cask temurin@21` | Installer from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) (`brew install --cask isabelle` if you prefer Homebrew) |
+| **Debian / Ubuntu** | `sudo apt install openjdk-21-jdk` | Tarball from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
+| **Fedora / RHEL** | `sudo dnf install java-21-openjdk` | Tarball from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
+| **Arch** | `sudo pacman -S jdk21-openjdk` | AUR (`isabelle`) or tarball from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
+
+After installing Isabelle, either put `isabelle` on `PATH` or set the `isabelle.executablePath` setting. On Windows the launcher is `isabelle.ps1`; the extension wraps it via `powershell.exe -File` automatically.
+
+The extension activates without either prerequisite (basic syntax features still work), but the **`Isabelle: Check Setup Prerequisites`** command and the **Get started with Isabelle PIDE** walkthrough will guide you through any missing piece, and standard install paths are auto-detected.
+
 ### Option 1 — Install a pre-built `.vsix` from GitHub Releases (recommended for end-users)
 
 > Available once the first `v*` tag has been pushed and the [Release workflow](.github/workflows/release.yml) has run. Check the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) — if it is empty, use Option 2.
@@ -29,11 +43,6 @@ The extension is not yet on the VS Code Marketplace. For now, install it via one
      code --install-extension isabelle-pide-vscode-<version>.vsix
      ```
 3. Reload VS Code if prompted.
-
-Runtime prerequisites on the machine running VS Code:
-
-- **Java 21 or newer** on `PATH`. The bundled Isabelle/Scala backend ships as a fat jar and is launched with `java -jar`.
-- **Isabelle 2019 or newer**, with `isabelle` on `PATH` or `isabelle.executablePath` configured. Required for build, language-server, sledgehammer, and any other feature that actually talks to Isabelle. The extension activates without Isabelle, but those features will be inert.
 
 ### Option 2 — Build and install from source (one command)
 
