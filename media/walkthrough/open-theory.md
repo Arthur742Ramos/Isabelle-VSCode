@@ -24,7 +24,7 @@ Save it as `Hello.thy` somewhere on disk (the file extension matters — not the
 - Syntax highlighting on `theory`, `imports`, `definition`, `lemma`, `unfolding`, `by`, …
 - New views in the Explorer sidebar: **Isabelle Sessions**, **Isabelle Theory Outline**, **Isabelle Proof Outline**, **Isabelle Proof State**, **Isabelle Sledgehammer**, **Isabelle Theory Graph**.
 - A status-bar item at the bottom-left: **Isabelle: no active session** (click to pick one).
-- 52 commands in the Command Palette (Ctrl+Shift+P → type `Isabelle:`).
+- The full set of `Isabelle: …` commands in the Command Palette (Ctrl+Shift+P → type `Isabelle:`).
 
 ## Next
 

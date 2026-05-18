@@ -19,7 +19,7 @@ The extension finds Isabelle through one of:
 
 ### Auto-detect
 
-If you install Isabelle into a standard location, the extension can detect it for you. Click **Re-check setup** below — if a known installation is found, you'll be offered a one-click toast to use it. Standard locations probed:
+If you install Isabelle into a standard location, the extension can detect it for you. Run [**Re-check setup**](command:isabelle.checkPrerequisites) — if a known installation is found, you'll be offered a one-click toast to use it. Standard locations probed:
 
 | OS | Location |
 | --- | --- |
@@ -39,4 +39,4 @@ On Windows the official launcher is `isabelle.ps1`; the extension wraps it with 
 
 ## After installing
 
-Click **Re-check setup** below and the green tick should appear.
+[**Re-check setup**](command:isabelle.checkPrerequisites) refreshes this walkthrough and the green tick should appear.

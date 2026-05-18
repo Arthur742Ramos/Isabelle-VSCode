@@ -75,8 +75,20 @@ export interface PrerequisiteCheckerDependencies {
 }
 
 export interface PrerequisiteState {
+  /**
+   * `true` only if the `java -version` spawn succeeded AND the detected
+   * major version is at least {@link MIN_JAVA_MAJOR_VERSION}. Older
+   * runtimes (Java 8/11/17, …) are reported as `java: false` with a
+   * non-undefined {@link javaVersionMajor} so the toast can differentiate
+   * "Java not installed" from "Java too old".
+   */
   readonly java: boolean;
+  /** Raw first line of `java -version` output when the spawn succeeded. */
   readonly javaVersion?: string;
+  /** Parsed major version (e.g. `21`) when extractable. */
+  readonly javaVersionMajor?: number;
+  /** `true` when Java is present but its major version is below the minimum. */
+  readonly javaTooOld?: boolean;
   readonly isabelle: boolean;
   readonly isabellePath?: string;
   readonly isabelleVersion?: string;
@@ -90,6 +102,15 @@ export interface PrerequisiteState {
 export const PREREQ_CONTEXT_JAVA = "isabelle.setup.javaDetected";
 export const PREREQ_CONTEXT_ISABELLE = "isabelle.setup.isabelleDetected";
 export const PREREQ_CONTEXT_ALL = "isabelle.setup.allPrereqsMet";
+
+/**
+ * Minimum Java major version the bundled Isabelle/Scala backend requires.
+ * Documented in the README install matrix; reflected in the walkthrough
+ * card. Older runtimes (8/11/17) start, exit 0 from `-version`, and would
+ * otherwise let activation believe Java is "ok" even though the backend
+ * will fail with a class-version error at first launch.
+ */
+export const MIN_JAVA_MAJOR_VERSION = 21;
 
 const SUPPRESS_SETTING = "setup.suppressNotifications";
 const EXECUTABLE_PATH_SETTING = "executablePath";
@@ -117,14 +138,27 @@ export class PrerequisiteChecker {
       )
     ]);
 
-    const javaOk = !javaResult.spawnFailed && javaResult.exitCode === 0;
+    const javaPresent = !javaResult.spawnFailed && javaResult.exitCode === 0;
+    const javaVersionLine = javaPresent
+      ? extractFirstLine(javaResult.stderr || javaResult.stdout)
+      : undefined;
+    const javaVersionMajor = javaPresent ? parseJavaMajorVersion(javaResult.stderr || javaResult.stdout) : undefined;
+    const javaTooOld =
+      javaPresent && javaVersionMajor !== undefined && javaVersionMajor < MIN_JAVA_MAJOR_VERSION;
+    const javaOk =
+      javaPresent &&
+      javaVersionMajor !== undefined &&
+      javaVersionMajor >= MIN_JAVA_MAJOR_VERSION;
+
     const isabelleOk = !isabelleResult.spawnFailed && isabelleResult.exitCode === 0;
 
     const detectedIsabelle = isabelleOk ? undefined : detectIsabelleInstallPath(this.deps.autoDetect);
 
     const state: PrerequisiteState = {
       java: javaOk,
-      javaVersion: javaOk ? extractFirstLine(javaResult.stderr || javaResult.stdout) : undefined,
+      javaVersion: javaVersionLine,
+      javaVersionMajor,
+      javaTooOld: javaTooOld || undefined,
       isabelle: isabelleOk,
       isabellePath: isabelleOk ? isabelleExecutable : undefined,
       isabelleVersion: isabelleOk ? extractFirstLine(isabelleResult.stdout) : undefined,
@@ -132,9 +166,15 @@ export class PrerequisiteChecker {
     };
 
     this.deps.logger.log(
-      `Prerequisite check: java=${javaOk ? "ok" : "missing"} isabelle=${
-        isabelleOk ? "ok" : "missing"
-      }${detectedIsabelle ? ` autodetect=${detectedIsabelle.path}` : ""}`
+      `Prerequisite check: java=${
+        javaOk
+          ? `ok (${javaVersionMajor})`
+          : javaTooOld
+            ? `too-old (${javaVersionMajor ?? "?"})`
+            : "missing"
+      } isabelle=${isabelleOk ? "ok" : "missing"}${
+        detectedIsabelle ? ` autodetect=${detectedIsabelle.path}` : ""
+      }`
     );
 
     await Promise.all([
@@ -171,7 +211,7 @@ export class PrerequisiteChecker {
     }
 
     if (!state.java) {
-      return this.promptInstallJava();
+      return this.promptInstallJava(state);
     }
     if (state.detectedIsabelle) {
       return this.promptUseDetectedIsabelle(state.detectedIsabelle);
@@ -183,14 +223,13 @@ export class PrerequisiteChecker {
     this.disposed = true;
   }
 
-  private async promptInstallJava(): Promise<PromptResult> {
+  private async promptInstallJava(state: PrerequisiteState): Promise<PromptResult> {
     const openWalkthrough = "Open Setup Walkthrough";
     const dontShow = "Don't show again";
-    const choice = await this.deps.ui.showWarning(
-      "Isabelle PIDE: Java 21+ is required to run the Scala backend.",
-      openWalkthrough,
-      dontShow
-    );
+    const message = state.javaTooOld
+      ? `Isabelle PIDE: Java ${state.javaVersionMajor} is too old. The bundled Scala backend requires Java ${MIN_JAVA_MAJOR_VERSION}+. Install a newer JDK or point PATH at one.`
+      : `Isabelle PIDE: Java ${MIN_JAVA_MAJOR_VERSION}+ is required to run the Scala backend.`;
+    const choice = await this.deps.ui.showWarning(message, openWalkthrough, dontShow);
     return this.handleSetupChoice(choice, openWalkthrough, dontShow);
   }
 
@@ -290,6 +329,39 @@ function extractFirstLine(value: string): string | undefined {
   }
   const trimmed = value.split(/\r?\n/, 1)[0]?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Parse the major version from a `java -version` output blob.
+ *
+ * `java -version` historically writes to **stderr** in formats like:
+ *   - `openjdk version "21.0.1" 2023-10-17 LTS`           → 21
+ *   - `java version "17.0.10" 2024-01-16 LTS`             → 17
+ *   - `java version "1.8.0_392"`                          → 8  (legacy)
+ *   - `openjdk version "11.0.21" 2023-10-17`              → 11
+ *
+ * Returns `undefined` when no recognizable version string is present.
+ */
+export function parseJavaMajorVersion(output: string): number | undefined {
+  if (!output) {
+    return undefined;
+  }
+  const match = /version\s+"([^"]+)"/i.exec(output);
+  if (!match) {
+    return undefined;
+  }
+  const literal = match[1];
+  const legacy = /^1\.(\d+)(?:[._].*)?$/.exec(literal);
+  if (legacy) {
+    const parsed = Number.parseInt(legacy[1], 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  const modern = /^(\d+)(?:[._-].*)?$/.exec(literal);
+  if (modern) {
+    const parsed = Number.parseInt(modern[1], 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function emptyState(): PrerequisiteState {

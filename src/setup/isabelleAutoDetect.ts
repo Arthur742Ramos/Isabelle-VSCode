@@ -46,6 +46,14 @@ export interface AutoDetectDependencies {
 }
 
 /**
+ * Minimum Isabelle release year the extension supports. Older directories
+ * are still recognized (so we can mention them in logs) but they are not
+ * offered through the "Use it" toast — those builds predate the Scala
+ * backend/JSON-RPC seams this extension depends on.
+ */
+export const MIN_ISABELLE_YEAR = 2019;
+
+/**
  * Probe shallow well-known directories for an Isabelle installation.
  *
  * When multiple installations are detected, the one with the highest parsed
@@ -57,7 +65,10 @@ export interface AutoDetectDependencies {
 export function detectIsabelleInstallPath(
   deps: AutoDetectDependencies
 ): DetectedIsabelle | undefined {
-  const candidates = collectCandidates(deps);
+  const candidates = collectCandidates(deps).filter(
+    (candidate) =>
+      candidate.versionYear === undefined || candidate.versionYear >= MIN_ISABELLE_YEAR
+  );
   if (candidates.length === 0) {
     return undefined;
   }

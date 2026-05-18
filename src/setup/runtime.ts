@@ -20,7 +20,14 @@ export const realSpawn: SpawnFn = ({ command, args, timeoutMs }: SpawnRequest) =
 
     let child;
     try {
-      child = spawn(command, [...args], { stdio: ["ignore", "pipe", "pipe"] });
+      child = spawn(command, [...args], {
+        stdio: ["ignore", "pipe", "pipe"],
+        // Match the existing process-launching code in this extension
+        // (ProcessTransport, BuildService, IsabelleLanguageClient) so the
+        // activation-time Java/Isabelle probes don't briefly flash console
+        // windows on Windows.
+        windowsHide: true
+      });
     } catch {
       resolve({ exitCode: null, stdout: "", stderr: "", spawnFailed: true, timedOut: false });
       return;
@@ -32,9 +39,16 @@ export const realSpawn: SpawnFn = ({ command, args, timeoutMs }: SpawnRequest) =
       }
       settled = true;
       clearTimeout(timer);
+      clearTimeout(killTimer);
       resolve(result);
     };
 
+    // A child that ignores SIGTERM must not be able to keep activation
+    // pending forever, so the timeout *resolves immediately* with a
+    // timed-out result. A second timer follows up with SIGKILL so the
+    // stranded process eventually goes away, but we don't wait for it.
+    const effectiveTimeout = Math.max(500, timeoutMs);
+    let killTimer: NodeJS.Timeout | undefined;
     const timer = setTimeout(() => {
       timedOut = true;
       try {
@@ -42,7 +56,18 @@ export const realSpawn: SpawnFn = ({ command, args, timeoutMs }: SpawnRequest) =
       } catch {
         /* ignore */
       }
-    }, Math.max(500, timeoutMs));
+      finalize({ exitCode: null, stdout, stderr, spawnFailed: false, timedOut: true });
+      killTimer = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* ignore */
+        }
+      }, 2000);
+      if (typeof (killTimer as NodeJS.Timeout).unref === "function") {
+        (killTimer as NodeJS.Timeout).unref();
+      }
+    }, effectiveTimeout);
 
     child.stdout?.on("data", (chunk: Buffer | string) => {
       stdout += chunk.toString();
