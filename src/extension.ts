@@ -89,6 +89,7 @@ import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChec
 import { realAutoDetectDependencies, realSpawn } from "./setup/runtime";
 import {
   LanguageServerStartupDecision,
+  autoStartOutcomeIsFailure,
   computeAutoStartFailureKey,
   decideLanguageServerStartup
 } from "./setup/lspAutoStart";
@@ -518,28 +519,33 @@ async function attemptLanguageServerAutoStart(
       "To opt out, set `isabelle.languageServer.enabled` to false or " +
       "`isabelle.languageServer.autoStart` to false."
   );
+  let startThrew = false;
+  let startThrewMessage: string | undefined;
   try {
     await languageClient.start();
   } catch (error) {
-    output.appendLine(
-      `Isabelle language server: auto-start threw: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
+    startThrew = true;
+    startThrewMessage = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Isabelle language server: auto-start threw: ${startThrewMessage}`);
   }
-  // start() swallows reach-check / spawn failures and transitions the
-  // client to state: "failed" internally — checking the status is the
-  // only reliable way to detect that case.
+  // start() normally swallows reach-check / spawn failures and
+  // transitions the client to state: "failed" internally, but an
+  // unrelated throw (programming error, OOM, transport setup failure
+  // before the first state transition) can bubble out with state still
+  // at "starting" or "disabled". Treat either signal as a failed
+  // auto-start so the failure flag is persisted and the warning toast
+  // fires — otherwise the throw would silently retry on every
+  // activation.
   const status = languageClient.getStatus();
   const failureKey = resolveAutoStartFailureKey();
-  if (status.state === "failed") {
+  if (autoStartOutcomeIsFailure(startThrew, status.state)) {
     await context.workspaceState.update(failureKey, true);
+    const errorDetail = startThrewMessage ?? status.lastError ?? "see output";
     const openSettings = "Open Settings";
     const showOutput = "Show Output";
     const choice = await vscode.window.showWarningMessage(
-      `Isabelle PIDE: language server auto-start failed (${
-        status.lastError ?? "see output"
-      }). Auto-start is disabled for this runtime until you change the configuration.`,
+      `Isabelle PIDE: language server auto-start failed (${errorDetail}). ` +
+        "Auto-start is disabled for this runtime until you change the configuration.",
       openSettings,
       showOutput
     );

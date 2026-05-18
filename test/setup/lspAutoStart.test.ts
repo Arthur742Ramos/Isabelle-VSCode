@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LanguageServerStartupDecision,
   LanguageServerStartupInputs,
+  autoStartOutcomeIsFailure,
   computeAutoStartFailureKey,
   decideLanguageServerStartup
 } from "../../src/setup/lspAutoStart";
@@ -123,5 +124,50 @@ describe("computeAutoStartFailureKey", () => {
   it("uses the documented prefix so it's discoverable in workspaceState", () => {
     const key = computeAutoStartFailureKey("/opt/Isabelle2025/bin/isabelle", []);
     expect(key.startsWith("isabelle.lsp.autoStartFailed.")).toBe(true);
+  });
+});
+
+describe("autoStartOutcomeIsFailure", () => {
+  it("treats a thrown start() as a failure even when state is still 'starting'", () => {
+    // The throw could happen before doStart() runs its first transition,
+    // leaving state at "starting". Without this branch the warning toast
+    // would never fire and the failure flag would not be persisted.
+    expect(autoStartOutcomeIsFailure(true, "starting")).toBe(true);
+  });
+
+  it("treats a thrown start() as a failure when state is 'disabled'", () => {
+    // Symmetric edge case: throw before any transition runs at all.
+    expect(autoStartOutcomeIsFailure(true, "disabled")).toBe(true);
+  });
+
+  it("treats a thrown start() as a failure when state is also 'failed'", () => {
+    expect(autoStartOutcomeIsFailure(true, "failed")).toBe(true);
+  });
+
+  it("treats state 'failed' as a failure even when start() returned cleanly", () => {
+    // This is the normal path for reach-check / spawn errors that
+    // doStart() swallows internally and transitions to "failed".
+    expect(autoStartOutcomeIsFailure(false, "failed")).toBe(true);
+  });
+
+  it("treats state 'running' as success", () => {
+    expect(autoStartOutcomeIsFailure(false, "running")).toBe(false);
+  });
+
+  it("treats state 'starting' as success when start() did not throw", () => {
+    // The auto-start call returned cleanly. The client may still be
+    // racing to running, but from the activation surface this is not a
+    // failure — we must not record a failure flag for an in-progress
+    // start.
+    expect(autoStartOutcomeIsFailure(false, "starting")).toBe(false);
+  });
+
+  it("treats state 'stopping' as success when start() did not throw", () => {
+    expect(autoStartOutcomeIsFailure(false, "stopping")).toBe(false);
+  });
+
+  it("treats state 'disabled' as success when start() did not throw", () => {
+    // e.g. the client was disposed mid-call; nothing to flag.
+    expect(autoStartOutcomeIsFailure(false, "disabled")).toBe(false);
   });
 });

@@ -107,6 +107,29 @@ export function decideLanguageServerStartup(inputs: LanguageServerStartupInputs)
  *
  * Pure: no `vscode`, no `process`, no I/O.
  */
+/**
+ * Decide whether an auto-start attempt should be recorded as a failure.
+ *
+ * Two failure modes need to be combined into one boolean:
+ *
+ *   1. The `languageClient.start()` call itself threw. The internal
+ *      `doStart()` swallows reach-check and spawn errors and transitions
+ *      to `"failed"`, but any other throw (programming error, OOM,
+ *      transport setup failure before the first state transition, …)
+ *      can bubble out with the client's state still at `"starting"` or
+ *      `"disabled"`. We must treat that as a failure too — otherwise
+ *      the silent throw would be retried on every activation.
+ *
+ *   2. `start()` returned cleanly but `getStatus().state` is `"failed"`,
+ *      i.e. `doStart()` caught the error internally and transitioned.
+ *
+ * Pure: no `vscode`, no I/O. Caller wires this into the auto-start
+ * outcome branch in `extension.ts`.
+ */
+export function autoStartOutcomeIsFailure(threw: boolean, statusState: string): boolean {
+  return threw || statusState === "failed";
+}
+
 export function computeAutoStartFailureKey(executable: string, extraArgs: readonly string[] | undefined): string {
   const args = (extraArgs ?? []).slice();
   const hash = crypto.createHash("sha256");
