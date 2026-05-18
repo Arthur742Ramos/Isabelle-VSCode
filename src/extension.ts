@@ -440,6 +440,17 @@ async function runPrerequisiteCheck(
     return undefined;
   }
   const state = await prerequisiteChecker.runCheck();
+  // Push the prereq-validated Java command into the backend so its
+  // `getClient()` launch path uses the same runtime the activation-time
+  // probe accepted. This closes a divergence where a bundled JRE that is
+  // filesystem-executable but fails the version check would be rejected
+  // by the prereq probe AND still picked up by `BackendManager`'s
+  // filesystem-only `resolveJavaCommand`. When the probe could not even
+  // determine a working command, `state.javaCommand` is undefined and we
+  // clear any prior override so the backend falls back to its own
+  // resolver. Guarded so it works for both the activation-time path and
+  // the manual "Isabelle: Check Setup Prerequisites" command.
+  backendManager?.setJavaCommand(state.javaCommand);
   await prerequisiteChecker.notifyIfMissing(state, options);
   return state;
 }

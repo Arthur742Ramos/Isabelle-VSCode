@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bundledJavaCandidate,
+  chooseJavaCommand,
   JavaResolveDeps,
   resolveJavaCommand
 } from "../../src/backend/resolveJavaCommand";
@@ -79,5 +80,86 @@ describe("resolveJavaCommand", () => {
       fsWithExecutables([linuxLayoutOnly])
     );
     expect(resolved).toBe("java");
+  });
+});
+
+describe("chooseJavaCommand", () => {
+  it("delegates to resolveJavaCommand when override is unset and a bundled JRE is present", () => {
+    // No override + bundled JRE present + executable -> returns the
+    // bundled path, matching the filesystem-only resolver.
+    const candidate = bundledJavaCandidate("/home/u/ext", "linux");
+    const resolved = chooseJavaCommand(
+      undefined,
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([candidate])
+    );
+    expect(resolved).toBe(candidate);
+  });
+
+  it("falls back to PATH 'java' when override is unset and no bundled JRE is present", () => {
+    const resolved = chooseJavaCommand(
+      undefined,
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([])
+    );
+    expect(resolved).toBe("java");
+  });
+
+  it("prefers an explicit 'java' override over a bundled JRE that the filesystem accepts", () => {
+    // This is the core case the prerequisite probe needs: the bundled
+    // JRE is filesystem-executable, but the probe rejected it (e.g. for
+    // being below MIN_JAVA_MAJOR_VERSION) and selected PATH "java"
+    // instead. The override must win so backend launch matches the
+    // validated runtime.
+    const candidate = bundledJavaCandidate("/home/u/ext", "linux");
+    const resolved = chooseJavaCommand(
+      "java",
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([candidate])
+    );
+    expect(resolved).toBe("java");
+    expect(resolved).not.toBe(candidate);
+  });
+
+  it("returns an absolute-path override even when a different bundled candidate is present", () => {
+    // The prereq probe can also accept an absolute path that differs
+    // from the platform's default bundled layout (e.g. a user-injected
+    // override from PrerequisiteCheckerDependencies.javaCommand). The
+    // helper must honor it verbatim regardless of what the filesystem
+    // resolver would have picked.
+    const candidate = bundledJavaCandidate("/home/u/ext", "linux");
+    const override = "/opt/temurin-21/bin/java";
+    const resolved = chooseJavaCommand(
+      override,
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([candidate])
+    );
+    expect(resolved).toBe(override);
+  });
+
+  it("treats an empty-string override as 'unset' and falls through to the filesystem resolver", () => {
+    // Pin the contract: only undefined or "" mean "no override". This
+    // keeps callers from accidentally pinning the launch to "" when
+    // they meant to clear a previously-set override.
+    const candidate = bundledJavaCandidate("/home/u/ext", "linux");
+    const resolvedWithBundled = chooseJavaCommand(
+      "",
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([candidate])
+    );
+    expect(resolvedWithBundled).toBe(candidate);
+
+    const resolvedWithoutBundled = chooseJavaCommand(
+      "",
+      "/home/u/ext",
+      "linux",
+      fsWithExecutables([])
+    );
+    expect(resolvedWithoutBundled).toBe("java");
   });
 });
