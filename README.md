@@ -17,7 +17,15 @@ The current foundation establishes the extension/backend boundary and keeps futu
 
 The extension is not yet on the VS Code Marketplace. For now, install it via one of the two paths below.
 
-### Runtime prerequisites (any path)
+### Runtime prerequisites
+
+| Install path | Java 21+ runtime | Isabelle 2019+ |
+| --- | --- | --- |
+| **Per-platform `.vsix`** from GitHub Releases (Option 1, recommended) | **Bundled** — no install needed | Required for build / language-server / sledgehammer features |
+| **Universal `.vsix`** from GitHub Releases (Option 1, fallback) | You provide it on `PATH` | Required for build / language-server / sledgehammer features |
+| **Build from source** (Option 2) | You provide it on `PATH` (the `sbt assembly` step needs it) | Required for build / language-server / sledgehammer features |
+
+If you need to install Java yourself, any vendor's Java 21 works:
 
 | OS | Java 21+ | Isabelle 2019+ |
 | --- | --- | --- |
@@ -35,14 +43,34 @@ The extension activates without either prerequisite (basic syntax features still
 
 > Available once the first `v*` tag has been pushed and the [Release workflow](.github/workflows/release.yml) has run. Check the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) — if it is empty, use Option 2.
 
-1. Open the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) and download the latest `isabelle-pide-vscode-<version>.vsix` asset.
+1. Open the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) and pick the asset matching the **host where the extension will run** (for SSH-Remote / WSL / dev-container setups, this is the remote host's OS + CPU, not your laptop's):
+
+   | Asset suffix | Host platform | Java bundled |
+   | --- | --- | --- |
+   | `-win32-x64.vsix` | Windows x64 | ✅ |
+   | `-win32-arm64.vsix` | Windows on ARM | ✅ |
+   | `-linux-x64.vsix` | Linux x64 (glibc) | ✅ |
+   | `-linux-arm64.vsix` | Linux ARM64 (glibc) | ✅ |
+   | `-alpine-x64.vsix` | Alpine / musl x64 | ✅ |
+   | `-alpine-arm64.vsix` | Alpine / musl ARM64 | ✅ |
+   | `-darwin-x64.vsix` | macOS Intel | ✅ |
+   | `-darwin-arm64.vsix` | macOS Apple silicon | ✅ |
+   | *(no suffix)* `isabelle-pide-vscode-<version>.vsix` | Universal (other platforms, bring-your-own-Java) | ❌ |
+
 2. Install it in VS Code using either:
    - **GUI** — open the **Extensions** view, click the `…` menu in its title bar, choose **Install from VSIX…**, and pick the downloaded file; or
    - **Command line** — run
      ```powershell
-     code --install-extension isabelle-pide-vscode-<version>.vsix
+     code --install-extension isabelle-pide-vscode-<version>-<target>.vsix
      ```
 3. Reload VS Code if prompted.
+
+> Per-platform builds embed Eclipse Temurin 21 under `extension/jre/`. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the bundled-JRE license summary.
+>
+> **macOS Gatekeeper:** if launching the extension produces *"Apple cannot check it for malicious software"* warnings for files under `extension/jre/`, clear the quarantine flag with:
+> ```bash
+> xattr -dr com.apple.quarantine ~/.vscode/extensions/arthur742ramos.isabelle-pide-vscode-*/extension/jre
+> ```
 
 ### Option 2 — Build and install from source (one command)
 
@@ -57,7 +85,7 @@ npm run install:extension
 
 `npm run install:extension` compiles the TypeScript, bundles it with esbuild, builds the Scala backend as a fat jar via `sbt assembly`, packages everything into `isabelle-pide-vscode.vsix`, and installs it into your local VS Code via `code --install-extension`. Use the same command to re-install after pulling changes.
 
-If you only want the `.vsix` (for example to share with a teammate), run `npm run package` instead — it produces `isabelle-pide-vscode.vsix` without installing it.
+If you only want the `.vsix` (for example to share with a teammate), run `npm run package` instead — it produces `isabelle-pide-vscode.vsix` without installing it. Source builds produce the **universal** flavor (no JRE bundled); per-platform `.vsix` files come from the CI release workflow.
 
 ### Option 3 — VS Code Marketplace
 

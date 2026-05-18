@@ -5,6 +5,7 @@ backend/target/
 backend/dist/
 backend/project/target/
 backend/project/project/
+jre/
 .bsp/
 .metals/
 .vscode-test/

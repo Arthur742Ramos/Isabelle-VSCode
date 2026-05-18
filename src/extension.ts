@@ -87,7 +87,7 @@ import { PideSledgehammerProversCache } from "./sledgehammer/PideSledgehammerPro
 import { TheoryGraphTreeProvider } from "./theoryGraph/TheoryGraphTreeProvider";
 import { formatUserVisibleError } from "./ui/errorMessages";
 import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
-import { realAutoDetectDependencies, realSpawn } from "./setup/runtime";
+import { realAutoDetectDependencies, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
 import {
   LanguageServerStartupDecision,
   autoStartOutcomeIsFailure,
@@ -391,10 +391,15 @@ function createPrerequisiteChecker(
   output: vscode.OutputChannel
 ): PrerequisiteChecker {
   const walkthroughId = `${context.extension.id}#isabelle.getStarted`;
+  const javaCommand = resolveActivationJavaCommand(context.extensionPath);
+  if (javaCommand !== "java") {
+    output.appendLine(`Isabelle setup: using bundled Java runtime at ${javaCommand}`);
+  }
   return new PrerequisiteChecker({
     spawn: realSpawn,
     autoDetect: realAutoDetectDependencies(),
     walkthroughId,
+    javaCommand,
     logger: {
       log: (message) => output.appendLine(`Isabelle setup: ${message}`)
     },

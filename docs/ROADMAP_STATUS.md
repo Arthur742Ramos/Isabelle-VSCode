@@ -4,12 +4,14 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-17 (PRs #51 + #52 + #53 + #54 + #55 + #56 + #57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls). For per-feature checkboxes,
+> Last refreshed: 2026-05-18 (bundled per-platform JRE — `release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
 > and [`proof_state_and_minimization_lsp_research.md`](proof_state_and_minimization_lsp_research.md);
-> for the M9 AI repair contract, see [`AI_REPAIR.md`](AI_REPAIR.md).
+> for the M9 AI repair contract, see [`AI_REPAIR.md`](AI_REPAIR.md);
+> for the bundled-JRE license summary, see
+> [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
 ## Headline
 
@@ -24,8 +26,9 @@ single page to read for "what is shipped, what is still open, why."
 | 7 Sledgehammer workflow | ✅ 6 of 7 — minimization upstream-blocked |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
+| Install UX — bundled per-platform JRE | ✅ 8 per-platform `.vsix` files (win32 / linux / alpine / darwin × x64 / arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback |
 
-Vitest baseline: **592 cases, all green**.
+Vitest baseline: **719 cases, all green**.
 
 ## What is fully shipped
 
@@ -209,6 +212,42 @@ Three layers:
 
 See `AI_REPAIR.md` for the full safety contract and provider
 authoring guide.
+
+### Install UX — bundled per-platform JRE
+The Release workflow (`.github/workflows/release.yml`) ships TWO
+flavors per `v*` tag:
+
+- **Eight per-platform `.vsix` files** — `win32-x64`, `win32-arm64`,
+  `linux-x64`, `linux-arm64`, `alpine-x64`, `alpine-arm64`,
+  `darwin-x64`, `darwin-arm64`. Each embeds Eclipse Temurin 21 under
+  `extension/jre/` (`extension/jre/Contents/Home/` on macOS, keeping
+  Adoptium's signed layout intact). End users on these platforms
+  install the matching asset, get the matching Java automatically,
+  and the activation-time prerequisite probe finds the bundled
+  runtime via `src/backend/resolveJavaCommand.ts` — no system Java
+  needed.
+- **One universal `.vsix`** — no bundled JRE, requires `java` 21+
+  on `PATH`. Stays available for `linux-armhf`, *BSD, NixOS, exotic
+  CPU archs, and bring-your-own-Java security-constrained envs.
+
+The bundled-JRE picker is platform-aware and validates
+`isFile()` + (POSIX) `X_OK` before accepting the candidate; a
+corrupt local `jre/` (or a stale dev checkout) falls through to
+PATH `"java"` silently. The activation-time prereq checker re-probes
+PATH `"java"` whenever a bundled candidate fails its `-version` spawn
+so universal-VSIX users still see the existing "install Java" toast
+when their PATH lacks Java.
+
+CI matrix builds run on the target's native runner where possible
+(`windows-latest` / `ubuntu-latest` / `macos-latest` + `macos-13`
+for darwin-x64) and smoke-test the packaged VSIX by unzipping it
+and invoking the bundled `java -version`. Cross-arch matrix entries
+(arm64 on x64 hosts, Alpine musl on Ubuntu glibc) get layout-only
+smoke; live cross-arch smoke is a documented Tier-2 manual check.
+
+See [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the
+Eclipse Temurin license summary and `release.yml`'s `TEMURIN_*` env
+values for the bumping procedure.
 
 ## What is honestly still open
 

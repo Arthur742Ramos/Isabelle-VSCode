@@ -3,6 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { BackendClient } from "./BackendClient";
 import { ProcessTransport } from "./ProcessTransport";
+import { JavaResolveDeps, resolveJavaCommand } from "./resolveJavaCommand";
 
 export class BackendManager implements vscode.Disposable {
   private client: BackendClient | undefined;
@@ -44,6 +45,36 @@ interface BackendLaunch {
   env?: NodeJS.ProcessEnv;
 }
 
+/**
+ * Filesystem facade used by {@link resolveJavaCommand} from the production
+ * backend-launch path. Exported for tests and for the activation-time
+ * prereq probe that wants identical semantics. On Windows we treat a
+ * regular file as executable (Windows uses extension-based execution);
+ * on POSIX targets we additionally require the `X_OK` access bit.
+ */
+export const backendJavaResolveDeps: JavaResolveDeps = {
+  isExecutableFile(candidate: string): boolean {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(candidate);
+    } catch {
+      return false;
+    }
+    if (!stat.isFile()) {
+      return false;
+    }
+    if (process.platform === "win32") {
+      return true;
+    }
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+
 function resolveBackendLaunch(
   context: vscode.ExtensionContext,
   config: vscode.WorkspaceConfiguration
@@ -71,10 +102,12 @@ function resolveBackendLaunch(
     };
   }
 
+  const javaCommand = resolveJavaCommand(context.extensionPath, process.platform, backendJavaResolveDeps);
+
   const bundledJar = path.join(context.extensionPath, "backend", "dist", "isabelle-vscode-server.jar");
   if (fs.existsSync(bundledJar)) {
     return {
-      command: "java",
+      command: javaCommand,
       args: ["-jar", bundledJar, ...configuredArgs],
       cwd
     };
@@ -83,7 +116,7 @@ function resolveBackendLaunch(
   const developmentJar = path.join(context.extensionPath, "backend", "target", "scala-2.13", "isabelle-vscode-server.jar");
   if (fs.existsSync(developmentJar)) {
     return {
-      command: "java",
+      command: javaCommand,
       args: ["-jar", developmentJar, ...configuredArgs],
       cwd
     };

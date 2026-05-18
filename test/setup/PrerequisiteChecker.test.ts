@@ -167,6 +167,7 @@ function buildChecker(opts: {
   spawnExpectations: readonly SpawnExpectation[];
   ui?: UiFake;
   autoDetect?: AutoDetectDependencies;
+  javaCommand?: string;
 }): { checker: PrerequisiteChecker; ui: UiFake; logs: string[]; calls: SpawnRequest[] } {
   const ui = opts.ui ?? makeUi();
   const logs: string[] = [];
@@ -177,7 +178,8 @@ function buildChecker(opts: {
     ui,
     logger: { log: (m) => logs.push(m) },
     walkthroughId: "pub.ext#isabelle.getStarted",
-    checkTimeoutMs: 5000
+    checkTimeoutMs: 5000,
+    javaCommand: opts.javaCommand
   };
   return { checker: new PrerequisiteChecker(deps), ui, logs, calls };
 }
@@ -451,6 +453,73 @@ describe("parseJavaMajorVersion", () => {
 
   it("returns undefined for empty input", () => {
     expect(parseJavaMajorVersion("")).toBeUndefined();
+  });
+});
+
+describe("PrerequisiteChecker — bundled JRE wiring", () => {
+  const bundledPath = "/home/u/ext/jre/bin/java";
+
+  it("probes the injected bundled java path when one is provided", async () => {
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: javaSpawnResult("21.0.5") },
+        { matcher: (r) => r.command !== bundledPath, result: { ...ok, stdout: "Isabelle2025" } }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(true);
+    expect(state.javaCommand).toBe(bundledPath);
+    expect(state.javaVersionMajor).toBe(21);
+    const javaCalls = calls.filter((c) => c.command === bundledPath || c.command === "java");
+    // Only the bundled probe was needed; no PATH fallback when the bundled
+    // candidate succeeds.
+    expect(javaCalls.map((c) => c.command)).toEqual([bundledPath]);
+  });
+
+  it("falls back to PATH 'java' when the bundled probe fails", async () => {
+    const { checker, ui, calls, logs } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === bundledPath, result: fail },
+        { matcher: (r) => r.command === "java", result: javaSpawnResult("21.0.5") },
+        { matcher: (r) => r.command !== bundledPath && r.command !== "java", result: { ...ok, stdout: "Isabelle2025" } }
+      ],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(true);
+    expect(state.javaCommand).toBe("java");
+    expect(ui.contexts[PREREQ_CONTEXT_JAVA]).toBe(true);
+    // Both probes happened: the bundled one (failed) and the PATH retry.
+    expect(calls.filter((c) => c.command === bundledPath)).toHaveLength(1);
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
+    expect(logs.some((m) => m.includes("falling back to PATH java"))).toBe(true);
+  });
+
+  it("reports java missing when both the bundled candidate and PATH java fail", async () => {
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [{ matcher: () => true, result: fail }],
+      javaCommand: bundledPath
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaCommand).toBeUndefined();
+    expect(ui.contexts[PREREQ_CONTEXT_JAVA]).toBe(false);
+    await checker.notifyIfMissing(state);
+    // Standard "install Java" toast still surfaces even though a bundled
+    // candidate was attempted first.
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toMatch(/Java/);
+  });
+
+  it("does not retry with PATH 'java' when the injected command already equals 'java'", async () => {
+    const { checker, calls } = buildChecker({
+      spawnExpectations: [{ matcher: () => true, result: fail }],
+      // No javaCommand → defaults to "java" → no retry path.
+    });
+    await checker.runCheck();
+    // Only one java probe happened (the default), no second one.
+    expect(calls.filter((c) => c.command === "java")).toHaveLength(1);
   });
 });
 

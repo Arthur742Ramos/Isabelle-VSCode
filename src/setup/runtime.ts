@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { AutoDetectDependencies, AutoDetectFs } from "./isabelleAutoDetect";
 import type { SpawnFn, SpawnRequest, SpawnResult } from "./PrerequisiteChecker";
+import { JavaResolveDeps, resolveJavaCommand } from "../backend/resolveJavaCommand";
 
 /**
  * Production wiring for the setup module. Lives next to the pure module so
@@ -122,4 +123,48 @@ export function realAutoDetectDependencies(): AutoDetectDependencies {
     fs: realAutoDetectFs,
     join: (...parts: string[]) => path.join(...parts)
   };
+}
+
+/**
+ * Production filesystem facade used by {@link resolveJavaCommand}. Confirms
+ * the candidate is a regular file; on POSIX targets we additionally require
+ * the `X_OK` access bit so a non-executable `java` (e.g. extracted from a
+ * sloppy archive that lost permissions) does not get preferred over a
+ * working PATH Java.
+ */
+export const realJavaResolveDeps: JavaResolveDeps = {
+  isExecutableFile(candidate: string): boolean {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(candidate);
+    } catch {
+      return false;
+    }
+    if (!stat.isFile()) {
+      return false;
+    }
+    if (process.platform === "win32") {
+      // Windows treats `.exe` as executable by extension; `statSync.isFile`
+      // is the strongest signal available without spawning the binary.
+      return true;
+    }
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+
+/**
+ * Resolve the java command the prerequisite checker should probe for a
+ * production activation. Per-platform `.vsix` builds bundle an Eclipse
+ * Temurin 21 JRE at `extension/jre/`; this helper returns the absolute
+ * path to that bundled binary when it is present and executable, falling
+ * back to `"java"` so a system Java still works for universal-VSIX and
+ * built-from-source installations.
+ */
+export function resolveActivationJavaCommand(extensionPath: string): string {
+  return resolveJavaCommand(extensionPath, process.platform, realJavaResolveDeps);
 }

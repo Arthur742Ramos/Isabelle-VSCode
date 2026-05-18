@@ -1,11 +1,24 @@
 name: Release
 
-# Builds a downloadable .vsix on every v* tag push and uploads it as a GitHub
-# Release asset, so end-users can install the Isabelle PIDE extension without
-# building from source. When a VSCE_PAT repository secret is configured the
-# same job also publishes the .vsix to the VS Code Marketplace. Manual runs
-# (workflow_dispatch) build the same .vsix and upload it as a workflow
-# artifact only (no release, no Marketplace publish).
+# Builds two flavors of the Isabelle PIDE extension on every v* tag push:
+#
+# 1. A **universal** `.vsix` (no JRE bundled) — the existing artifact, kept
+#    for unusual platforms (NixOS, *BSD, exotic CPU archs, …) and for users
+#    who want to bring their own Java runtime.
+# 2. **Per-platform** `.vsix` files (one per supported VS Code target) that
+#    embed an Eclipse Temurin 21 JRE under `extension/jre/`, so end users
+#    on those platforms don't need any system Java install.
+#
+# A trailing `publish` job gathers every VSIX, attaches them to a single
+# GitHub Release, and publishes each to the VS Code Marketplace when a
+# `VSCE_PAT` repository secret is configured. Manual workflow_dispatch runs
+# build and upload artifacts only (no release, no Marketplace publish).
+#
+# Bumping the bundled Temurin version
+# -----------------------------------
+# Change all three TEMURIN_* env values below. The pin is a specific
+# Adoptium GA release; the SHA256 is fetched from Adoptium and verified
+# inline, so the manifest does not need to track a separate hash.
 
 on:
   push:
@@ -20,16 +33,51 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Adoptium release tag (URL-encoded form is computed below).
+  TEMURIN_VERSION: "jdk-21.0.5+11"
+  # `+` is URL-encoded as `%2B` for the release download URL.
+  TEMURIN_VERSION_URL: "jdk-21.0.5%2B11"
+  # Label used in the archive filename, e.g.
+  # OpenJDK21U-jre_x64_linux_hotspot_21.0.5_11.tar.gz
+  TEMURIN_VERSION_LABEL: "21.0.5_11"
+
 jobs:
-  build-and-release:
-    name: Build VSIX and publish release
+  read-version:
+    name: Read extension version + validate tag
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # Job-level env so step-level `if:` evaluation can see the secret value
-    # (or the empty string) without GitHub's secret-context warnings.
+      - name: Read extension version
+        id: pkg
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Extension version from package.json: $version"
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          expected="v${PKG_VERSION}"
+          if [ "$REF_NAME" != "$expected" ]; then
+            echo "::error::Tag '$REF_NAME' does not match package.json version (expected '$expected'). Bump package.json and re-tag, or delete the mismatched tag."
+            exit 1
+          fi
+          echo "Tag '$REF_NAME' matches package.json version."
+
+  build-universal:
+    name: Build universal VSIX (no bundled JRE)
+    needs: read-version
+    runs-on: ubuntu-latest
     env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
+      PKG_VERSION: ${{ needs.read-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,33 +100,13 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Read extension version
-        id: pkg
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Extension version from package.json: $version"
-
-      - name: Verify tag matches package.json version
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        env:
-          PKG_VERSION: ${{ steps.pkg.outputs.version }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          expected="v${PKG_VERSION}"
-          if [ "$REF_NAME" != "$expected" ]; then
-            echo "::error::Tag '$REF_NAME' does not match package.json version (expected '$expected'). Bump package.json and re-tag, or delete the mismatched tag."
-            exit 1
-          fi
-          echo "Tag '$REF_NAME' matches package.json version."
-
-      - name: Build extension and package VSIX
+      - name: Build extension and package universal VSIX
         run: npm run package
 
-      - name: Rename VSIX with version suffix
+      - name: Rename and verify universal VSIX
         id: rename
         env:
-          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+          PKG_VERSION: ${{ env.PKG_VERSION }}
         run: |
           src="isabelle-pide-vscode.vsix"
           dest="isabelle-pide-vscode-${PKG_VERSION}.vsix"
@@ -90,7 +118,7 @@ jobs:
           echo "vsix_path=$dest" >> "$GITHUB_OUTPUT"
           ls -lh "$dest"
 
-      - name: Confirm VSIX contents
+      - name: Confirm universal VSIX contents
         env:
           VSIX: ${{ steps.rename.outputs.vsix_path }}
         run: |
@@ -98,53 +126,376 @@ jobs:
           echo "Listing files in $VSIX:"
           unzip -l "$VSIX"
           echo ""
-          echo "Checking required files are present..."
+          echo "Checking required files are present and JRE is NOT bundled..."
           unzip -l "$VSIX" | grep -q "extension/out/extension.js" \
             || { echo "::error::Bundled extension/out/extension.js missing from VSIX"; exit 1; }
           unzip -l "$VSIX" | grep -q "extension/backend/dist/isabelle-vscode-server.jar" \
             || { echo "::error::Backend jar (extension/backend/dist/isabelle-vscode-server.jar) missing from VSIX"; exit 1; }
           unzip -l "$VSIX" | grep -q "extension/package.json" \
             || { echo "::error::extension/package.json missing from VSIX"; exit 1; }
-          echo "VSIX contents look good."
+          if unzip -l "$VSIX" | grep -q "extension/jre/"; then
+            echo "::error::Universal VSIX must not contain extension/jre/ — verify .vscodeignore excludes jre/**"
+            exit 1
+          fi
+          echo "Universal VSIX contents look good."
 
-      - name: Upload VSIX as workflow artifact
+      - name: Upload universal VSIX
         uses: actions/upload-artifact@v4
         with:
-          name: isabelle-pide-vscode-vsix
+          name: vsix-universal
           path: ${{ steps.rename.outputs.vsix_path }}
           if-no-files-found: error
           retention-days: 30
+
+  build-platform:
+    name: Build ${{ matrix.target }} VSIX (bundled JRE)
+    needs: read-version
+    env:
+      PKG_VERSION: ${{ needs.read-version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32-x64
+            runner: windows-latest
+            adoptium_os: windows
+            adoptium_arch: x64
+            archive_ext: zip
+            native_smoke: true
+          - target: win32-arm64
+            runner: windows-latest
+            adoptium_os: windows
+            adoptium_arch: aarch64
+            archive_ext: zip
+            # Hosted Windows runners are x64; the Windows ARM JRE is a
+            # cross-arch payload we can verify on disk but not by spawning.
+            native_smoke: false
+          - target: linux-x64
+            runner: ubuntu-latest
+            adoptium_os: linux
+            adoptium_arch: x64
+            archive_ext: tar.gz
+            native_smoke: true
+          - target: linux-arm64
+            runner: ubuntu-latest
+            adoptium_os: linux
+            adoptium_arch: aarch64
+            archive_ext: tar.gz
+            native_smoke: false
+          - target: alpine-x64
+            runner: ubuntu-latest
+            adoptium_os: alpine-linux
+            adoptium_arch: x64
+            archive_ext: tar.gz
+            # Alpine binaries are linked against musl; cannot execute on
+            # the Ubuntu glibc runner. Smoke test stays layout-only.
+            native_smoke: false
+          - target: alpine-arm64
+            runner: ubuntu-latest
+            adoptium_os: alpine-linux
+            adoptium_arch: aarch64
+            archive_ext: tar.gz
+            native_smoke: false
+          - target: darwin-x64
+            # macos-13 is the last GitHub-hosted Intel macOS runner; using
+            # it gives darwin-x64 a real native smoke test.
+            runner: macos-13
+            adoptium_os: mac
+            adoptium_arch: x64
+            archive_ext: tar.gz
+            native_smoke: true
+          - target: darwin-arm64
+            runner: macos-latest
+            adoptium_os: mac
+            adoptium_arch: aarch64
+            archive_ext: tar.gz
+            native_smoke: true
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java (for sbt; unrelated to the bundled JRE)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Bundle TypeScript
+        run: npm run bundle
+
+      - name: Build Scala backend fat jar
+        run: npm run backend:package
+
+      - name: Download Temurin 21 JRE
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="OpenJDK21U-jre_${{ matrix.adoptium_arch }}_${{ matrix.adoptium_os }}_hotspot_${TEMURIN_VERSION_LABEL}.${{ matrix.archive_ext }}"
+          base="https://github.com/adoptium/temurin21-binaries/releases/download/${TEMURIN_VERSION_URL}"
+          echo "Downloading $archive from $base ..."
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 \
+            -o "$archive" "$base/$archive"
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 \
+            -o "$archive.sha256.txt" "$base/$archive.sha256.txt"
+          expected=$(awk '{print $1}' "$archive.sha256.txt")
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual=$(sha256sum "$archive" | awk '{print $1}')
+          else
+            actual=$(shasum -a 256 "$archive" | awk '{print $1}')
+          fi
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::SHA256 mismatch for $archive (expected=$expected actual=$actual)"
+            exit 1
+          fi
+          echo "$archive SHA256 OK ($actual)"
+          echo "JRE_ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Extract and normalise JRE into ./jre
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$JRE_ARCHIVE"
+          rm -rf jre staging
+          mkdir -p staging
+          case "${{ matrix.archive_ext }}" in
+            zip)
+              unzip -q "$archive" -d staging
+              ;;
+            tar.gz)
+              # `tar -xzf` preserves POSIX permissions including the
+              # executable bit on bin/java, which the bundled-Java
+              # resolver requires on Linux/macOS.
+              tar -xzf "$archive" -C staging
+              ;;
+            *)
+              echo "::error::Unknown archive ext ${{ matrix.archive_ext }}"; exit 1 ;;
+          esac
+          # Adoptium archives contain a single top-level directory like
+          # jdk-21.0.5+11-jre. Promote its CONTENTS to ./jre so the
+          # layout matches what BackendManager + resolveJavaCommand
+          # expect:
+          #   Linux/Windows: jre/bin/java[.exe]
+          #   macOS:         jre/Contents/Home/bin/java
+          top=$(ls staging | head -n 1)
+          mv "staging/$top" jre
+          rm -rf staging "$archive" "$archive.sha256.txt"
+
+      - name: Smoke-test the extracted JRE (native runner only)
+        if: matrix.native_smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.adoptium_os }}" = "mac" ]; then
+            "./jre/Contents/Home/bin/java" -version
+          elif [ "${{ matrix.adoptium_os }}" = "windows" ]; then
+            "./jre/bin/java.exe" -version
+          else
+            "./jre/bin/java" -version
+          fi
+
+      - name: Verify JRE layout (every target, including cross-arch)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.adoptium_os }}" = "mac" ]; then
+            entry="./jre/Contents/Home/bin/java"
+            legal="./jre/Contents/Home/legal"
+          elif [ "${{ matrix.adoptium_os }}" = "windows" ]; then
+            entry="./jre/bin/java.exe"
+            legal="./jre/legal"
+          else
+            entry="./jre/bin/java"
+            legal="./jre/legal"
+          fi
+          test -f "$entry" || { echo "::error::Expected $entry not found"; exit 1; }
+          test -d "$legal" || { echo "::error::Expected Temurin legal/ dir at $legal not found"; exit 1; }
+          if [ "${{ matrix.adoptium_os }}" != "windows" ]; then
+            test -x "$entry" || { echo "::error::$entry is not executable"; exit 1; }
+          fi
+          echo "JRE layout OK."
+
+      - name: Package platform VSIX
+        id: pack
+        shell: bash
+        env:
+          PKG_VERSION: ${{ env.PKG_VERSION }}
+        run: |
+          set -euo pipefail
+          out="isabelle-pide-vscode-${PKG_VERSION}-${{ matrix.target }}.vsix"
+          npx --yes @vscode/vsce@^3.9.1 package \
+            --target "${{ matrix.target }}" \
+            --no-dependencies \
+            --ignoreFile .vscodeignore.platform \
+            --out "$out"
+          ls -lh "$out"
+          echo "vsix_path=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Verify platform VSIX contents
+        shell: bash
+        env:
+          VSIX: ${{ steps.pack.outputs.vsix_path }}
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.adoptium_os }}" = "mac" ]; then
+            jre_entry="extension/jre/Contents/Home/bin/java"
+            legal_glob="extension/jre/Contents/Home/legal/"
+          elif [ "${{ matrix.adoptium_os }}" = "windows" ]; then
+            jre_entry="extension/jre/bin/java.exe"
+            legal_glob="extension/jre/legal/"
+          else
+            jre_entry="extension/jre/bin/java"
+            legal_glob="extension/jre/legal/"
+          fi
+          unzip -l "$VSIX" | grep -q "extension/out/extension.js" \
+            || { echo "::error::Bundled extension/out/extension.js missing from $VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "extension/backend/dist/isabelle-vscode-server.jar" \
+            || { echo "::error::Backend jar missing from $VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "extension/package.json" \
+            || { echo "::error::extension/package.json missing from $VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "$jre_entry" \
+            || { echo "::error::Bundled $jre_entry missing from $VSIX"; exit 1; }
+          unzip -l "$VSIX" | grep -q "$legal_glob" \
+            || { echo "::error::Temurin legal/ payload (under $legal_glob) missing from $VSIX"; exit 1; }
+          echo "$VSIX contents look good."
+
+      - name: Smoke-test bundled JRE inside the packaged VSIX (native runner only)
+        if: matrix.native_smoke
+        shell: bash
+        env:
+          VSIX: ${{ steps.pack.outputs.vsix_path }}
+        run: |
+          set -euo pipefail
+          rm -rf verify
+          mkdir -p verify
+          unzip -q "$VSIX" -d verify
+          if [ "${{ matrix.adoptium_os }}" = "mac" ]; then
+            "./verify/extension/jre/Contents/Home/bin/java" -version
+          elif [ "${{ matrix.adoptium_os }}" = "windows" ]; then
+            "./verify/extension/jre/bin/java.exe" -version
+          else
+            "./verify/extension/jre/bin/java" -version
+          fi
+          rm -rf verify
+
+      - name: Upload platform VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: ${{ steps.pack.outputs.vsix_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub Release + Marketplace
+    needs:
+      - read-version
+      - build-universal
+      - build-platform
+    runs-on: ubuntu-latest
+    env:
+      PKG_VERSION: ${{ needs.read-version.outputs.version }}
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage VSIX assets
+        id: stage
+        run: |
+          set -euo pipefail
+          mkdir -p staged
+          find artifacts -name '*.vsix' -exec cp {} staged/ \;
+          echo "Staged VSIX files:"
+          ls -lh staged
+          count=$(ls -1 staged/*.vsix | wc -l)
+          if [ "$count" -lt 2 ]; then
+            echo "::error::Expected at least 2 VSIX files (1 universal + per-platform) but found $count"
+            exit 1
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.rename.outputs.vsix_path }}
+          files: staged/*.vsix
           fail_on_unmatched_files: true
           generate_release_notes: true
           body: |
             ## Installing this build
 
-            Download `${{ steps.rename.outputs.vsix_path }}` from the assets below, then either:
+            ### Per-platform `.vsix` (recommended — Java is bundled)
 
-            - **VS Code GUI** — open the **Extensions** view, click the `…` menu, choose **Install from VSIX…**, and pick the downloaded file; or
-            - **Command line** — run `code --install-extension ${{ steps.rename.outputs.vsix_path }}`.
+            Download the asset whose suffix matches the **host where the VS Code extension runs**. For SSH-Remote, WSL, or dev-container setups, that's the remote / target host's OS + CPU, not your laptop's.
+
+            | Asset suffix | Host platform |
+            | --- | --- |
+            | `-win32-x64.vsix` | Windows x64 |
+            | `-win32-arm64.vsix` | Windows on ARM |
+            | `-linux-x64.vsix` | Linux x64 (glibc) |
+            | `-linux-arm64.vsix` | Linux ARM64 (glibc) |
+            | `-alpine-x64.vsix` | Alpine / musl x64 |
+            | `-alpine-arm64.vsix` | Alpine / musl ARM64 |
+            | `-darwin-x64.vsix` | macOS Intel |
+            | `-darwin-arm64.vsix` | macOS Apple silicon |
+
+            Install via either:
+
+            - **VS Code GUI** — Extensions view → `…` menu → **Install from VSIX…** → pick the downloaded file; or
+            - **Command line** — `code --install-extension <downloaded>.vsix`.
+
+            ### Universal `.vsix` (`isabelle-pide-vscode-${{ env.PKG_VERSION }}.vsix`)
+
+            For platforms not listed above (NixOS, *BSD, exotic CPU archs) or bring-your-own-Java setups. Requires **Java 21+** on `PATH`.
 
             ### Runtime prerequisites
 
-            - **Java 21+** on `PATH` (needed by the bundled Isabelle/Scala backend).
-            - **Isabelle 2019 or newer** with `isabelle` on `PATH` (or set `isabelle.executablePath`) if you want to use build, language-server, sledgehammer, or any feature that talks to Isabelle.
+            - **Java 21+** on `PATH` — only required by the universal `.vsix`. Per-platform builds bundle Eclipse Temurin 21 under `extension/jre/`.
+            - **Isabelle 2019 or newer** with `isabelle` on `PATH` (or set `isabelle.executablePath`) for build / language-server / sledgehammer features. The extension still activates without it; basic syntax features work, and a Setup Walkthrough surfaces any missing piece.
 
-            See the [README](https://github.com/${{ github.repository }}#installation) for the full installation guide.
+            See the [README](https://github.com/${{ github.repository }}#installation) and [`THIRD_PARTY_NOTICES.md`](https://github.com/${{ github.repository }}/blob/main/THIRD_PARTY_NOTICES.md) for full installation guidance and the bundled-JRE license summary.
 
       - name: Publish to VS Code Marketplace
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != ''
-        env:
-          VSIX: ${{ steps.rename.outputs.vsix_path }}
         run: |
           set -e
-          echo "Publishing $VSIX to the VS Code Marketplace..."
-          npx --yes @vscode/vsce@^3.9.1 publish --packagePath "$VSIX" --pat "$VSCE_PAT"
+          shopt -s nullglob
+          published=0
+          for vsix in staged/*.vsix; do
+            echo "Publishing $vsix to the VS Code Marketplace..."
+            # vsce auto-detects the targetPlatform from the VSIX manifest;
+            # we don't need to repeat --target here.
+            npx --yes @vscode/vsce@^3.9.1 publish --packagePath "$vsix" --pat "$VSCE_PAT"
+            published=$((published + 1))
+          done
+          if [ "$published" -eq 0 ]; then
+            echo "::error::No VSIX files staged for publish — refusing to claim a successful Marketplace push."
+            exit 1
+          fi
+          echo "Published $published VSIX file(s) to the Marketplace."
 
       - name: Note Marketplace publish skipped
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT == ''

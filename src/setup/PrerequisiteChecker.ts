@@ -72,6 +72,17 @@ export interface PrerequisiteCheckerDependencies {
   readonly walkthroughId: string;
   /** Spawn timeout for `java -version` / `isabelle version`. Default 5 s. */
   readonly checkTimeoutMs?: number;
+  /**
+   * Java command to probe. Defaults to `"java"`. Per-platform `.vsix`
+   * builds bundle an Eclipse Temurin 21 JRE and inject the absolute path
+   * to `extension/jre/bin/java[.exe]` (or
+   * `extension/jre/Contents/Home/bin/java` on macOS) here. If the probe
+   * against this candidate fails AND the candidate differs from `"java"`,
+   * {@link PrerequisiteChecker.runCheck} retries with the literal `"java"`
+   * so universal-VSIX users still surface the existing "Install Java"
+   * toast when a bundled candidate is broken.
+   */
+  readonly javaCommand?: string;
 }
 
 export interface PrerequisiteState {
@@ -83,6 +94,13 @@ export interface PrerequisiteState {
    * "Java not installed" from "Java too old".
    */
   readonly java: boolean;
+  /**
+   * The java command that actually answered `-version`. Will equal
+   * {@link PrerequisiteCheckerDependencies.javaCommand} when the bundled
+   * candidate worked, or `"java"` when the checker fell back to PATH.
+   * `undefined` when no probe succeeded.
+   */
+  readonly javaCommand?: string;
   /** Raw first line of `java -version` output when the spawn succeeded. */
   readonly javaVersion?: string;
   /** Parsed major version (e.g. `21`) when extractable. */
@@ -130,13 +148,35 @@ export class PrerequisiteChecker {
     }
     const timeoutMs = this.deps.checkTimeoutMs ?? 5000;
     const isabelleExecutable = this.deps.ui.getConfig<string>(EXECUTABLE_PATH_SETTING, "isabelle");
+    const primaryJavaCommand = this.deps.javaCommand ?? "java";
 
-    const [javaResult, isabelleResult] = await Promise.all([
-      this.safeSpawn({ command: "java", args: ["-version"], timeoutMs }),
+    const [primaryJavaResult, isabelleResult] = await Promise.all([
+      this.safeSpawn({ command: primaryJavaCommand, args: ["-version"], timeoutMs }),
       this.safeSpawn(
         spawnIsabelleVersion(isabelleExecutable, this.deps.autoDetect.platform, timeoutMs)
       )
     ]);
+
+    // If a bundled JRE was injected but its probe failed (spawn error or
+    // non-zero exit) we retry with PATH `"java"` so the existing onboarding
+    // toast still appears for users who installed a corrupt platform VSIX
+    // but DO have a working system Java. Universal-VSIX users skip this
+    // retry: their injected javaCommand was already `"java"`.
+    const primaryProbeOk = !primaryJavaResult.spawnFailed && primaryJavaResult.exitCode === 0;
+    const shouldRetryWithPath = !primaryProbeOk && primaryJavaCommand !== "java";
+
+    let javaCommand = primaryJavaCommand;
+    let javaResult = primaryJavaResult;
+    if (shouldRetryWithPath) {
+      this.deps.logger.log(
+        `Bundled Java probe at ${primaryJavaCommand} failed (spawnFailed=${primaryJavaResult.spawnFailed} exit=${primaryJavaResult.exitCode}); falling back to PATH java.`
+      );
+      const pathProbe = await this.safeSpawn({ command: "java", args: ["-version"], timeoutMs });
+      if (!pathProbe.spawnFailed && pathProbe.exitCode === 0) {
+        javaCommand = "java";
+        javaResult = pathProbe;
+      }
+    }
 
     const javaPresent = !javaResult.spawnFailed && javaResult.exitCode === 0;
     const javaVersionLine = javaPresent
@@ -156,6 +196,7 @@ export class PrerequisiteChecker {
 
     const state: PrerequisiteState = {
       java: javaOk,
+      javaCommand: javaPresent ? javaCommand : undefined,
       javaVersion: javaVersionLine,
       javaVersionMajor,
       javaTooOld: javaTooOld || undefined,
@@ -168,9 +209,9 @@ export class PrerequisiteChecker {
     this.deps.logger.log(
       `Prerequisite check: java=${
         javaOk
-          ? `ok (${javaVersionMajor})`
+          ? `ok (${javaVersionMajor}) via ${javaCommand}`
           : javaTooOld
-            ? `too-old (${javaVersionMajor ?? "?"})`
+            ? `too-old (${javaVersionMajor ?? "?"}) via ${javaCommand}`
             : "missing"
       } isabelle=${isabelleOk ? "ok" : "missing"}${
         detectedIsabelle ? ` autodetect=${detectedIsabelle.path}` : ""
