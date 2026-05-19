@@ -253,59 +253,71 @@ values for the bumping procedure.
 
 ### Code work that could land in future PRs
 
-- **Scala backend real `PideBridge` implementation.** The
-  largest open track. Multi-PR work. Status as of this checkpoint:
-  - **Phase 0** ✅ (PR #72) — backend now compiles + tests under
-    Scala 3.3.4 matching Isabelle's bundled Scala.
-  - **Phase 1** ✅ (PR #74) — runtime classpath bridge wired. The
-    backend resolves `<ISABELLE_HOME>` from env / `isabelle.executablePath` /
-    platform defaults, constructs a child `URLClassLoader` from
-    `<home>/lib/classes/isabelle.jar` + the matching
-    `<home>/contrib/scala-*/lib/*.jar`, and reflectively loads
-    `isabelle.Isabelle_System$.MODULE$` as a proof of life. New
-    JSON-RPC method `isabelle/pideVersion` + new VS Code command
-    `Isabelle: Show PIDE Backend Status` surface the bridge readiness
-    to users with structured failure reasons. **License contract**:
-    we never bundle any `isabelle.*` jar in our `.vsix` or fat jar;
+- **Scala backend real `PideBridge` implementation.** ✅ **COMPLETE**
+  (PRs #72 / #74 / #75 / #76 / #77 / #78 / #79 / #80 / #81 / #82).
+  - **Phase 0** ✅ (PR #72) — backend compiles + tests under Scala
+    3.3.4 matching Isabelle's bundled Scala.
+  - **Phase 1** ✅ (PR #74) — runtime classpath bridge: backend
+    resolves `<ISABELLE_HOME>`, builds a child `URLClassLoader` from
+    `<home>/lib/classes/isabelle.jar` + `<home>/contrib/scala-*/lib/*.jar`,
+    reflectively loads `isabelle.Isabelle_System$.MODULE$`. New
+    JSON-RPC `isabelle/pideVersion` + command
+    `Isabelle: Show PIDE Backend Status`. License contract:
     `backend/scripts/check-license.js` runs as part of
-    `npm run backend:package` and fails the build if violated. See
-    `THIRD_PARTY_NOTICES.md` and `AGENTS.md` §11 for the runtime
-    contract.
-  - **Phase 2a** ✅ (this PR) — PIDE document submission wired via
-    `Headless.Session.use_theories(...)`. New JSON-RPC method
-    `document/checkWithPide` (lazy-builds + caches a long-lived
-    `Headless.Session` per `(home, session, isabelle.jar fingerprint)`
-    tuple), `pide/cancelWarmup` (best-effort cancel between
-    bootstrap steps; full cancel of in-flight `use_theories`
-    arrives in 2b), classpath extended from 57 to 212 jars to
-    include `contrib/*/lib/*.jar` (isabelle_setup, jsoup, sqlite,
-    xz, zstd, …) so `setup.Environment.init` can locate its
-    dependencies. New `Isabelle: Show PIDE Document Status`
-    command wraps the call with `vscode.window.withProgress({
-    location: Notification, cancellable: true })`, runs the
-    4-step session cascade (active-setting → single-ROOT
-    auto-select → multi-ROOT QuickPick → HOL fallback with
-    one-time warning), and emits a deep-linked OOM toast when
-    `isabelle.backend.maxHeapMb` needs bumping. Symbol round-trip
-    via reflective `isabelle.Symbol.encode/decode` so editor
-    Unicode (`λ`) reaches Isabelle as `\<lambda>` (without it,
-    every submission hits "undefined symbol" errors).
-    `BackendManager.spawn` threads three env vars
-    (`ISABELLE_HOME`, `ISABELLE_ROOT`, `CYGWIN_ROOT` on Windows)
-    plus `BACKEND_SCRATCH_DIR` from
-    `context.globalStorageUri.fsPath`, and passes `-Xmx<N>m` only
-    when the new `isabelle.backend.maxHeapMb` setting is positive
-    (default `0` = JVM ergonomics). License contract preserved
-    (0 `isabelle/` entries in fat jar). See `AGENTS.md` §12 for
-    the lifecycle + bootstrap-order gotchas the spike surfaced.
-  - **Phase 2b/2c/2d** ⏳ — async + structured cancellation of
-    `use_theories` itself (2b); classloader fingerprint cache
-    invalidation polish (2c); 2d remains a free polish slot.
-  - Would still unblock:
-    - Milestone 7 minimization (since the LSP doesn't expose it).
-    - Live PIDE-backed proof state / Sledgehammer for users
-      WITHOUT the LSP relay (today they get the local-syntax
-      placeholders + backend boundary disclaimers).
+    `npm run backend:package`, fails on any `isabelle.*` class in the
+    fat jar. See `THIRD_PARTY_NOTICES.md` + `AGENTS.md` §11.
+  - **Phase 2a** ✅ (PR #75) — PIDE document submission via
+    `Headless.Session.use_theories(...)`. New JSON-RPC
+    `document/checkWithPide` + `pide/cancelWarmup`. Long-lived Session
+    cached per `(home, session, isabelle.jar fingerprint)`. 4-step
+    session cascade + scratch directory via `globalStorageUri` +
+    Symbol round-trip. See `AGENTS.md` §12.
+  - **Phase 2b** ✅ (PRs #76 + #78 polish) — in-flight `use_theories`
+    cancellation via `Session.stop()` teardown on a background
+    executor + atomic `inflightFacade.getAndSet(None)` idempotence.
+    Trade-off documented in `AGENTS.md` §13 (upgrade path Option D
+    with `isabelle.jar % Provided` if real-world cancellation use
+    becomes painful).
+  - **Phase 2c** ✅ (PR #77) — PIDE cache diagnostics + prewarm
+    wiring. New `pide/warmup`, `pide/cacheState`, `pide/invalidateCache`
+    JSON-RPC + `Isabelle: Show PIDE Document Status` /
+    `Isabelle: Invalidate PIDE Cache` commands. `isabelle.pide.prewarmOnActivation`
+    setting now drives an eager warmup.
+  - **Phase 3a** ✅ (PR #79) — snapshot extraction infrastructure:
+    `SnapshotCache` per-(uri, version, session) LRU-16, pure
+    `OffsetToPosition` arithmetic, reflective walk of
+    `snapshot.node.commands.toList` to identify the cursor's command.
+    New JSON-RPC `proofState/getWithPide` + command
+    `Isabelle: Show PIDE Proof State at Cursor`.
+  - **Phase 3b** ✅ (PR #80) — real prover output via reflective
+    `snapshot.messages` (same primitive `isabelle dump`'s `messages`
+    aspect uses). Flattens `XML.content(tree)` per entry. Real Unicode
+    (`∧`, `⟹`, `⇒`) preserved end-to-end. Per-command range filter
+    via `Text.Range` + `snapshot.cumulate` deferred to optional 3c.
+    See `AGENTS.md` §14.
+  - **Phase 4** ✅ (PR #81) — PIDE-backed Sledgehammer via
+    source-injection. `SledgehammerSourceInjector` mutates the source
+    to insert a `sledgehammer` command at the cursor, re-submits via
+    `use_theories`, harvests "Try this:" output via Phase 3b's
+    `snapshot.messages` walker, parses via `SledgehammerSuggestionParser`.
+    Returns structured `SledgehammerRunResult` to the existing
+    `SledgehammerPanel`. Cancellation reuses Phase 2b teardown. See
+    `AGENTS.md` §15.
+  - **Phase 5** ✅ (PR #82) — Sledgehammer minimization (closes M7
+    upstream-blocked item below). Extends Phase 4's injector with
+    `Options.{params, onlyFacts, addFacts, delFacts}` to support
+    `sledgehammer [minimize=true, preplay_timeout=10] (fact1 fact2 ...)`.
+    New TS command `Isabelle: Minimize Sledgehammer Proof at Cursor`
+    parses the line at the cursor (`by (metis foo bar)` / `using ... by`
+    / `apply (...)`) and dispatches with the extracted fact list. See
+    `AGENTS.md` §16.
+  - **Optional follow-ups** (not committed to):
+    - **Phase 3c** — range-filtered `snapshot.messages` if users find
+      Phase 3b's "whole-file context" too broad.
+    - **Phase 5b** — direct `Sledgehammer_Minimize.run` reflection if
+      `preplay_timeout=10` proves insufficient.
+    - **Phase 2d** — free polish slot, e.g. multi-session cache if
+      `prewarmOnActivation` needs it.
 - **Decoration overlays from
   `PIDE/dynamic_output.decorations`.** Upstream sends optional
   decoration data alongside the dynamic-output content; mapping
@@ -324,7 +336,14 @@ values for the bumping procedure.
 ### Upstream-blocked (Isabelle changes required)
 
 - Milestone 5 `textDocument/documentSymbol` merge.
-- Milestone 7 Sledgehammer minimization at the LSP level.
+- ~~Milestone 7 Sledgehammer minimization at the LSP level.~~ **Resolved
+  via the Headless backend route, not via the LSP.** PR #82 ships
+  `Isabelle: Minimize Sledgehammer Proof at Cursor` over the PIDE
+  bridge — `isabelle vscode_server` still has no
+  `PIDE/sledgehammer_minimize_request` notification, but the Scala
+  backend's `PideBridge` now invokes Sledgehammer with
+  `minimize=true` + `onlyFacts: [...]` reflectively. See
+  `AGENTS.md` §16.
 
 ### Tier-2 manual verifications (need a live Isabelle install)
 
