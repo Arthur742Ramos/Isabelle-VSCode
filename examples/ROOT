@@ -8,8 +8,10 @@
          (or include it in a multi-root workspace).
       2. Click the **Isabelle: no active session** status-bar item
          and pick `Isabelle_VSCode_Smoke`.
-      3. Run `Isabelle: Build Active Session` to confirm the
-         end-to-end build pipeline works.
+      3. Run Sledgehammer on the intentional `sorry` in Smoke.thy,
+         insert a suggested proof, then run
+         `Isabelle: Build Active Session` to confirm the end-to-end
+         build pipeline works.
       4. Walk through `docs/SMOKE_THEORY_CHECKLIST.md` against the
          opened `Smoke.thy` to verify every Tier-2 capability —
          both LSP-mode features (when the Isabelle language server

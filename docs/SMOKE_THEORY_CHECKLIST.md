@@ -30,6 +30,35 @@ If all nine steps work cleanly, the alpha is healthy enough to share.
 
 > **If anything fails:** run `Isabelle: Explain Current Mode` first. It is the single most efficient way to identify whether the cause is a missing prerequisite, an LSP that never started, a deliberately disabled language server, or a stale auto-start failure key. Most "the extension doesn't work" reports turn out to be one of those four.
 
+## Release-candidate smoke record
+
+Do not push a `v*` release tag until this table has real evidence for the candidate build. A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
+
+For `v0.1.0-alpha.5`, the intended minimum release rule is:
+
+- Windows x64: quick dogfood transcript passed.
+- Linux x64: quick dogfood transcript passed.
+- macOS arm64: quick dogfood transcript passed if a machine is available; otherwise record the gap explicitly before deciding whether to tag.
+
+| Platform | Candidate asset | Result | Evidence / issue |
+| --- | --- | --- | --- |
+| Windows x64 | `isabelle-pide-vscode-0.1.0-alpha.5-win32-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+| Linux x64 | `isabelle-pide-vscode-0.1.0-alpha.5-linux-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+| macOS arm64 | `isabelle-pide-vscode-0.1.0-alpha.5-darwin-arm64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+
+Known issues for the candidate:
+
+- Pending: no platform has recorded the VS Code-hosted smoke transcript for `v0.1.0-alpha.5` yet.
+- Pending: walkthrough screenshots are tracked separately in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93).
+
+Optional local sanity check:
+
+```powershell
+isabelle build -o quick_and_dirty -D <absolute-path-to-repo>\examples
+```
+
+Use an absolute path on Windows so Isabelle's Cygwin layer does not resolve `examples` relative to `/home/<user>`. The `quick_and_dirty` option is required because `Smoke.thy` intentionally contains a `sorry` until the Sledgehammer insertion step replaces it. Passing this command only proves the bundled session and ROOT file load; it does **not** satisfy the release-candidate smoke record above.
+
 ## Capability-by-capability checklist
 
 Tick each box as you verify. Open an issue with the `manual-verification` label if any step regresses.
