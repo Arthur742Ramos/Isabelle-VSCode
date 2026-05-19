@@ -1,0 +1,30 @@
+(*  Isabelle session definition for the smoke-test theory bundled
+    with the Isabelle PIDE VS Code extension.
+
+    This makes `examples/Smoke.thy` discoverable as a real Isabelle
+    session, so a contributor can:
+
+      1. Open the `examples/` directory as a VS Code workspace folder
+         (or include it in a multi-root workspace).
+      2. Click the **Isabelle: no active session** status-bar item
+         and pick `Isabelle_VSCode_Smoke`.
+      3. Run `Isabelle: Build Active Session` to confirm the
+         end-to-end build pipeline works.
+      4. Walk through `docs/SMOKE_THEORY_CHECKLIST.md` against the
+         opened `Smoke.thy` to verify every Tier-2 LSP-mode
+         capability.
+
+    The session name is intentionally underscore-separated and
+    repo-prefixed so it does not collide with any session a user
+    might already have in a parent workspace folder.
+
+    See also:
+      - `docs/SMOKE_THEORY_CHECKLIST.md` for the full manual
+        verification walkthrough.
+      - `docs/ROADMAP_STATUS.md` "Beta readiness" for the
+        predicates this checklist gates. *)
+
+session Isabelle_VSCode_Smoke = HOL +
+  description "Smoke theory for the Isabelle PIDE VS Code extension end-to-end wiring."
+  theories
+    Smoke

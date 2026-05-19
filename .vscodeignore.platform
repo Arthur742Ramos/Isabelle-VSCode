@@ -29,3 +29,4 @@ vitest.config.ts
 out/**/*.map
 out/test/**
 .vscodeignore.platform
+media/screenshots/README.md

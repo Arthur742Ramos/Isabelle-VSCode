@@ -65,6 +65,34 @@ describe("parseRootFile", () => {
 
     expect(sessions.map((session) => session.name)).toEqual(["Visible"]);
   });
+
+  it("parses the bundled examples/ROOT smoke session", () => {
+    // Pin the layout of `examples/ROOT` so a future drift (e.g. switching
+    // the description to a `\<open>...\<close>` cartouche containing the
+    // word `session`) cannot silently break smoke-checklist discovery.
+    const sessions = parseRootFile(
+      `
+      session Isabelle_VSCode_Smoke = HOL +
+        description "Smoke theory for the Isabelle PIDE VS Code extension end-to-end wiring."
+        theories
+          Smoke
+      `,
+      "C:\\work\\examples"
+    );
+
+    expect(sessions).toEqual([
+      {
+        name: "Isabelle_VSCode_Smoke",
+        parent: "HOL",
+        rootDirectory: "C:\\work\\examples",
+        sessionDirectory: "C:\\work\\examples",
+        theories: [{ name: "Smoke" }],
+        importedSessions: [],
+        directories: [],
+        documentFiles: []
+      }
+    ]);
+  });
 });
 
 describe("parseRootsFile", () => {

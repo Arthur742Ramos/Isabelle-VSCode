@@ -4,7 +4,7 @@ This file is read by GitHub Copilot (Chat, Coding Agent, code completion). It's 
 
 ## Repo summary
 
-VS Code extension for Isabelle/PIDE. TypeScript front-end (`src/`, `test/`) bundled with esbuild; Scala 2.13 backend (`backend/`) packaged as a fat jar via `sbt assembly`. Activation point is `src/extension.ts::activate`.
+VS Code extension for Isabelle/PIDE. TypeScript front-end (`src/`, `test/`) bundled with esbuild; Scala 3.3.4 backend (`backend/`) packaged as a fat jar via `sbt assembly`. Activation point is `src/extension.ts::activate`. Scala version is pinned to match Isabelle 2025-2's bundled PIDE (AGENTS.md §11).
 
 ## Must-run commands
 
