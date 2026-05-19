@@ -58,10 +58,13 @@ import {
   DiscoverSessionsResult,
   HealthParams,
   HealthResult,
+  PideVersionParams,
+  PideVersionResult,
   ProtocolPosition,
   VersionParams,
   VersionResult
 } from "./protocol/messages";
+import { formatPideBackendStatus } from "./backend/showPideBackendStatus";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { ManualPasteBackRepairAiProvider } from "./repair/ManualPasteBackRepairAiProvider";
 import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
@@ -282,6 +285,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.workspace.registerTextDocumentContentProvider(REPAIR_PREVIEW_SCHEME, repairPreviewProvider),
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
+    vscode.commands.registerCommand("isabelle.showPideBackendStatus", async () => showPideBackendStatus(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
@@ -800,6 +804,40 @@ async function checkBackendHealth(output: vscode.OutputChannel): Promise<void> {
     vscode.window.showInformationMessage(formatIsabelleHealth(result));
   } catch (error) {
     showBackendError("Unable to check Isabelle backend health", error, output);
+  }
+}
+
+async function showPideBackendStatus(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const client = requireBackendManager().getClient();
+    const result = await client.request<PideVersionResult, PideVersionParams>(
+      "isabelle/pideVersion",
+      { isabelleExecutablePath: getIsabelleExecutablePath() }
+    );
+
+    const formatted = formatPideBackendStatus(result);
+    output.appendLine("--- PIDE backend status ---");
+    output.appendLine(`bridge: ${result.bridge}`);
+    output.appendLine(`version: ${result.version || "(unavailable)"}`);
+    if (result.isabelleHome) {
+      output.appendLine(`isabelleHome: ${result.isabelleHome}`);
+    }
+    output.appendLine(`source: ${result.source}`);
+    output.appendLine(`classloaderReady: ${result.classloaderReady}`);
+    output.appendLine(`proofOfLife: ${result.proofOfLife}`);
+    if (result.reason) {
+      output.appendLine(`reason: ${result.reason}`);
+    }
+    output.appendLine(`message: ${result.message}`);
+
+    const fullMessage = `${formatted.title}\n${formatted.detail}`;
+    if (formatted.severity === "info") {
+      vscode.window.showInformationMessage(fullMessage);
+    } else {
+      vscode.window.showWarningMessage(fullMessage);
+    }
+  } catch (error) {
+    showBackendError("Unable to check Isabelle/PIDE backend status", error, output);
   }
 }
 

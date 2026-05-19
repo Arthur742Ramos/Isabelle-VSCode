@@ -37,6 +37,7 @@
     "onLanguage:isabelle",
     "onCommand:isabelle.showVersion",
     "onCommand:isabelle.checkBackendHealth",
+    "onCommand:isabelle.showPideBackendStatus",
     "onCommand:isabelle.discoverSessions",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
@@ -114,6 +115,10 @@
       {
         "command": "isabelle.checkBackendHealth",
         "title": "Isabelle: Check Backend Health"
+      },
+      {
+        "command": "isabelle.showPideBackendStatus",
+        "title": "Isabelle: Show PIDE Backend Status"
       },
       {
         "command": "isabelle.discoverSessions",
@@ -688,7 +693,7 @@
     "install:extension": "npm run package && code --install-extension isabelle-pide-vscode.vsix --force",
     "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
     "backend:test": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true test",
-    "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true assembly && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
+    "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true assembly && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\" && node backend/scripts/check-license.js",
     "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
   },
   "dependencies": {

@@ -43,3 +43,26 @@ The exception text is included in the bundled `legal/` directory.
 [`package.json`](package.json) ship under their own (MIT-compatible)
 licenses; their notices are bundled inline in the esbuild artifact under
 `extension/out/extension.js`.
+
+## Isabelle/PIDE runtime classpath bridge
+
+Phase 1 of the multi-PR PIDE backend integration wires a runtime
+classpath bridge that loads classes from the user's locally-installed
+Isabelle distribution (`<ISABELLE_HOME>/lib/classes/isabelle.jar` plus
+the bundled Scala runtime under `<ISABELLE_HOME>/contrib/scala-*/lib/`).
+
+**We do NOT bundle any of these jars in our `.vsix` or backend fat jar.**
+The license guard at `backend/scripts/check-license.js` runs as part of
+`npm run backend:package` and fails the build if any class under the
+`isabelle/` top-level package is found inside
+`backend/dist/isabelle-vscode-server.jar`. Only the user's own Isabelle
+install contributes those classes, at runtime, through a child
+`URLClassLoader` that our backend builds on demand and closes after each
+diagnostic call.
+
+This keeps the extension's own redistribution scope unchanged: the
+Marketplace-published `.vsix` is MIT (extension code) +
+GPL-2.0-with-classpath-exception (bundled Temurin in per-platform
+flavors) only. Anything the user pulls in via their Isabelle install
+stays inside that install and inherits Isabelle's BSD-style licensing
+locally.

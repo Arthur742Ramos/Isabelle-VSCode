@@ -53,6 +53,9 @@ object Main {
           "raw" -> version.raw
         ))
 
+      case "isabelle/pideVersion" =>
+        Protocol.success(request.id, PideVersionHandler.handleWithSystemEnv(request.params))
+
       case "session/discover" =>
         val params = request.params.flatMap(_.objOpt)
         val workspaceFolders = params.flatMap(_.get("workspaceFolders"))

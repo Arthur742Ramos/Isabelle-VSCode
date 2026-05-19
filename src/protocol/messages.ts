@@ -3,6 +3,7 @@ export const PROTOCOL_VERSION = 1;
 export type ServerMethod =
   | "server/health"
   | "isabelle/version"
+  | "isabelle/pideVersion"
   | "session/discover"
   | "document/openTheory"
   | "document/update"
@@ -58,6 +59,45 @@ export interface VersionResult {
   executablePath: string;
   version: string;
   raw: string;
+}
+
+/**
+ * Phase 1 PIDE classpath bridge diagnostic. Returned by the
+ * `isabelle/pideVersion` JSON-RPC method. The shape mirrors the
+ * Scala-side `PideRuntimeStatus` case class. The `version` string is
+ * the displayed Isabelle release (or `""` when unavailable); the
+ * `bridge` / `source` / `proofOfLife` / `reason` fields surface the
+ * full diagnostic for the `Isabelle: Show PIDE Backend Status` UX.
+ */
+export interface PideVersionParams {
+  isabelleExecutablePath?: string;
+}
+
+export type PideBridgeKind = "pide-enabled" | "local-syntax";
+
+export type PideVersionSource =
+  | "isabelle_system-module"
+  | "etc-identifier-file"
+  | "unavailable";
+
+export type PideProofOfLife = "module-loaded" | "class-only" | "none";
+
+export type PideVersionReason =
+  | "home-not-found"
+  | "isabelle-jar-missing"
+  | "scala-runtime-missing"
+  | "class-load-failed"
+  | "module-init-failed";
+
+export interface PideVersionResult {
+  bridge: PideBridgeKind;
+  version: string;
+  isabelleHome?: string;
+  source: PideVersionSource;
+  classloaderReady: boolean;
+  proofOfLife: PideProofOfLife;
+  reason?: PideVersionReason;
+  message: string;
 }
 
 export interface DiscoverSessionsParams {
