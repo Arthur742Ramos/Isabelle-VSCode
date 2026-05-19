@@ -59,6 +59,14 @@ After `git clone`, run `npm install` once. You're ready to edit anything in `src
 
 If you don't have Tier 2 installed, you can still do meaningful work — see the validation matrix below.
 
+If `code` is missing, check for Code Insiders before installing anything. On
+Windows the CLI often exists at
+`%LOCALAPPDATA%\Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd` even
+when stable VS Code is not on `PATH`. `npm run test:integration` does not need
+that CLI because `@vscode/test-electron` downloads the pinned test build, but a
+local VSIX install smoke can call `code-insiders.cmd --install-extension <vsix>
+--force` directly. See `skills/use-vs-code-cli.md` for the full playbook.
+
 ---
 
 ## Command cheatsheet
@@ -464,6 +472,35 @@ The trade-off:
 
 If you re-add it: the entry pattern lives in `.github/workflows/release.yml` under `build-platform.strategy.matrix.include`. Keep `runner: macos-13` (last Intel-supporting label) and set `native_smoke: true`. Verify with a `workflow_dispatch` run BEFORE tagging. Don't forget to re-add the row to the README install table, the release-notes asset table inside `release.yml`'s `publish` job, and remove the macOS-Intel callout from the release notes body.
 
+### 18. VS Code CLI vs Code Insiders in agent worktrees
+
+Do not stop at "`code` is not recognized" when validating hosted tests or local
+VSIX installs. Agent worktrees on Windows may have **Code Insiders** installed
+without the stable `code` shim. Check these candidates first:
+
+```powershell
+$codeCli = @(
+  "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+  "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+  "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd",
+  "$env:LOCALAPPDATA\Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd",
+  "$env:ProgramFiles\Microsoft VS Code Insiders\bin\code-insiders.cmd"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+```
+
+Notes:
+
+- `npm run test:integration` uses `@vscode/test-electron` and downloads the
+  pinned VS Code test build into `.vscode-test/`; it does not require `code` or
+  `code-insiders` on PATH. Windows may print an `EPERM` best-effort temp cleanup
+  warning after the Mocha tests pass; trust the process exit code.
+- `npm run install:extension` hard-codes `code`, so if only Insiders exists,
+  package manually with `npx vsce package --no-dependencies --out <tmp>.vsix`
+  and install with `& $codeCli --install-extension <tmp>.vsix --force`.
+- A Code CLI install smoke proves packaging + installation only. It does not
+  replace `docs/SMOKE_THEORY_CHECKLIST.md`, which still owns live Isabelle UI
+  behavior.
+
 ---
 
 ## When opening a PR
@@ -499,6 +536,7 @@ If you find yourself wanting to add live theorem proving or AI repair-applicatio
 Workflow-specific playbooks that any agent (Claude Code, GitHub Copilot, Cursor, Aider, codex, …) can read on demand. Each file is markdown with optional YAML frontmatter — no tooling required.
 
 - **`skills/prepare-release.md`** — cut a new versioned release (bump, tag, push, watch the Release workflow).
+- **`skills/use-vs-code-cli.md`** — find stable `code` / Code Insiders, run hosted integration tests, and install-smoke a VSIX when `code` is missing.
 - **`skills/add-vs-code-command.md`** — register a new `Isabelle:` command in the palette, wire the handler, and add a structural test.
 - **`skills/address-pr-review-comments.md`** — fetch unresolved threads, reply, and resolve via GraphQL (includes the Windows `gh api` direct-call fallback for Git Bash path mangling).
 

@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-19 (release hardening for `v0.1.0-alpha.5`: package version is bumped, but the tag is blocked on the cross-platform Smoke transcript tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) and walkthrough screenshots tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
+> Last refreshed: 2026-05-19 (post-`v0.1.0-alpha.5` hardening: the release is published, and follow-up smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) while walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -413,12 +413,12 @@ Documented per checkbox in `PIDE_INTEGRATION.md`:
   provider authoring contract, bundled `manual-paste-back`
   walkthrough, third-party extension-API example.
 
-## Alpha.5 release hardening
+## Post-alpha.5 release hardening
 
-`package.json` is already at `0.1.0-alpha.5`, but that does **not** mean the
-release is cut. The `v0.1.0-alpha.5` tag should wait until the release smoke
-record in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md) has real
-VS Code-hosted evidence for the candidate assets.
+`v0.1.0-alpha.5` has been cut and the Release workflow produced the universal
+VSIX plus seven per-platform assets. The remaining hardening work is to dogfood
+those assets and keep the smoke checklist as the gate for the next alpha/beta
+tag.
 
 Current blockers / trackers:
 
@@ -431,13 +431,13 @@ Current blockers / trackers:
 - [#89](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/89) — track the
   remaining upstream `textDocument/documentSymbol` gap.
 
-Automation that is useful but not sufficient for the tag:
+Automation that is useful but not sufficient for the next tag:
 
 - `npm run check`
 - `npm run package:validate`
 - `npm run test:integration` when a VS Code executable is available
-- `isabelle build -D examples` as a headless sanity check for the bundled
-  `Smoke.thy` session
+- `isabelle build -o quick_and_dirty -D <absolute examples path>` as a headless
+  sanity check for the bundled `Smoke.thy` session
 
 Only the Smoke checklist exercises the full release promise: activation, LSP
 notifications, panels, Sledgehammer, preview, and Headless `PideBridge` commands

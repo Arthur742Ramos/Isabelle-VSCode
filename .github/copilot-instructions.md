@@ -19,6 +19,13 @@ VS Code extension for Isabelle/PIDE. TypeScript front-end (`src/`, `test/`) bund
 
 CI runs two parallel jobs: `validate` (`npm run check` + `npm audit --audit-level=moderate` + `npm run backend:compile`) and `integration-tests` (`xvfb-run npm run test:integration` on ubuntu-latest).
 
+If `code` is missing locally, check for Code Insiders before installing VS Code:
+on Windows it is often at `%LOCALAPPDATA%\Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd`.
+`npm run test:integration` uses `@vscode/test-electron` and does not need `code`
+on PATH; for install smokes with Insiders, package with `npx vsce package` and
+call `code-insiders.cmd --install-extension <vsix> --force` directly. See
+`skills/use-vs-code-cli.md`.
+
 ## Key conventions
 
 - **TS strict mode**. No `any` without justification; no `// @ts-ignore` without comment.
@@ -38,5 +45,6 @@ CI runs two parallel jobs: `validate` (`npm run check` + `npm audit --audit-leve
 - **Workflow-scope OAuth**: pushes that touch `.github/workflows/*.yml` need the `workflow` OAuth scope. If your push is rejected, run `gh auth refresh -h github.com -s workflow` (or, in Copilot CLI, clear `GH_TOKEN` so git falls back to the keyring credential). See `AGENTS.md` for the full table.
 - **Fat-jar required**: `sbt package` produces a thin jar that won't run via `java -jar`. Always use `sbt assembly` — the `backend:package` script already does.
 - **`.vscodeignore` excludes `node_modules`** on purpose: the bundle is the shipping artifact, and `vsce package --no-dependencies` matches. Don't add `node_modules` back.
+- **Code CLI fallback**: missing stable `code` does not block integration tests or install smokes if Code Insiders is installed. Use `skills/use-vs-code-cli.md`.
 
 See `AGENTS.md` for the full agent guide, architecture map, validation matrix, secrets/local-path policy, and contributor checklist. See `skills/` for per-workflow playbooks (release, adding commands, addressing review comments) that any agent can read on demand.

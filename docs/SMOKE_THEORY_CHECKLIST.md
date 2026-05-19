@@ -32,9 +32,9 @@ If all nine steps work cleanly, the alpha is healthy enough to share.
 
 ## Release-candidate smoke record
 
-Do not push a `v*` release tag until this table has real evidence for the candidate build. A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
+For future release candidates, do not push a `v*` release tag until this table has real evidence for the candidate build. A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
 
-For `v0.1.0-alpha.5`, the intended minimum release rule is:
+`v0.1.0-alpha.5` has already been published; use the table below to record post-release dogfood for those assets and to avoid repeating that gap on the next release. The intended minimum rule remains:
 
 - Windows x64: quick dogfood transcript passed.
 - Linux x64: quick dogfood transcript passed.

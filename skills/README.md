@@ -9,6 +9,7 @@ The files are **plain markdown with optional YAML frontmatter** so they're consu
 | Skill | When to use |
 |---|---|
 | [**prepare-release**](prepare-release.md) | Cutting a new versioned release — bump `package.json`, tag, push, verify GitHub Release + Marketplace publish. |
+| [**use-vs-code-cli**](use-vs-code-cli.md) | Finding stable `code` or `code-insiders`, running hosted integration tests, and install-smoking a generated VSIX when `code` is not on PATH. |
 | [**add-vs-code-command**](add-vs-code-command.md) | Adding a new entry to the `Isabelle:` command palette — `package.json` registration, activation events, handler wiring, tests. |
 | [**address-pr-review-comments**](address-pr-review-comments.md) | Responding to inline review threads — fetch unresolved threads, evaluate each on merits, fix, reply, resolve via GraphQL. Includes the Windows `gh api` direct-call fallback when the built-in helper script trips on Git Bash path mangling. |
 
