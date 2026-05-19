@@ -93,6 +93,93 @@ final class HeadlessFacade private (
   }
 
   /**
+   * Phase 3 variant: same submission as [[submitTheory]] but ALSO
+   * returns the raw `Use_Theories_Result` so the caller can call
+   * `result.snapshot(name)` reflectively. The snapshot is the
+   * gateway to per-command proof state.
+   *
+   * Cost is identical to [[submitTheory]] (same `use_theories`
+   * call); the caller can cache the result and reuse it for many
+   * cursor positions without re-submitting.
+   */
+  def submitTheoryWithRaw(
+    workspaceUri: String,
+    theoryName: String,
+    unicodeText: String,
+    scratchStore: ScratchTheoryStore
+  ): Either[String, (HeadlessFacade.SubmissionResult, AnyRef)] = {
+    val startedAt = System.currentTimeMillis()
+    val sanitizedName = ScratchTheoryStore.sanitizeTheoryName(theoryName)
+    val masterPath = try {
+      scratchStore.stage(workspaceUri, sanitizedName, unicodeText)
+    } catch {
+      case t: Throwable => return Left(s"Failed to stage theory text: ${describe(t)}")
+    }
+    val masterDir = Option(masterPath.getParent).map(_.toString).getOrElse("")
+    val isabellePath = HeadlessFacade.toIsabellePath(loader, masterDir).getOrElse(masterDir)
+
+    try {
+      val args = (1 to useTheoriesMethod.getParameterCount).map { idx =>
+        try {
+          val m = sessionClass.getMethod(s"use_theories$$default$$$idx")
+          m.invoke(sessionInstance)
+        } catch { case _: Throwable => null }
+      }.toArray
+      args(0) = HeadlessFacade.scalaListOf(loader, sanitizedName)
+      args(1) = "Draft"
+      args(2) = isabellePath
+      args(3) = java.lang.Boolean.TRUE
+
+      val raw = useTheoriesMethod.invoke(sessionInstance, args*)
+      HeadlessFacade.parseUseTheoriesResult(raw, symbolTranslator) match {
+        case Right(parsed) =>
+          val elapsed = System.currentTimeMillis() - startedAt
+          Right((parsed.copy(elapsedMs = elapsed), raw))
+        case Left(err) => Left(s"use_theories result parse failed: $err")
+      }
+    } catch {
+      case t: Throwable => Left(s"use_theories invocation failed: ${describe(t)}")
+    }
+  }
+
+  /**
+   * Reflectively extract the `Document.Snapshot` for `theoryName`
+   * from a raw `Use_Theories_Result`. Called by the snapshot cache
+   * after a successful [[submitTheoryWithRaw]].
+   */
+  def snapshotFor(rawResult: AnyRef, theoryName: String): Either[String, AnyRef] = {
+    try {
+      val cls = rawResult.getClass
+      // Find Document.Node.Name matching the theory name from the
+      // result's nodes list — the snapshot(name) method needs the
+      // exact Name instance the result was built with.
+      val nodesMethod = cls.getMethod("nodes")
+      val nodes = nodesMethod.invoke(rawResult).asInstanceOf[scala.collection.immutable.List[AnyRef]]
+      val target = ScratchTheoryStore.sanitizeTheoryName(theoryName)
+      val matchingName = nodes.iterator.flatMap { entry =>
+        try {
+          val t2 = entry.asInstanceOf[scala.Tuple2[AnyRef, AnyRef]]
+          val name = t2._1
+          val theoryStr = name.toString
+          if (theoryStr.endsWith("." + target) || theoryStr == target) Some(name) else None
+        } catch { case _: Throwable => None }
+      }.toSeq.headOption
+      matchingName match {
+        case None => Left(s"no node matching theory name '$target' in Use_Theories_Result")
+        case Some(name) =>
+          val snapshotMethod = cls.getMethods.find(m => m.getName == "snapshot" && m.getParameterCount == 1)
+            .getOrElse(return Left("Use_Theories_Result.snapshot(Name) not found"))
+          Right(snapshotMethod.invoke(rawResult, name))
+      }
+    } catch {
+      case t: Throwable => Left(s"snapshot extraction failed: ${describe(t)}")
+    }
+  }
+
+  /** Phase 3 helper — expose the loader to extractors. */
+  def reflectionLoader: ClassLoader = loader
+
+  /**
    * Shut down the underlying session and close the classloader.
    * Safe to call multiple times — second call is a no-op. Phase 2b:
    * marks the facade as shut down so [[HeadlessSessionRegistry]] can

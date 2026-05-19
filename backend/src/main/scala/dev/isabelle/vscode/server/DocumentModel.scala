@@ -33,6 +33,12 @@ final class DocumentStore(bridge: PideBridge = new LocalSyntaxPideBridge) {
   def peekText(uri: String): Option[String] =
     documents.get(uri).map(_.text)
 
+  /** Phase 3: peek at a synchronized document's version number.
+    * Used by `proofState/getWithPide` to derive the cache key when
+    * the caller did not supply an explicit version. */
+  def peekVersion(uri: String): Option[Int] =
+    documents.get(uri).map(_.version)
+
   def proofState(uri: String, line: Int, character: Int): ujson.Value =
     documents.get(uri) match {
       case None =>
