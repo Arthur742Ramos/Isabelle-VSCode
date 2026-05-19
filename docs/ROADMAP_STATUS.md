@@ -26,7 +26,7 @@ single page to read for "what is shipped, what is still open, why."
 | 7 Sledgehammer workflow | ✅ 7 of 7 — minimization shipped via Headless `PideBridge` (PR #82); LSP-side `PIDE/sledgehammer_minimize*` surface still upstream-blocked but no longer user-visible |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
-| Install UX — bundled per-platform JRE | ✅ 8 per-platform `.vsix` files (win32 / linux / alpine / darwin × x64 / arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback |
+| Install UX — bundled per-platform JRE | ✅ 7 per-platform `.vsix` files (win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback. macOS Intel (`darwin-x64`) was dropped from the matrix in v0.1.0-alpha.3 due to chronic `macos-13` runner-pool unavailability — see AGENTS.md §17. |
 
 Vitest baseline: **all green**. The exact case count drifts as the suite grows — read it from `npm run test` or the CI `validate` job log per release. (Per AGENTS.md gotcha #7, hard-coded test counts in docs go stale on the next PR, so we intentionally don't pin one here.)
 

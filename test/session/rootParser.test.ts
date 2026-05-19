@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseRootFile, parseRootsFile } from "../../src/session/rootParser";
 
@@ -67,31 +69,31 @@ describe("parseRootFile", () => {
   });
 
   it("parses the bundled examples/ROOT smoke session", () => {
-    // Pin the layout of `examples/ROOT` so a future drift (e.g. switching
-    // the description to a `\<open>...\<close>` cartouche containing the
-    // word `session`) cannot silently break smoke-checklist discovery.
-    const sessions = parseRootFile(
-      `
-      session Isabelle_VSCode_Smoke = HOL +
-        description "Smoke theory for the Isabelle PIDE VS Code extension end-to-end wiring."
-        theories
-          Smoke
-      `,
-      "C:\\work\\examples"
-    );
+    // Read the real `examples/ROOT` from disk so this test guards the
+    // file the smoke checklist actually depends on. A future edit that
+    // breaks parsability (e.g. switching the description to a
+    // `\<open>...\<close>` cartouche containing the word `session`,
+    // dropping the `Smoke` theory, or renaming the session) will fail
+    // here rather than silently breaking `Isabelle: Build Active Session`
+    // for the bundled smoke fixture. Use `toMatchObject` so harmless
+    // edits to the description string still pass.
+    const rootPath = path.resolve(__dirname, "..", "..", "examples", "ROOT");
+    const rootContent = fs.readFileSync(rootPath, "utf8");
+    const rootDirectory = path.dirname(rootPath);
 
-    expect(sessions).toEqual([
-      {
-        name: "Isabelle_VSCode_Smoke",
-        parent: "HOL",
-        rootDirectory: "C:\\work\\examples",
-        sessionDirectory: "C:\\work\\examples",
-        theories: [{ name: "Smoke" }],
-        importedSessions: [],
-        directories: [],
-        documentFiles: []
-      }
-    ]);
+    const sessions = parseRootFile(rootContent, rootDirectory);
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({
+      name: "Isabelle_VSCode_Smoke",
+      parent: "HOL",
+      rootDirectory,
+      sessionDirectory: rootDirectory,
+      theories: [{ name: "Smoke" }],
+      importedSessions: [],
+      directories: [],
+      documentFiles: []
+    });
   });
 });
 

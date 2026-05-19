@@ -11,8 +11,11 @@
       3. Run `Isabelle: Build Active Session` to confirm the
          end-to-end build pipeline works.
       4. Walk through `docs/SMOKE_THEORY_CHECKLIST.md` against the
-         opened `Smoke.thy` to verify every Tier-2 LSP-mode
-         capability.
+         opened `Smoke.thy` to verify every Tier-2 capability —
+         both LSP-mode features (when the Isabelle language server
+         is running) and Headless `PideBridge` features (like
+         `Isabelle: Minimize Sledgehammer Proof at Cursor`, which
+         goes through the Scala backend, not the LSP).
 
     The session name is intentionally underscore-separated and
     repo-prefixed so it does not collide with any session a user
