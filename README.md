@@ -53,9 +53,10 @@ The extension activates without either prerequisite (basic syntax features still
    | `-linux-arm64.vsix` | Linux ARM64 (glibc) | ✅ |
    | `-alpine-x64.vsix` | Alpine / musl x64 | ✅ |
    | `-alpine-arm64.vsix` | Alpine / musl ARM64 | ✅ |
-   | `-darwin-x64.vsix` | macOS Intel | ✅ |
    | `-darwin-arm64.vsix` | macOS Apple silicon | ✅ |
    | *(no suffix)* `isabelle-pide-vscode-<version>.vsix` | Universal (other platforms, bring-your-own-Java) | ❌ |
+
+   **macOS Intel:** dropped from the per-platform matrix as of v0.1.0-alpha.3. The universal `isabelle-pide-vscode-<version>.vsix` (Java 21+ on PATH required) works on macOS Intel. See AGENTS.md §17 for rationale.
 
 2. Install it in VS Code using either:
    - **GUI** — open the **Extensions** view, click the `…` menu in its title bar, choose **Install from VSIX…**, and pick the downloaded file; or
