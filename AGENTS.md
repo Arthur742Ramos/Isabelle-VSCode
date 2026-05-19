@@ -424,6 +424,28 @@ Tested live against `Isabelle2025-2` + `Smoke.thy` cursor on the `sorry` line: r
 
 **The "command at cursor" reported in the result is from the INJECTED text, not the user's text.** This is by design — the user wants to know "what command did the prover see Sledgehammer applied to?" and the injected sledgehammer is exactly that. The reported offsets are in the injected text's coordinate system; the TS panel does not currently visualize them.
 
+### 16. PIDE Phase 5 Sledgehammer minimization — same injection, with options + fact overrides
+
+Sledgehammer's built-in `minimize=true` (Phase 4's default) already minimizes the proof IT found from scratch. Phase 5's M7 unlock is a different scenario: the user has an EXISTING proof body like `by (metis foo bar baz qux assms)` (perhaps copied from a reviewer's comment or an older codebase) and wants to know "does Sledgehammer think any of these facts are unnecessary?"
+
+**Phase 5 solution (PR #82)**: same source-injection pipeline as Phase 4, but with two extension points:
+
+- `SledgehammerSourceInjector.Options` now carries optional `params: Map[String,String]` (becomes `sledgehammer [k=v, ...]`), `onlyFacts: Seq[String]` (becomes `(fact1 fact2 ...)` — the syntax for "restrict to these facts"), `addFacts: Seq[String]` (becomes `(add: ...)`), and `delFacts: Seq[String]` (becomes `(del: ...)`).
+- `SledgehammerWithPideHandler.handle` parses these from the JSON-RPC request (extending the `sledgehammer/run` wire shape, all new fields optional → backward-compatible).
+
+TS side adds a dedicated command `Isabelle: Minimize Sledgehammer Proof at Cursor`:
+
+1. Reads the line at the cursor via `editor.document.lineAt(line).text`.
+2. Parses it via `parseProofBody` (pure module in `src/sledgehammer/minimizeProofParser.ts`) which recognizes `by (method fact1 fact2)`, `by method`, `using ... by (method ...)`, `apply (method ...)`.
+3. Sends `sledgehammer/run` with `onlyFacts: [...all facts...]` + `sledgehammerOptions: { minimize: "true", preplay_timeout: "10" }`.
+4. Returns the minimized suggestions through the existing pipeline.
+
+**Trade-off**: relies on Sledgehammer's own minimizer rather than reflectively invoking `Sledgehammer_Minimize.run` directly. The advantage is zero reflective surface beyond Phase 4's; the disadvantage is the `preplay_timeout=10` is the only minimization-aggressiveness knob exposed. If users need stricter minimization (e.g. binary search via `Sledgehammer_Prover_Minimize.binary_minimize`), Phase 5b can add direct reflection.
+
+**The `injectedCommand` field on `SledgehammerRunResult`** echoes the actual `sledgehammer [...] (...)` text the backend injected. The TS minimize UX surfaces this in the output channel so users can see exactly what was tried. Useful for debugging "why did this produce these suggestions?".
+
+**Fact-name escaping**: `escapeFactName` defends against fact names containing spaces or quotes by wrapping in double quotes and escaping internal quotes. Empty/whitespace fact names become `_` (a placeholder Isabelle parses but doesn't match anything). Conservative — covers the unusual but legal cases without trying to be too clever.
+
 ---
 
 ## When opening a PR

@@ -69,11 +69,13 @@ import {
   WarmupResult,
   InvalidatePideCacheResult,
   ProofStateWithPideParams,
-  ProofStateWithPideResult
+  ProofStateWithPideResult,
+  SledgehammerRunResult
 } from "./protocol/messages";
 import { formatPideBackendStatus } from "./backend/showPideBackendStatus";
 import { formatPideDocumentStatus, formatErrorMessages } from "./backend/showPideDocumentStatus";
 import { formatPideProofState } from "./backend/showPideProofState";
+import { parseProofBody } from "./sledgehammer/minimizeProofParser";
 import { runCheckWithPideUx } from "./backend/checkWithPide";
 import { decideOomToast } from "./backend/oomToast";
 import { decideSessionCascade, SESSION_CASCADE_HOL_WARNING_KEY } from "./session/sessionCascade";
@@ -309,6 +311,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.showPideDocumentStatus", async () => showPideDocumentStatus(output)),
     vscode.commands.registerCommand("isabelle.invalidatePideCache", async () => invalidatePideCache(output)),
     vscode.commands.registerCommand("isabelle.showPideProofState", async () => showPideProofState(output)),
+    vscode.commands.registerCommand("isabelle.minimizeSledgehammerProof", async () => minimizeSledgehammerProof(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
@@ -1117,6 +1120,125 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     }
   } catch (error) {
     showBackendError("Unable to query PIDE proof state", error, output);
+  }
+}
+
+/**
+ * Phase 5: Sledgehammer minimization. Take the proof body at the
+ * cursor (e.g. `by (metis foo bar baz qux)`), parse it via the pure
+ * [`parseProofBody`] helper, and re-run Sledgehammer with
+ * `onlyFacts: [foo, bar, baz, qux]` + `minimize=true`. Sledgehammer's
+ * built-in minimizer then reduces the fact list, returning a smaller
+ * equivalent like `by (metis foo bar)`.
+ *
+ * Falls back to the existing `runSledgehammer` flow when no proof body
+ * is detected at the cursor.
+ */
+async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "isabelle") {
+    vscode.window.showInformationMessage(
+      "Open an Isabelle theory file before running `Isabelle: Minimize Sledgehammer Proof at Cursor`."
+    );
+    return;
+  }
+  const lineText = editor.document.lineAt(editor.selection.active.line).text;
+  const parsed = parseProofBody(lineText);
+  if (!parsed) {
+    vscode.window.showWarningMessage(
+      "No proof body recognized at the cursor (expected `by (metis fact1 fact2)` or `using ... by metis`). Use `Isabelle: Run Sledgehammer` instead to search from scratch."
+    );
+    return;
+  }
+
+  const allFacts = [...parsed.usingFacts, ...parsed.facts];
+  if (allFacts.length === 0) {
+    vscode.window.showInformationMessage(
+      `Proof body \`by ${parsed.method}\` has no facts to minimize. Use \`Isabelle: Run Sledgehammer\` to search.`
+    );
+    return;
+  }
+
+  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
+  const session = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
+  if (!session) {
+    vscode.window.showWarningMessage(
+      "No active Isabelle session selected. Run `Isabelle: Select Active Session` first."
+    );
+    return;
+  }
+
+  const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
+  const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
+  const workspaceUri = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.toString() ?? "default";
+  const cursor = editor.selection.active;
+  const requestId = `minimize-${Date.now()}`;
+
+  const params = {
+    requestId,
+    uri: editor.document.uri.toString(),
+    version: editor.document.version,
+    session,
+    theoryName,
+    workspaceUri,
+    position: { line: cursor.line, character: cursor.character },
+    isabelleExecutablePath: getIsabelleExecutablePath(),
+    text: editor.document.getText(),
+    sledgehammerOptions: { minimize: "true", preplay_timeout: "10" },
+    onlyFacts: allFacts
+  };
+
+  try {
+    const client = requireBackendManager().getClient();
+    output.appendLine(`--- PIDE Sledgehammer minimization ---`);
+    output.appendLine(`detected: by ${parsed.method} with ${allFacts.length} fact(s): ${allFacts.join(" ")}`);
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        cancellable: true,
+        title: `Isabelle: minimizing proof for ${theoryName} (session ${session})`
+      },
+      async (progress, token) => {
+        progress.report({ message: `running sledgehammer with only: ${allFacts.join(" ")}` });
+        const cancelSub = token.onCancellationRequested(() => {
+          vscode.window.setStatusBarMessage(
+            "Isabelle: minimization cancelled; PIDE session will rebuild on next request (~20 s)...",
+            25_000
+          );
+          void client.request("sledgehammer/cancel", { requestId }).catch(() => undefined);
+        });
+        try {
+          return await client.request<SledgehammerRunResult, typeof params>(
+            "sledgehammer/run",
+            params
+          );
+        } finally {
+          cancelSub.dispose();
+        }
+      }
+    );
+
+    output.appendLine(`status: ${result.status}  injected: ${result.injectedCommand ?? "?"}`);
+    if (result.suggestions.length > 0) {
+      output.appendLine(`minimized suggestions (${result.suggestions.length}):`);
+      for (const s of result.suggestions) {
+        output.appendLine(`  [${s.method}] ${s.proofText}${s.description ? `  (${s.description})` : ""}`);
+      }
+      const top = result.suggestions[0];
+      const reduction = allFacts.length - (top.proofText.match(/\b\w+\b/g) ?? []).length;
+      vscode.window.showInformationMessage(
+        `Sledgehammer minimized to: ${top.proofText}${top.description ? `  (${top.description})` : ""}${
+          reduction > 0 ? `  — ~${reduction} fact(s) eliminated` : ""
+        }`
+      );
+    } else {
+      vscode.window.showWarningMessage(
+        result.message ??
+          "Sledgehammer ran but could not minimize the proof (try a longer preplay_timeout or use the original proof)."
+      );
+    }
+  } catch (error) {
+    showBackendError("Unable to minimize proof via PIDE", error, output);
   }
 }
 
