@@ -611,7 +611,7 @@
     "install:extension": "npm run package && code --install-extension isabelle-pide-vscode.vsix --force",
     "backend:compile": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true compile",
     "backend:test": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true test",
-    "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true assembly && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/scala-2.13/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
+    "backend:package": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true assembly && cd .. && node -e \"const fs=require('fs');fs.rmSync('backend/dist',{recursive:true,force:true});fs.mkdirSync('backend/dist',{recursive:true});fs.copyFileSync('backend/target/isabelle-vscode-server.jar','backend/dist/isabelle-vscode-server.jar')\"",
     "backend:run": "cd backend && sbt -batch -Dsbt.supershell=false -Dsbt.log.noformat=true run"
   },
   "dependencies": {

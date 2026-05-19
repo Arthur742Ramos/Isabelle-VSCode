@@ -153,7 +153,7 @@ function resolveBackendLaunch(
     };
   }
 
-  const developmentJar = path.join(context.extensionPath, "backend", "target", "scala-2.13", "isabelle-vscode-server.jar");
+  const developmentJar = path.join(context.extensionPath, "backend", "target", "isabelle-vscode-server.jar");
   if (fs.existsSync(developmentJar)) {
     return {
       command: javaCommand,
