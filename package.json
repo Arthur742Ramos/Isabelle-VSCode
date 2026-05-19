@@ -40,6 +40,7 @@
     "onCommand:isabelle.showPideBackendStatus",
     "onCommand:isabelle.showPideDocumentStatus",
     "onCommand:isabelle.invalidatePideCache",
+    "onCommand:isabelle.showPideProofState",
     "onCommand:isabelle.discoverSessions",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
@@ -129,6 +130,10 @@
       {
         "command": "isabelle.invalidatePideCache",
         "title": "Isabelle: Invalidate PIDE Cache"
+      },
+      {
+        "command": "isabelle.showPideProofState",
+        "title": "Isabelle: Show PIDE Proof State at Cursor"
       },
       {
         "command": "isabelle.discoverSessions",

@@ -14,6 +14,7 @@ export type ServerMethod =
   | "pide/cacheState"
   | "pide/invalidateCache"
   | "proofState/get"
+  | "proofState/getWithPide"
   | "sledgehammer/run"
   | "sledgehammer/cancel";
 
@@ -383,6 +384,69 @@ export interface InvalidatePideCacheResult {
   invalidated: boolean;
   previousFingerprint: PideCacheFingerprint | null;
   message: string;
+}
+
+/**
+ * Phase 3 PIDE-backed proof-state types. Routed through
+ * `proofState/getWithPide`. Returns the same shape as
+ * `proofState/get` (`status: "ready" | "unavailable"`, `context`,
+ * `goals`, `raw`) so the existing proof-state panel can consume
+ * either source identically.
+ *
+ * Locked design (plan.md §Phase 3):
+ *   - Backend caches `Document.Snapshot` per `(uri, version, session)`
+ *     (LRU-16, lazy populate). Subsequent cursor moves within the
+ *     same version are sub-second.
+ *   - Cursor-move debouncing is the TS panel's responsibility; the
+ *     backend treats each call as independent.
+ */
+export interface ProofStateWithPideParams {
+  uri: string;
+  version?: number;
+  position: ProtocolPosition;
+  session: string;
+  theoryName?: string;
+  workspaceUri?: string;
+  isabelleExecutablePath?: string;
+  text?: string;
+}
+
+export type ProofStateWithPideReason =
+  | "text-missing"
+  | "session-not-selected"
+  | "home-not-found"
+  | "isabelle-jar-missing"
+  | "scala-runtime-missing"
+  | "warmup-cancelled"
+  | "submit-failed"
+  | "snapshot-missing"
+  | "extract-failed"
+  | string;
+
+export interface ProofStateWithPideCommand {
+  id: string;
+  kind: string;
+  name?: string | null;
+  status: string;
+  startOffset?: number;
+  endOffset?: number;
+}
+
+export interface ProofStateWithPideResult {
+  uri: string;
+  version?: number;
+  session?: string;
+  theoryName?: string;
+  status: "ready" | "unavailable";
+  bridge: "pide-enabled" | "local-syntax";
+  fromCache?: boolean;
+  command?: ProofStateWithPideCommand | null;
+  context: ProofStateContextEntry[];
+  goals: ProofStateGoal[];
+  raw: string;
+  notes?: string[];
+  reason?: ProofStateWithPideReason;
+  message?: string;
 }
 
 export function createRequest<TParams>(

@@ -135,6 +135,14 @@ final class HeadlessSessionRegistry(
     * `Isabelle: Show PIDE Document Status` command. */
   def currentFingerprint: Option[HeadlessSessionRegistry.Fingerprint] = cached.map(_._1)
 
+  /** Phase 3 diagnostic: returns the classloader of the currently
+    * cached facade if any. Used by `ProofStateWithPideHandler` to
+    * reflect on `isabelle.XML` when extracting markup from a cached
+    * snapshot (the original facade may be the one to use even when
+    * a different fingerprint is requested, since cached snapshots
+    * may have been produced by an earlier `acquireOrBuild` call). */
+  def currentFacadeLoader: Option[ClassLoader] = cached.map(_._2.reflectionLoader)
+
   /**
    * Phase 2c diagnostic: rich snapshot of the cache state for
    * surfacing via the `pide/cacheState` JSON-RPC method. Includes

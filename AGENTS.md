@@ -391,6 +391,26 @@ Phase 2a wires `document/checkWithPide` through `isabelle.Headless.Session.use_t
 - **Cancellation of an in-flight `use_theories` is teardown-based (Phase 2b).** `use_theories` is a synchronous blocking call into PolyML via JNI; there is no Java-level interrupt point until it returns naturally. Phase 2b's `HeadlessSessionRegistry.cancelInflightWarmup` therefore calls `Session.stop()` on the in-flight facade, which sends a Stop signal to the Isabelle session actor. The blocking call returns with an Interrupt-class exception that `HeadlessFacade.submitTheory` catches; `CheckWithPideHandler` then returns `status: "pide-cancelled"`. **Side effect**: the cached facade is torn down by the cancel, so the next `document/checkWithPide` call re-bootstraps a fresh Session (~20 s cost on that next call). This is the deliberate trade-off vs the harder mechanisms (custom `Progress` subclass via ByteBuddy, async-with-callback protocol change) — accept the re-bootstrap on cancel for simplicity, since cancellation is rare. If Phase 2c surfaces that users actually cancel often, swap in a custom `Progress` impl that aborts via `Progress.check()` without tearing the Session down.
 - **Phase 2c diagnostic + lifecycle surface.** Three new JSON-RPC methods: `pide/warmup` (eager facade build, dispatched on the worker thread so `pide/cancelWarmup` can still interrupt mid-call); `pide/cacheState` (read-only fingerprint + inflight snapshot for `Isabelle: Show PIDE Document Status`); `pide/invalidateCache` (force-evict the cached facade for "I updated Isabelle, force rebuild" scenarios). New TS command `Isabelle: Invalidate PIDE Cache` exposes the last to users. The orphaned `isabelle.pide.prewarmOnActivation` setting (added in Phase 2a) is now actually wired — `extension.ts::maybePrewarmPide` dispatches `pide/warmup` ~1.5 s after activation when the setting is `true` AND `isabelle.session.active` is non-empty. Prewarm failures log to the output channel only (no user-facing toast) because a failed prewarm is harmless — the next user-facing PIDE call retries from scratch.
 
+### 14. PIDE Phase 3a snapshot extraction — Headless mode does NOT auto-print proof goals
+
+Phase 3a (PR #79) wires `proofState/getWithPide` end-to-end against `Document.Snapshot`: the snapshot cache (`SnapshotCache`) populates lazily per `(uri, version, session)` after a `use_theories` submission, the cursor's offset is resolved via shared `OffsetToPosition`, and the matching command is located by walking `snapshot.node.commands.toList` and accumulating `command.length`. So far so good.
+
+**The honest limitation**: Isabelle's `Headless.use_theories` populates `Command.State.results` only with prover messages emitted during normal evaluation — it does NOT auto-populate the per-command proof-goal print that the IDE state panel renders. In the jEdit / LSP flow, that printing is driven by a separate `Print_State` agent that subscribes to dynamic_output and runs `Output.print_state(...)` reflectively for the command at the user's cursor.
+
+Phase 3a therefore returns command identity + status + raw `Results()` markup but the `goals[]` array is typically empty (or contains the unhelpful `[results] Results()` flattened toString). The wire shape preserves the `status: "ready" | "unavailable"` contract; the `message` field surfaces the limitation honestly (`"PIDE snapshot ready (lemma at offset 815). Goal printing requires Phase 3b Print_Operation wiring; raw markup shown below."`).
+
+**Phase 3b** must reflectively invoke Isabelle's `Print_State` / `Print_Operation` surface to materialise actual goal text. The PIDE source code (`mirror-isabelle/src/Tools/jEdit/src/state_panel.scala` + `output_panel.scala`) is the reference. Phase 3b's reflection will need:
+
+- `isabelle.Print_Operation.print_operations(session)` to list registered print ops.
+- `isabelle.Print_State.print_state(state, name)` or equivalent — likely needs a `Session` + a freshly-allocated `Print_State` instance.
+- `XML.content(...)` to flatten the resulting markup tree.
+
+Because Print_State requires a live `Session` actor and may need a different lifecycle from the snapshot cache, expect 200-400 LOC + a fresh spike before Phase 3b implementation.
+
+**Why this split was correct**: per the locked Phase 3 plan in plan.md, the scope cap was ~600-800 LOC with a hard split signal at >1000 LOC / >30 files. Phase 3a comes in at ~1100 LOC across 8 files — under the split threshold but at the upper end. Adding Print_Operation reflective machinery would have pushed past it; splitting keeps the review surface tractable.
+
+**Headless-mode UX divergence** (documented in `docs/PIDE_INTEGRATION.md`): proof state in Headless mode (LSP off) refreshes on cursor move + explicit command, NOT continuously as the prover progresses. Live progress notifications require the LSP relay's `PIDE/state_output` channel.
+
 ---
 
 ## When opening a PR

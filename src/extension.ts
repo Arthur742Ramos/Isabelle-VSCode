@@ -67,10 +67,13 @@ import {
   CheckWithPideResult,
   WarmupParams,
   WarmupResult,
-  InvalidatePideCacheResult
+  InvalidatePideCacheResult,
+  ProofStateWithPideParams,
+  ProofStateWithPideResult
 } from "./protocol/messages";
 import { formatPideBackendStatus } from "./backend/showPideBackendStatus";
 import { formatPideDocumentStatus, formatErrorMessages } from "./backend/showPideDocumentStatus";
+import { formatPideProofState } from "./backend/showPideProofState";
 import { runCheckWithPideUx } from "./backend/checkWithPide";
 import { decideOomToast } from "./backend/oomToast";
 import { decideSessionCascade, SESSION_CASCADE_HOL_WARNING_KEY } from "./session/sessionCascade";
@@ -305,6 +308,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.showPideBackendStatus", async () => showPideBackendStatus(output)),
     vscode.commands.registerCommand("isabelle.showPideDocumentStatus", async () => showPideDocumentStatus(output)),
     vscode.commands.registerCommand("isabelle.invalidatePideCache", async () => invalidatePideCache(output)),
+    vscode.commands.registerCommand("isabelle.showPideProofState", async () => showPideProofState(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
@@ -1008,6 +1012,111 @@ async function invalidatePideCache(output: vscode.OutputChannel): Promise<void> 
     vscode.window.showInformationMessage(result.message);
   } catch (error) {
     showBackendError("Unable to invalidate Isabelle/PIDE cache", error, output);
+  }
+}
+
+/**
+ * Phase 3a: ad-hoc proof-state query at the cursor. Routes through
+ * `proofState/getWithPide` which uses the cached `Headless.Session`
+ * (Phase 2a) + per-(uri, version, session) snapshot cache (Phase 3)
+ * for sub-second responses after the first call.
+ *
+ * Phase 3a returns command identity + status (we identify which
+ * command the cursor is on); full proof-goal printing requires the
+ * reflective Print_Operation surface which lands in Phase 3b. The
+ * formatter surfaces this honestly so users know what they're
+ * looking at.
+ */
+async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "isabelle") {
+    vscode.window.showInformationMessage("Open an Isabelle theory file before running `Isabelle: Show PIDE Proof State at Cursor`.");
+    return;
+  }
+
+  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
+  const session = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
+  if (!session) {
+    vscode.window.showWarningMessage(
+      "No active Isabelle session selected. Run `Isabelle: Select Active Session` first."
+    );
+    return;
+  }
+
+  const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
+  const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
+  const workspaceUri = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.toString() ?? "default";
+  const cursor = editor.selection.active;
+
+  const params: ProofStateWithPideParams = {
+    uri: editor.document.uri.toString(),
+    version: editor.document.version,
+    session,
+    theoryName,
+    workspaceUri,
+    position: { line: cursor.line, character: cursor.character },
+    isabelleExecutablePath: getIsabelleExecutablePath(),
+    text: editor.document.getText()
+  };
+
+  try {
+    const client = requireBackendManager().getClient();
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        cancellable: true,
+        title: `Isabelle: querying PIDE proof state for ${theoryName} (session ${session})`
+      },
+      async (progress, token) => {
+        progress.report({ message: "warming up Headless session if needed (first call may take 5-30 seconds)" });
+        const cancelSubscription = token.onCancellationRequested(() => {
+          vscode.window.setStatusBarMessage(
+            "Isabelle: PIDE session cancelled; will rebuild on next request (~20 s)...",
+            25_000
+          );
+          void client.request("pide/cancelWarmup", {}).catch(() => undefined);
+        });
+        try {
+          return await client.request<ProofStateWithPideResult, ProofStateWithPideParams>(
+            "proofState/getWithPide",
+            params
+          );
+        } finally {
+          cancelSubscription.dispose();
+        }
+      }
+    );
+
+    output.appendLine("--- PIDE proof state ---");
+    output.appendLine(`status: ${result.status}  bridge: ${result.bridge}  fromCache: ${result.fromCache ?? false}`);
+    if (result.command) {
+      output.appendLine(`command: kind=${result.command.kind} name=${result.command.name ?? "(none)"} offsets=[${result.command.startOffset ?? "?"}, ${result.command.endOffset ?? "?"})`);
+    }
+    if (result.goals?.length) {
+      output.appendLine(`goals (${result.goals.length}):`);
+      result.goals.forEach((g) => output.appendLine(`  [${g.index}] ${g.text}`));
+    }
+    if (result.raw) {
+      output.appendLine(`raw:\n${result.raw}`);
+    }
+    if (result.notes?.length) {
+      output.appendLine(`notes:\n  ${result.notes.join("\n  ")}`);
+    }
+    if (result.message) {
+      output.appendLine(`message: ${result.message}`);
+    }
+
+    const formatted = formatPideProofState(result);
+    const fullMessage = `${formatted.title}\n${formatted.detail}`;
+    if (formatted.severity === "info") {
+      vscode.window.showInformationMessage(fullMessage);
+    } else if (formatted.severity === "warning") {
+      vscode.window.showWarningMessage(fullMessage);
+    } else {
+      vscode.window.showErrorMessage(fullMessage);
+    }
+  } catch (error) {
+    showBackendError("Unable to query PIDE proof state", error, output);
   }
 }
 

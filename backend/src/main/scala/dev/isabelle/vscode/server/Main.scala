@@ -19,6 +19,10 @@ object Main {
     t
   })
 
+  /** Phase 3 snapshot cache: per-(uri, version, session) lazy
+    * populate. Invalidates on document/update for the uri. */
+  private val snapshotCache = new SnapshotCache()
+
   def main(args: Array[String]): Unit = {
     val in = new BufferedInputStream(System.in)
     val out = new BufferedOutputStream(System.out)
@@ -78,7 +82,33 @@ object Main {
               }
             })
 
-          // Phase 2c: fast diagnostic on main thread.
+          // Phase 3: heavy method — dispatch to worker so cancelWarmup
+          // can interrupt mid-call. Snapshot cache makes the second+
+          // call against the same (uri, version) sub-second.
+          case "proofState/getWithPide" =>
+            pideWorker.submit(new Runnable {
+              override def run(): Unit = {
+                val response =
+                  try {
+                    val env = System.getenv().asScala.toMap
+                    val platform = Option(System.getProperty("os.name")).getOrElse("")
+                    Protocol.success(request.id, ProofStateWithPideHandler.handle(
+                      params = request.params,
+                      documents = documents,
+                      registry = headlessRegistry,
+                      snapshotCache = snapshotCache,
+                      env = env,
+                      platform = platform
+                    ))
+                  } catch {
+                    case t: Throwable =>
+                      Protocol.error(request.id, -32000, Option(t.getMessage).getOrElse(t.getClass.getSimpleName))
+                  }
+                writeResponse(response)
+              }
+            })
+
+          // Phase 3: fast diagnostic on main thread.
           case "pide/cacheState" =>
             writeResponse(Protocol.success(request.id, PideCacheHandlers.cacheState(headlessRegistry)))
 
@@ -169,15 +199,21 @@ object Main {
 
       case "document/update" =>
         val params = request.requiredParams
+        val uri = params("uri").str
+        // Phase 3: any version bump invalidates the cached snapshot
+        // so the next proofState/getWithPide call re-submits cleanly.
+        snapshotCache.evictForUri(uri)
         Protocol.success(request.id, documents.update(
-          uri = params("uri").str,
+          uri = uri,
           text = params("text").str,
           version = params("version").num.toInt
         ))
 
       case "document/close" =>
         val params = request.requiredParams
-        Protocol.success(request.id, documents.close(params("uri").str))
+        val uri = params("uri").str
+        snapshotCache.evictForUri(uri)
+        Protocol.success(request.id, documents.close(uri))
 
       case "proofState/get" =>
         val params = request.requiredParams
