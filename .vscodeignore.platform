@@ -13,6 +13,7 @@ node_modules/**
 .git*
 .github/**
 .vscode/**
+.vscode-test/**
 src/**
 test/**
 backend/src/**
@@ -25,4 +26,5 @@ vitest.config.ts
 *.vsix
 *.map
 out/**/*.map
+out/test/**
 .vscodeignore.platform

@@ -44,3 +44,30 @@ jobs:
 
       - name: Compile backend
         run: npm run backend:compile
+
+  integration-tests:
+    name: VS Code integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Cache VS Code download
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test/
+          key: ${{ runner.os }}-vscode-test-1.90.0
+
+      - name: Run VS Code integration tests
+        run: xvfb-run -a npm run test:integration

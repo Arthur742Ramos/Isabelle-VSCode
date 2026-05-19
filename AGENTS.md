@@ -8,7 +8,7 @@ If you change something in this repo, read this file first. Updating it when you
 
 ```text
 1. Run `npm install` once (Tier-1 toolchain).
-2. Run `npm run check` to compile + run the 749-test vitest suite.
+2. Run `npm run check` to compile + run the vitest suite (~3 s).
 3. Branch from origin/main with a kebab-case name.
 4. Commit messages use Conventional Commits + a Copilot Co-authored-by trailer.
 5. Open a focused PR. Use the PR template.
@@ -47,7 +47,7 @@ Split by tier so contributors don't install more than they need:
 
 After `git clone`, run `npm install` once. You're ready to edit anything in `src/` or `test/` and run `npm run check`.
 
-### Tier 2 — Backend changes / packaging / install
+### Tier 2 — Backend changes / packaging / install / hosted integration tests
 
 | Tool | Version | Why |
 |---|---|---|
@@ -55,6 +55,7 @@ After `git clone`, run `npm install` once. You're ready to edit anything in `src
 | **sbt** | 1.12+ | `npm run backend:*` scripts. |
 | **VS Code CLI** | `code` or `code-insiders` on PATH | `npm run install:extension` installs the freshly-built `.vsix` into your local VS Code. Set up via *Shell Command: Install 'code' command in PATH* from the Command Palette. |
 | **Isabelle** | 2019+ | Only needed to **exercise** features that talk to Isabelle (build, language server, sledgehammer). The extension itself activates and most local features work without it. |
+| **Display server** | any (or `xvfb-run` on headless Linux) | `npm run test:integration` boots a real VS Code; it needs a display. Windows/macOS dev machines just work; CI uses `xvfb-run`. |
 
 If you don't have Tier 2 installed, you can still do meaningful work — see the validation matrix below.
 
@@ -67,7 +68,7 @@ If you don't have Tier 2 installed, you can still do meaningful work — see the
 npm install               # Once, after clone
 npm run compile           # tsc -> out/*.js (development emit, not the bundle)
 npm run watch             # tsc -watch
-npm run test              # vitest run (749 cases, ~3 s)
+npm run test              # vitest run (~3 s)
 npm run check             # compile + test (CI uses this)
 npm run bundle            # esbuild -> single out/extension.js for packaging
 
@@ -76,6 +77,10 @@ npm run backend:compile   # sbt compile
 npm run backend:test      # sbt test
 npm run backend:package   # sbt assembly -> backend/dist/isabelle-vscode-server.jar (fat jar)
 npm run backend:run       # sbt run (for dev with isabelle.backend.command = sbt)
+
+# Tier 2 — VS Code-hosted integration tests (needs a display server; Linux CI uses xvfb-run)
+npm run test:integration  # bundle + tsc test/integration + boot VS Code via @vscode/test-electron
+npm run test:all          # npm run check + npm run test:integration (combined gate)
 
 # Packaging + install (needs Tier 2 + code CLI)
 npm run package           # check + backend:package + vsce package -> isabelle-pide-vscode.vsix
@@ -90,15 +95,21 @@ npm run package:validate  # CI integrity check — builds the .vsix and verifies
 | If you change… | You must run… | And probably… |
 |---|---|---|
 | `src/**` (TypeScript) | `npm run check` | `npm run bundle` to confirm the bundle is clean |
-| `test/**` | `npm run check` | — |
-| `package.json` (scripts, contributes, deps) | `npm run check` + `npm run bundle` | `npm run package` if `vsce` packaging surface affected |
+| `test/**` (structural vitest, *not* `test/integration/**`) | `npm run check` | — |
+| `test/integration/**` (hosted Mocha) | `npm run test:integration` | Re-run `npm run check` to confirm vitest still ignores the hosted-test tree |
+| `package.json` (scripts, contributes, deps) | `npm run check` + `npm run bundle` | `npm run package` if `vsce` packaging surface affected, and `npm run test:integration` if you added/removed a contributed command (the hosted drift detector covers this) |
 | `backend/**` (Scala) | `npm run backend:test` + `npm run backend:compile` | Re-bundle so the new fat jar is included |
 | `.github/workflows/release.yml` | nothing locally — push and observe via Actions | Also validate YAML with `node -e "require('yaml').parse(...)"` |
 | `.github/workflows/copilot-setup-steps.yml` | same as above | Workflow only takes effect once merged to default branch |
 | `README.md`, `docs/**`, `media/walkthrough/**` | nothing — they're not linted | Skim-check rendered markdown |
 | `.vscodeignore` | `npm run package:validate` | Verifies the `.vsix` still contains the right files |
 
-CI (`.github/workflows/ci.yml`) runs `npm run check`, `npm audit --audit-level=moderate`, and `npm run backend:compile` on every PR. You should reproduce these locally for anything non-trivial.
+CI (`.github/workflows/ci.yml`) runs two parallel jobs on every PR:
+
+- **`validate`** — `npm run check`, `npm audit --audit-level=moderate`, and `npm run backend:compile` (with Java 21 + sbt).
+- **`integration-tests`** — `xvfb-run npm run test:integration` on `ubuntu-latest` with a cached `.vscode-test/` download. Catches activation regressions and command-registration drift.
+
+You should reproduce both locally for anything non-trivial (`npm run test:all`).
 
 ---
 
@@ -112,7 +123,10 @@ CI (`.github/workflows/ci.yml`) runs `npm run check`, `npm audit --audit-level=m
 
 ### Test conventions — **structural / vscode-free**
 
-**Verified universal:** all 66 test files (`test/**/*.test.ts`) avoid importing `vscode` directly. They exercise pure modules with injected fakes for `fs`, `child_process.spawn`, `vscode` UI surfaces, etc.
+**Verified universal for vitest:** every test file under `test/**/*.test.ts`
+(excluding `test/integration/**`) avoids importing `vscode` directly. They
+exercise pure modules with injected fakes for `fs`, `child_process.spawn`,
+`vscode` UI surfaces, etc. This remains the **primary** test mode.
 
 When you add a new module:
 
@@ -121,9 +135,34 @@ When you add a new module:
 3. Wire the production implementation in a sibling file (see `src/setup/runtime.ts`).
 4. Test the pure module with vitest + node-only fakes.
 
-Why: there is no VS Code test harness in this repo. A test that imports `vscode` cannot run under vitest at all. The `vscode-languageclient` package transitively imports `vscode` and is the reason `src/lsp/IsabelleLanguageClient.ts` and a few other files are not directly unit-tested — they're covered structurally via injectable seams in `lspNotificationRegistry.ts` and friends.
+Why: vitest cannot import `vscode`. The `vscode-languageclient` package transitively imports `vscode` and is the reason `src/lsp/IsabelleLanguageClient.ts` and a few other files are not directly unit-tested under vitest — they're covered structurally via injectable seams in `lspNotificationRegistry.ts` and friends.
 
-Prefer vscode-free unit/structural tests with injected fakes. Add VS Code-hosted integration tests only when the behavior cannot be tested structurally.
+#### Hosted integration tests (small, additive)
+
+There is also a **deliberately tiny** VS Code-hosted Mocha surface under
+`test/integration/`, driven by `@vscode/test-electron` (`npm run test:integration`).
+It exists to catch two failure modes that no structural test can see:
+
+1. `activate()` actually runs end-to-end without throwing inside a real
+   extension host (`activation.test.ts`).
+2. Every command declared in `package.json` `contributes.commands` is
+   actually registered by `src/extension.ts` (`commandRegistration.test.ts`,
+   computed dynamically from `package.json` — never hard-code the count;
+   see gotcha #7 below).
+
+This surface is **opt-in**: `npm run check` deliberately does *not* run it,
+so Tier-1 (Node-only) contributors keep their fast green. Use
+`npm run test:all` to run both suites. CI runs the hosted suite as a
+separate `integration-tests` job on `ubuntu-latest` under `xvfb-run`.
+
+**Do not** expand the hosted surface speculatively. Add a hosted test only
+when the behaviour genuinely cannot be tested structurally (and prefer to
+add an injectable seam first). LSP behaviour, Sledgehammer dispatch, proof
+state, AI repair, etc. all require a real Isabelle install and are covered
+by `docs/SMOKE_THEORY_CHECKLIST.md` instead.
+
+Prefer vscode-free unit/structural tests with injected fakes. The hosted
+surface is the floor, not the ceiling.
 
 ### Process spawning
 
