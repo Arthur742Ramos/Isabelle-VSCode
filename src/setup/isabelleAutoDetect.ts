@@ -35,6 +35,13 @@ export interface AutoDetectEnv {
   readonly LOCALAPPDATA?: string;
   readonly PROGRAMFILES?: string;
   readonly "PROGRAMFILES(X86)"?: string;
+  /** Verbatim `PATH` environment variable (Node lowercases Windows `Path`
+    * to `PATH` automatically). When present, directories on PATH are also
+    * probed for an Isabelle launcher (`isabelle.ps1` on Windows,
+    * `isabelle` elsewhere) so users with a launcher on PATH (e.g.
+    * `C:\Tools\bin\isabelle.ps1`) are detected even if their install lives
+    * outside the well-known roots. */
+  readonly PATH?: string;
 }
 
 export interface AutoDetectDependencies {
@@ -43,6 +50,13 @@ export interface AutoDetectDependencies {
   readonly fs: AutoDetectFs;
   /** Path-join helper. Defaults to forward-slash semantics if absent. */
   readonly join: (...parts: string[]) => string;
+  /** Platform PATH separator. Defaults to ";" on Windows, ":" elsewhere
+    * when omitted. */
+  readonly pathDelimiter?: string;
+  /** Dirname helper that strips the trailing path component. Used to
+    * walk from a launcher's `bin/` directory up to the install root.
+    * Defaults to a string-based implementation when omitted. */
+  readonly dirname?: (p: string) => string;
 }
 
 /**
@@ -84,8 +98,18 @@ export function detectIsabelleInstallPath(
 }
 
 function collectCandidates(deps: AutoDetectDependencies): DetectedIsabelle[] {
-  const roots = parentDirectoriesForPlatform(deps);
   const out: DetectedIsabelle[] = [];
+  const seenInstallRoots = new Set<string>();
+
+  const pushIfNovel = (candidate: DetectedIsabelle) => {
+    if (seenInstallRoots.has(candidate.installRoot)) {
+      return;
+    }
+    seenInstallRoots.add(candidate.installRoot);
+    out.push(candidate);
+  };
+
+  const roots = parentDirectoriesForPlatform(deps);
   for (const root of roots) {
     if (!deps.fs.isDirectory(root)) {
       continue;
@@ -100,10 +124,98 @@ function collectCandidates(deps: AutoDetectDependencies): DetectedIsabelle[] {
         continue;
       }
       const { versionYear, versionLabel } = parseVersion(entry);
-      out.push({ path: launcher, installRoot, versionYear, versionLabel });
+      pushIfNovel({ path: launcher, installRoot, versionYear, versionLabel });
     }
   }
+
+  for (const candidate of pathDirectoriesAsLauncherCandidates(deps)) {
+    pushIfNovel(candidate);
+  }
+
   return out;
+}
+
+/**
+ * Scan `process.env.PATH` for directories that contain an Isabelle
+ * launcher (`isabelle.ps1` on Windows, `isabelle` elsewhere) and surface
+ * them as auto-detect candidates. The install root is inferred as the
+ * parent of the bin directory (`<bin>/..`), and the version year is
+ * best-effort extracted from the install root's basename.
+ *
+ * Why: users who install Isabelle into a non-standard location (e.g.
+ * `C:\Tools\Isabelle2025\`) and put `C:\Tools\Isabelle2025\bin` on PATH
+ * — or who unpack into `C:\Tools\` with `bin` on PATH — are invisible to
+ * the well-known roots probe. Walking PATH covers those legitimate
+ * installs without recursing into arbitrary filesystem trees.
+ *
+ * The shared `collectCandidates` dedupe (keyed on absolute `installRoot`)
+ * ensures a single install showing up in both PATH and a well-known root
+ * is reported once.
+ */
+function pathDirectoriesAsLauncherCandidates(
+  deps: AutoDetectDependencies
+): DetectedIsabelle[] {
+  const rawPath = deps.env.PATH;
+  if (typeof rawPath !== "string" || rawPath.length === 0) {
+    return [];
+  }
+  const delimiter = deps.pathDelimiter ?? (deps.platform === "win32" ? ";" : ":");
+  const launcherName = deps.platform === "win32" ? "isabelle.ps1" : "isabelle";
+  const dirname = deps.dirname ?? defaultDirname;
+
+  const directories = rawPath
+    .split(delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  const out: DetectedIsabelle[] = [];
+  for (const directory of directories) {
+    const launcher = deps.join(directory, launcherName);
+    if (!deps.fs.isFile(launcher)) {
+      continue;
+    }
+    const installRoot = dirname(directory);
+    if (!installRoot || installRoot === directory) {
+      // PATH directory is a filesystem root (`/`, `C:\`, ...). The
+      // launcher exists but there is no meaningful parent install
+      // directory to anchor a version label on; skip rather than
+      // synthesize a misleading entry.
+      continue;
+    }
+    const basename = lastPathSegment(installRoot);
+    const { versionYear, versionLabel } = parseVersion(basename);
+    out.push({
+      path: launcher,
+      installRoot,
+      versionYear,
+      versionLabel
+    });
+  }
+  return out;
+}
+
+function defaultDirname(p: string): string {
+  if (p.length === 0) {
+    return "";
+  }
+  // Split on both forward and back slashes so the helper works on
+  // Windows and POSIX without pulling in `node:path`.
+  const lastSlash = Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
+  if (lastSlash <= 0) {
+    return "";
+  }
+  return p.slice(0, lastSlash);
+}
+
+function lastPathSegment(p: string): string {
+  if (p.length === 0) {
+    return "";
+  }
+  const lastSlash = Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
+  if (lastSlash < 0) {
+    return p;
+  }
+  return p.slice(lastSlash + 1);
 }
 
 function parentDirectoriesForPlatform(deps: AutoDetectDependencies): readonly string[] {

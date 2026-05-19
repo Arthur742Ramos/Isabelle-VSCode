@@ -37,6 +37,19 @@ interface ExecuteRunOverrides {
   isabelleExecutablePath?: string;
 }
 
+/**
+ * Optional injectable resolver that runs the 4-step PIDE session
+ * cascade (setting → single-root auto-select → quickpick → HOL
+ * fallback). When supplied, `executeBackendRun` consults it before
+ * sending `sledgehammer/run` so the backend's "select a session" guard
+ * isn't tripped on fresh installs. When omitted (or when it returns
+ * `cancelled`), the panel falls back to the legacy `getActiveSessionName`
+ * lookup so existing tests keep working.
+ */
+export type SledgehammerSessionResolver = () => Promise<
+  { kind: "resolved"; session: string } | { kind: "cancelled" }
+>;
+
 export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly history = new SledgehammerHistory();
@@ -55,7 +68,8 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     private readonly getActiveSessionName: () => string | undefined,
     private readonly languageClient?: IsabelleLanguageClient,
     private readonly proversCache?: PideSledgehammerProversCache,
-    private readonly quiescenceTracker?: PideQuiescenceTracker
+    private readonly quiescenceTracker?: PideQuiescenceTracker,
+    private readonly sessionResolver?: SledgehammerSessionResolver
   ) {
     this.updateContexts();
     if (this.languageClient) {
@@ -571,7 +585,36 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     const requestId = `sledgehammer-${this.nextRequestNumber++}`;
     const uri = editor.document.uri.toString();
     const version = editor.document.version;
-    const sessionName = overrides?.sessionName ?? this.getActiveSessionName();
+    // Resolve the session via the shared 4-step PIDE cascade when no
+    // override was passed. Replays carry the historical sessionName
+    // through `overrides` so a replay re-runs against the same session
+    // even if the active selection has changed since.
+    let sessionName: string | undefined;
+    if (overrides?.sessionName !== undefined) {
+      sessionName = overrides.sessionName;
+    } else if (this.sessionResolver) {
+      const resolved = await this.sessionResolver();
+      if (resolved.kind === "cancelled") {
+        const cancelMessage = "Sledgehammer cancelled — no Isabelle session selected.";
+        this.lastResult = {
+          requestId,
+          uri,
+          version,
+          status: "cancelled",
+          suggestions: [],
+          raw: cancelMessage,
+          message: cancelMessage
+        };
+        this.lastOutputNodes = [];
+        this.output.appendLine(`Sledgehammer: ${cancelMessage}`);
+        this.render();
+        this.updateContexts();
+        return;
+      }
+      sessionName = resolved.session;
+    } else {
+      sessionName = this.getActiveSessionName();
+    }
     const isabelleExecutablePath = overrides?.isabelleExecutablePath
       ?? vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle");
     const startedAt = new Date().toISOString();

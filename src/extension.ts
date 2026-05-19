@@ -78,7 +78,8 @@ import { formatPideProofState } from "./backend/showPideProofState";
 import { parseProofBody } from "./sledgehammer/minimizeProofParser";
 import { runCheckWithPideUx } from "./backend/checkWithPide";
 import { decideOomToast } from "./backend/oomToast";
-import { decideSessionCascade, SESSION_CASCADE_HOL_WARNING_KEY } from "./session/sessionCascade";
+import { SESSION_CASCADE_HOL_WARNING_KEY } from "./session/sessionCascade";
+import { resolvePideSession, ResolvePideSessionDeps } from "./session/resolvePideSession";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { ManualPasteBackRepairAiProvider } from "./repair/ManualPasteBackRepairAiProvider";
 import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
@@ -209,7 +210,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     () => sessions.getActiveSessionName(),
     languageClient,
     pideSledgehammerProversCache,
-    pideQuiescenceTracker
+    pideQuiescenceTracker,
+    () => resolvePideSession(buildResolvePideSessionDeps())
   );
   repairPreviewProvider = new RepairPreviewProvider();
   repairAiProviderRegistry = new RepairAiProviderRegistry();
@@ -881,54 +883,14 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
   }
 
   // 4-step session cascade (Phase 2a item 1). Reuses the existing
-  // M2 ROOT/ROOTS discovery — does not re-implement it.
-  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
-  const activeSessionSetting = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
-  const discovered = sessionService ? sessionService.getSessions().map((s) => s.name) : [];
-  const holWarningSeen = extensionContextRef?.workspaceState.get<boolean>(SESSION_CASCADE_HOL_WARNING_KEY, false) ?? false;
-
-  const decision = decideSessionCascade({
-    activeSessionSetting,
-    discoveredSessions: discovered,
-    holFallbackWarningSeen: holWarningSeen
-  });
-
-  let session: string;
-  switch (decision.kind) {
-    case "resolved":
-      session = decision.session;
-      if (decision.source === "single-root-auto-select") {
-        await sessionsConfig.update("session.active", session, vscode.ConfigurationTarget.Workspace);
-      }
-      break;
-    case "needs-pick": {
-      const pick = await vscode.window.showQuickPick(decision.candidates.slice(), {
-        title: "Select an Isabelle session for the PIDE check",
-        placeHolder: "Multiple sessions discovered — pick one (persisted as the active session)"
-      });
-      if (!pick) {
-        return;
-      }
-      session = pick;
-      await sessionsConfig.update("session.active", session, vscode.ConfigurationTarget.Workspace);
-      break;
-    }
-    case "hol-fallback":
-      session = decision.session;
-      if (!decision.suppressFurtherWarnings) {
-        const action = await vscode.window.showWarningMessage(
-          "No Isabelle ROOT files discovered in this workspace. Defaulting to the `HOL` session for this PIDE check.",
-          "Select Active Session",
-          "Don't show again"
-        );
-        if (action === "Select Active Session") {
-          await vscode.commands.executeCommand("isabelle.selectSession");
-        } else if (action === "Don't show again") {
-          await extensionContextRef?.workspaceState.update(SESSION_CASCADE_HOL_WARNING_KEY, true);
-        }
-      }
-      break;
+  // M2 ROOT/ROOTS discovery — does not re-implement it. The shared
+  // resolver wraps the pure cascade with the side-effect surface
+  // (persist on auto-select, quickpick, HOL warning).
+  const resolved = await resolvePideSession(buildResolvePideSessionDeps());
+  if (resolved.kind === "cancelled") {
+    return;
   }
+  const session = resolved.session;
 
   // Derive a friendly theory name from the document basename.
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
@@ -1037,14 +999,15 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     return;
   }
 
-  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
-  const session = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
-  if (!session) {
-    vscode.window.showWarningMessage(
-      "No active Isabelle session selected. Run `Isabelle: Select Active Session` first."
-    );
+  // 4-step session cascade — same resolver used by every other
+  // backend-bound PIDE command. Replaces the previous "ask the user
+  // to run Isabelle: Select Active Session" guard so the
+  // single-root / HOL-fallback / auto-persist UX is shared.
+  const resolved = await resolvePideSession(buildResolvePideSessionDeps());
+  if (resolved.kind === "cancelled") {
     return;
   }
+  const session = resolved.session;
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1159,14 +1122,13 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
     return;
   }
 
-  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
-  const session = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
-  if (!session) {
-    vscode.window.showWarningMessage(
-      "No active Isabelle session selected. Run `Isabelle: Select Active Session` first."
-    );
+  // 4-step session cascade — shared with the rest of the PIDE
+  // commands so a fresh workspace just works.
+  const resolved = await resolvePideSession(buildResolvePideSessionDeps());
+  if (resolved.kind === "cancelled") {
     return;
   }
+  const session = resolved.session;
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1735,6 +1697,40 @@ function requireDocumentSyncService(): DocumentSyncService {
 
 function getIsabelleExecutablePath(): string {
   return vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle");
+}
+
+/**
+ * Build the dependency bundle the shared {@link resolvePideSession}
+ * helper expects, wired to the live VS Code surface (settings,
+ * workspaceState, quickpick / warning toasts, command dispatcher).
+ *
+ * Used by every backend-bound command that consumes a session: PIDE
+ * document status, PIDE proof state, Sledgehammer minimization, and
+ * (via {@link buildResolvePideSessionDepsForPanel}) the Sledgehammer
+ * panel's `executeBackendRun` path.
+ */
+function buildResolvePideSessionDeps(): ResolvePideSessionDeps {
+  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
+  const activeSessionSetting = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
+  const discovered = sessionService ? sessionService.getSessions().map((s) => s.name) : [];
+  return {
+    activeSessionSetting,
+    discoveredSessions: discovered,
+    getHolWarningSeen: () =>
+      extensionContextRef?.workspaceState.get<boolean>(SESSION_CASCADE_HOL_WARNING_KEY, false) ?? false,
+    setHolWarningSeen: async (value) => {
+      await extensionContextRef?.workspaceState.update(SESSION_CASCADE_HOL_WARNING_KEY, value);
+    },
+    persistActiveSession: async (session) => {
+      await sessionsConfig.update("session.active", session, vscode.ConfigurationTarget.Workspace);
+    },
+    showQuickPick: (items, options) => vscode.window.showQuickPick(items.slice(), options),
+    showWarningMessage: (message, ...actions) =>
+      vscode.window.showWarningMessage(message, ...actions),
+    executeCommand: async (command) => {
+      await vscode.commands.executeCommand(command);
+    }
+  };
 }
 
 function formatIsabelleHealth(result: HealthResult): string {
