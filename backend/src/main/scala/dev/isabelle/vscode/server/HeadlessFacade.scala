@@ -27,6 +27,12 @@ final class HeadlessFacade private (
   val bootstrapElapsedMs: Long
 ) {
   private val sessionClass: Class[?] = sessionInstance.getClass
+  private val shutDown = new java.util.concurrent.atomic.AtomicBoolean(false)
+
+  /** Phase 2b: reports whether [[shutdown]] has been called. Used by
+    * [[HeadlessSessionRegistry]] to detect facades torn down by a
+    * cancel signal so the cached reference can be cleared. */
+  def isShutDown: Boolean = shutDown.get()
 
   private val useTheoriesMethod = sessionClass.getMethods.find(_.getName == "use_theories")
     .getOrElse(throw new NoSuchMethodException("Headless.Session.use_theories not found"))
@@ -88,11 +94,15 @@ final class HeadlessFacade private (
 
   /**
    * Shut down the underlying session and close the classloader.
-   * Safe to call multiple times — second call is a no-op.
+   * Safe to call multiple times — second call is a no-op. Phase 2b:
+   * marks the facade as shut down so [[HeadlessSessionRegistry]] can
+   * detect post-cancel state when clearing the cache.
    */
   def shutdown(): Unit = {
-    HeadlessBootstrap.stopSession(sessionInstance)
-    try loader.close() catch { case _: Throwable => () }
+    if (shutDown.compareAndSet(false, true)) {
+      HeadlessBootstrap.stopSession(sessionInstance)
+      try loader.close() catch { case _: Throwable => () }
+    }
   }
 
   private def describe(t: Throwable): String = {

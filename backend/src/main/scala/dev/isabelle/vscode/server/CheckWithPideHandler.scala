@@ -147,12 +147,34 @@ object CheckWithPideHandler {
         val translator = SymbolTranslator.load(facade.getClass.getClassLoader.getParent).getOrElse(SymbolTranslator.Identity)
         val translatorStore = new ScratchTheoryStore(scratchRoot, translator)
 
-        facade.submitTheory(workspaceUri, theoryName, theoryText, translatorStore) match {
+        // Phase 2b: mark the facade as in-flight so a concurrent
+        // `pide/cancelWarmup` request from the main dispatcher
+        // thread can interrupt the blocking `use_theories` JNI call
+        // via `Session.stop()`. Always cleared in the `finally`
+        // below, even on Throwable, so a panicking submission never
+        // leaves the registry pointing at a stale facade.
+        registry.markInflight(facade)
+        try {
+          facade.submitTheory(workspaceUri, theoryName, theoryText, translatorStore) match {
           case Left(reason) =>
-            Status.failed(uri, version, theoryName, session, reason, s"PIDE submission failed: $reason", facade.bootstrapNotes)
+            // Phase 2b: if the facade was torn down by an in-flight
+            // cancel signal, surface as `pide-cancelled` rather than
+            // generic `pide-failed`. The registry's
+            // `cancelInflightWarmup()` calls `facade.shutdown()`,
+            // which makes the subsequent `use_theories` JNI return
+            // throw an Interrupt-class exception that submitTheory
+            // catches and reports as a Left.
+            if (facade.isShutDown) {
+              Status.cancelled(uri, version, theoryName, session, facade.bootstrapNotes :+ s"use_theories failed after cancel: $reason")
+            } else {
+              Status.failed(uri, version, theoryName, session, reason, s"PIDE submission failed: $reason", facade.bootstrapNotes)
+            }
           case Right(result) =>
             Status.success(uri, version, theoryName, session, facade, result)
         }
+      } finally {
+        registry.clearInflight()
+      }
     }
   }
 
