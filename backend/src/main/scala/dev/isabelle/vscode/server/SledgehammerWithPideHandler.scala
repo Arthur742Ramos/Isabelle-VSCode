@@ -176,7 +176,13 @@ object SledgehammerWithPideHandler {
                           snapshotCache.evictForUri(uri)
                           SnapshotProofStateExtractor.extractAt(
                             facade.reflectionLoader, snapshot, injection.text,
-                            injection.injectionLine, injection.injectionCharacter
+                            injection.injectionLine, injection.injectionCharacter,
+                            // Phase 3c: Sledgehammer needs whole-file output so the
+                            // "Try this:" lines emitted during the injected
+                            // sledgehammer command's elaboration are not dropped by
+                            // the proof-state panel's per-cursor focus filter.
+                            // See SnapshotProofStateExtractor.MessageFilterMode.
+                            filterMode = SnapshotProofStateExtractor.MessageFilterMode.WholeSnapshot
                           ) match {
                             case Left(reason) =>
                               failed(requestId, uri, Some(version), Some(session),
