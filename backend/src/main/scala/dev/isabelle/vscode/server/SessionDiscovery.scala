@@ -72,7 +72,7 @@ object SessionDiscovery {
 
     val entries =
       try {
-        Option(directory.listFiles()).getOrElse(Array.empty)
+        Option(directory.listFiles()).getOrElse(Array.empty[File])
       } catch {
         case NonFatal(_) => Array.empty[File]
       }
@@ -211,14 +211,20 @@ object SessionDiscovery {
     var index = startIndex
     while (tokens.lift(index).exists(_.value == "[")) {
       var depth = 0
-      do {
+      // Scala 3 removed `do { … } while (…)`. Emulate "execute body once
+      // before checking the condition" with an explicit continuation flag so
+      // the leading `[` is always consumed and depth is updated before the
+      // termination check.
+      var continue = true
+      while (continue) {
         tokens.lift(index).map(_.value).foreach {
           case "[" => depth += 1
           case "]" => depth -= 1
           case _ =>
         }
         index += 1
-      } while (index < tokens.length && depth > 0)
+        continue = index < tokens.length && depth > 0
+      }
     }
     index
   }
@@ -227,14 +233,16 @@ object SessionDiscovery {
     var index = startIndex
     while (tokens.lift(index).exists(_.value == "(")) {
       var depth = 0
-      do {
+      var continue = true
+      while (continue) {
         tokens.lift(index).map(_.value).foreach {
           case "(" => depth += 1
           case ")" => depth -= 1
           case _ =>
         }
         index += 1
-      } while (index < tokens.length && depth > 0)
+        continue = index < tokens.length && depth > 0
+      }
     }
     index
   }

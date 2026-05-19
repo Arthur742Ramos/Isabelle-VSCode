@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "2.13.14"
+ThisBuild / scalaVersion := "3.3.4"
 ThisBuild / organization := "dev.isabelle"
 
 lazy val backend = (project in file("."))
@@ -8,6 +8,11 @@ lazy val backend = (project in file("."))
     Compile / packageBin / artifactName := { (_, _, _) => "isabelle-vscode-server.jar" },
     assembly / mainClass := Some("dev.isabelle.vscode.server.Main"),
     assembly / assemblyJarName := "isabelle-vscode-server.jar",
+    // Pin the fat-jar output to a stable, Scala-version-independent path so
+    // `package.json`'s backend:package script and `BackendManager.ts`'s
+    // development-jar lookup do not have to track sbt's per-Scala-version
+    // target subdirectory (Scala 3.3.4 emits to `target/scala-3.3.4/`).
+    assembly / assemblyOutputPath := baseDirectory.value / "target" / (assembly / assemblyJarName).value,
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", xs @ _*) =>
         xs.map(_.toLowerCase) match {
