@@ -2,7 +2,7 @@
   "name": "isabelle-pide-vscode",
   "displayName": "Isabelle PIDE",
   "description": "A VS Code frontend foundation for Isabelle/PIDE with a Scala bridge backend.",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "publisher": "arthur742ramos",
   "private": true,
   "preview": true,
