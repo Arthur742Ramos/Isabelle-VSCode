@@ -403,6 +403,83 @@
           "when": "view == isabelle.theoryOutline",
           "group": "navigation"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "isabelle.nextCommand",
+          "when": "editorLangId == isabelle",
+          "group": "1_navigation@1"
+        },
+        {
+          "command": "isabelle.previousCommand",
+          "when": "editorLangId == isabelle",
+          "group": "1_navigation@2"
+        },
+        {
+          "command": "isabelle.revealCurrentCommand",
+          "when": "editorLangId == isabelle",
+          "group": "1_navigation@3"
+        },
+        {
+          "command": "isabelle.showProofActions",
+          "when": "editorLangId == isabelle",
+          "group": "2_proof@1"
+        },
+        {
+          "command": "isabelle.refreshProofState",
+          "when": "editorLangId == isabelle",
+          "group": "2_proof@2"
+        },
+        {
+          "command": "isabelle.relocateProofState",
+          "when": "editorLangId == isabelle",
+          "group": "2_proof@3"
+        },
+        {
+          "command": "isabelle.runSledgehammer",
+          "when": "editorLangId == isabelle",
+          "group": "3_sledgehammer@1"
+        },
+        {
+          "command": "isabelle.pickSledgehammerSuggestion",
+          "when": "editorLangId == isabelle && isabelle.sledgehammerHasSuggestion",
+          "group": "3_sledgehammer@2"
+        },
+        {
+          "command": "isabelle.previewTheory",
+          "when": "editorLangId == isabelle",
+          "group": "4_preview@1"
+        },
+        {
+          "command": "isabelle.previewTheoryInSplit",
+          "when": "editorLangId == isabelle",
+          "group": "4_preview@2"
+        },
+        {
+          "command": "isabelle.includeWord",
+          "when": "editorLangId == isabelle",
+          "group": "5_spellcheck@1"
+        },
+        {
+          "command": "isabelle.includeWordPermanently",
+          "when": "editorLangId == isabelle",
+          "group": "5_spellcheck@2"
+        },
+        {
+          "command": "isabelle.excludeWord",
+          "when": "editorLangId == isabelle",
+          "group": "5_spellcheck@3"
+        },
+        {
+          "command": "isabelle.excludeWordPermanently",
+          "when": "editorLangId == isabelle",
+          "group": "5_spellcheck@4"
+        },
+        {
+          "command": "isabelle.createRepairRequest",
+          "when": "editorLangId == isabelle",
+          "group": "9_repair@1"
+        }
       ]
     },
     "configuration": {
