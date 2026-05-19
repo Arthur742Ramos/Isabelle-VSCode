@@ -12,6 +12,10 @@ The Release workflow at `.github/workflows/release.yml` does the heavy lifting �
 
 - You're on a clean checkout of `main` with no uncommitted changes.
 - `npm run check` is green.
+- `npm run package:validate` is green.
+- The `docs/SMOKE_THEORY_CHECKLIST.md` release-candidate smoke record has real
+  VS Code-hosted evidence for the candidate version. Do not treat a headless
+  `isabelle build` as a substitute for the Smoke transcript.
 - All PRs targeting this release have been merged.
 - For Marketplace publish: a `VSCE_PAT` repo secret is configured under **Settings → Secrets and variables → Actions**. The publish step is gated and **no-ops cleanly** if the secret is absent — you can still cut a GitHub-Release-only build.
 
@@ -55,6 +59,11 @@ git pull
 ```
 
 ### 5. Tag and push
+
+Before tagging, re-open `docs/SMOKE_THEORY_CHECKLIST.md` and confirm the
+release-candidate table is populated for the version you are about to tag. If
+`package.json` was pre-bumped in an earlier hardening PR, keep the existing
+version and only tag after the smoke evidence is recorded.
 
 ```powershell
 git tag v<X.Y.Z>
