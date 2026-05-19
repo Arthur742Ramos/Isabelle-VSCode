@@ -108,6 +108,45 @@ object Main {
               }
             })
 
+          // Phase 4: PIDE-backed Sledgehammer. Source-injects
+          // `sledgehammer` at the cursor and submits via Headless. Heavy
+          // — dispatch to worker so cancelWarmup can interrupt mid-call.
+          case "sledgehammer/run" =>
+            pideWorker.submit(new Runnable {
+              override def run(): Unit = {
+                val response =
+                  try {
+                    val env = System.getenv().asScala.toMap
+                    val platform = Option(System.getProperty("os.name")).getOrElse("")
+                    Protocol.success(request.id, SledgehammerWithPideHandler.handle(
+                      params = request.params,
+                      documents = documents,
+                      registry = headlessRegistry,
+                      snapshotCache = snapshotCache,
+                      env = env,
+                      platform = platform
+                    ))
+                  } catch {
+                    case t: Throwable =>
+                      Protocol.error(request.id, -32000, Option(t.getMessage).getOrElse(t.getClass.getSimpleName))
+                  }
+                writeResponse(response)
+              }
+            })
+
+          // Phase 4: cancellation just reuses Phase 2b's Session
+          // teardown — when the worker's submission notices the facade
+          // was shut down, it returns `status: "cancelled"`.
+          case "sledgehammer/cancel" =>
+            val params = request.params.flatMap(_.objOpt)
+            val requestId = params.flatMap(_.get("requestId")).flatMap(_.strOpt)
+            headlessRegistry.cancelInflightWarmup()
+            writeResponse(Protocol.success(request.id, ujson.Obj(
+              "requestId" -> requestId.map(ujson.Str(_)).getOrElse(ujson.Null),
+              "cancelled" -> true,
+              "message" -> "Sledgehammer cancellation signaled; any in-flight PIDE submission is being torn down."
+            )))
+
           // Phase 3: fast diagnostic on main thread.
           case "pide/cacheState" =>
             writeResponse(Protocol.success(request.id, PideCacheHandlers.cacheState(headlessRegistry)))
@@ -224,27 +263,8 @@ object Main {
           character = position("character").num.toInt
         ))
 
-      case "sledgehammer/run" =>
-        val params = request.requiredParams
-        val position = params("position").obj
-        Protocol.success(request.id, documents.sledgehammer(
-          requestId = params("requestId").str,
-          uri = params("uri").str,
-          line = position("line").num.toInt,
-          character = position("character").num.toInt,
-          session = params.get("session").flatMap(_.strOpt),
-          isabelleExecutablePath = params.get("isabelleExecutablePath").flatMap(_.strOpt)
-        ))
-
-      case "sledgehammer/cancel" =>
-        val params = request.params.flatMap(_.objOpt)
-        val requestId = params.flatMap(_.get("requestId")).flatMap(_.strOpt)
-        Protocol.success(request.id, ujson.Obj(
-          "requestId" -> requestId.map(ujson.Str(_)).getOrElse(ujson.Null),
-          "cancelled" -> false,
-          "message" -> "No active Sledgehammer job is running; PIDE-backed Sledgehammer jobs are not implemented in this backend yet."
-        ))
-
+      // Phase 4: `sledgehammer/run` and `sledgehammer/cancel` are now
+      // routed on the worker thread above; nothing here.
       case other =>
         Protocol.error(request.id, -32601, s"Unsupported method: $other")
     }
