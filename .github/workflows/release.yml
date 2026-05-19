@@ -196,14 +196,11 @@ jobs:
             adoptium_arch: aarch64
             archive_ext: tar.gz
             native_smoke: false
-          - target: darwin-x64
-            # macos-13 is the last GitHub-hosted Intel macOS runner; using
-            # it gives darwin-x64 a real native smoke test.
-            runner: macos-13
-            adoptium_os: mac
-            adoptium_arch: x64
-            archive_ext: tar.gz
-            native_smoke: true
+          # NOTE: `darwin-x64` (macOS Intel) was dropped from the matrix in
+          # v0.1.0-alpha.3 due to chronic `macos-13` runner-pool
+          # unavailability blocking the entire `publish` job. macOS Intel
+          # users install the universal `.vsix` (Java 21+ on PATH).
+          # See AGENTS.md §17 for the re-add criteria.
           - target: darwin-arm64
             runner: macos-latest
             adoptium_os: mac
@@ -459,8 +456,9 @@ jobs:
             | `-linux-arm64.vsix` | Linux ARM64 (glibc) |
             | `-alpine-x64.vsix` | Alpine / musl x64 |
             | `-alpine-arm64.vsix` | Alpine / musl ARM64 |
-            | `-darwin-x64.vsix` | macOS Intel |
             | `-darwin-arm64.vsix` | macOS Apple silicon |
+
+            - **macOS Intel users:** install the universal `.vsix` instead (no platform suffix). Requires Java 21+ on `PATH`. The dedicated macOS Intel build was dropped in v0.1.0-alpha.3 due to chronic `macos-13` runner pool unavailability — see [AGENTS.md §17](https://github.com/${{ github.repository }}/blob/main/AGENTS.md).
 
             Install via either:
 
@@ -469,7 +467,7 @@ jobs:
 
             ### Universal `.vsix` (`isabelle-pide-vscode-${{ env.PKG_VERSION }}.vsix`)
 
-            For platforms not listed above (NixOS, *BSD, exotic CPU archs) or bring-your-own-Java setups. Requires **Java 21+** on `PATH`.
+            For platforms not listed above (NixOS, *BSD, exotic CPU archs, macOS Intel) or bring-your-own-Java setups. Requires **Java 21+** on `PATH`.
 
             ### Runtime prerequisites
 

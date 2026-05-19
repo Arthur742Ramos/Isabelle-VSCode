@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-18 (bundled per-platform JRE — `release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
+> Last refreshed: 2026-05-19 (release matrix change — dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria). Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -217,15 +217,16 @@ authoring guide.
 The Release workflow (`.github/workflows/release.yml`) ships TWO
 flavors per `v*` tag:
 
-- **Eight per-platform `.vsix` files** — `win32-x64`, `win32-arm64`,
+- **Seven per-platform `.vsix` files** — `win32-x64`, `win32-arm64`,
   `linux-x64`, `linux-arm64`, `alpine-x64`, `alpine-arm64`,
-  `darwin-x64`, `darwin-arm64`. Each embeds Eclipse Temurin 21 under
+  `darwin-arm64`. Each embeds Eclipse Temurin 21 under
   `extension/jre/` (`extension/jre/Contents/Home/` on macOS, keeping
   Adoptium's signed layout intact). End users on these platforms
   install the matching asset, get the matching Java automatically,
   and the activation-time prerequisite probe finds the bundled
   runtime via `src/backend/resolveJavaCommand.ts` — no system Java
-  needed.
+  needed. (`darwin-x64` was dropped in v0.1.0-alpha.3 due to chronic
+  `macos-13` runner-pool unavailability — see AGENTS.md §17.)
 - **One universal `.vsix`** — no bundled JRE, requires `java` 21+
   on `PATH`. Stays available for `linux-armhf`, *BSD, NixOS, exotic
   CPU archs, and bring-your-own-Java security-constrained envs.
@@ -239,8 +240,8 @@ so universal-VSIX users still see the existing "install Java" toast
 when their PATH lacks Java.
 
 CI matrix builds run on the target's native runner where possible
-(`windows-latest` / `ubuntu-latest` / `macos-latest` + `macos-13`
-for darwin-x64) and smoke-test the packaged VSIX by unzipping it
+(`windows-latest` / `ubuntu-latest` / `macos-latest`) and smoke-test
+the packaged VSIX by unzipping it
 and invoking the bundled `java -version`. Cross-arch matrix entries
 (arm64 on x64 hosts, Alpine musl on Ubuntu glibc) get layout-only
 smoke; live cross-arch smoke is a documented Tier-2 manual check.
@@ -318,6 +319,7 @@ values for the bumping procedure.
       `preplay_timeout=10` proves insufficient.
     - **Phase 2d** — free polish slot, e.g. multi-session cache if
       `prewarmOnActivation` needs it.
+- macOS Intel per-platform .vsix dropped from release matrix (AGENTS.md §17). Re-add if GitHub Intel macOS runner capacity recovers.
 - **Decoration overlays from
   `PIDE/dynamic_output.decorations`.** Upstream sends optional
   decoration data alongside the dynamic-output content; mapping

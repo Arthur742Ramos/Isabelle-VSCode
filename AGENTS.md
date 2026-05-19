@@ -325,7 +325,7 @@ The Isabelle language server auto-starts on activation when both Java and Isabel
 
 ### 9. Per-platform VSIX with bundled JRE
 
-The Release workflow (`.github/workflows/release.yml`) ships TWO flavors per tag: a **universal** `.vsix` (no JRE bundled, requires `java` 21+ on `PATH`) plus **eight per-platform** `.vsix` files (`win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`) that embed Eclipse Temurin 21 under `extension/jre/`. Notes for anyone working on this surface:
+The Release workflow (`.github/workflows/release.yml`) ships TWO flavors per tag: a **universal** `.vsix` (no JRE bundled, requires `java` 21+ on `PATH`) plus **seven per-platform** `.vsix` files (`win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `alpine-x64`, `alpine-arm64`, `darwin-arm64`) that embed Eclipse Temurin 21 under `extension/jre/`. (`darwin-x64` was dropped in v0.1.0-alpha.3 — see §17.) Notes for anyone working on this surface:
 
 - **Resolver:** `src/backend/resolveJavaCommand.ts` is the single source of truth for "where is the bundled Java?". `BackendManager` and `PrerequisiteChecker` both consult it. Path layout is platform-aware — macOS keeps the vendor `Contents/Home/` tree (so Eclipse Adoptium's signatures stay intact), Windows uses `.exe`, Linux/other POSIX uses plain `bin/java`. Validation requires `isFile()` + (POSIX) `X_OK`. A corrupt local `jre/` falls through to PATH `"java"` rather than wedging activation.
 - **Bumping the bundled Temurin version:** edit the three `TEMURIN_*` env values at the top of `release.yml`. The SHA256 is fetched from Adoptium and verified inline, so no separate hash table needs updating. Verify by triggering a `workflow_dispatch` run before tagging.
@@ -445,6 +445,19 @@ TS side adds a dedicated command `Isabelle: Minimize Sledgehammer Proof at Curso
 **The `injectedCommand` field on `SledgehammerRunResult`** echoes the actual `sledgehammer [...] (...)` text the backend injected. The TS minimize UX surfaces this in the output channel so users can see exactly what was tried. Useful for debugging "why did this produce these suggestions?".
 
 **Fact-name escaping**: `escapeFactName` defends against fact names containing spaces or quotes by wrapping in double quotes and escaping internal quotes. Empty/whitespace fact names become `_` (a placeholder Isabelle parses but doesn't match anything). Conservative — covers the unusual but legal cases without trying to be too clever.
+
+### 17. macOS Intel (`darwin-x64`) is NOT in the per-platform release matrix
+
+GitHub's `macos-13` runner pool (the last Intel-x64 macOS option) has chronic queueing issues since the `macos-15` / `macos-26` rollout pushed Intel runners into low-priority capacity. Three consecutive `release.yml` runs (two `workflow_dispatch` runs in May 2026 plus the `v0.1.0-alpha.2` tag push) all stalled with `darwin-x64` queued for hours, blocking the `publish` job and stranding every other platform's artifacts.
+
+The trade-off:
+- **Benefit of keeping it:** macOS Intel users get a `.vsix` that bundles Eclipse Temurin 21.
+- **Cost of keeping it:** every release tag stalls indefinitely until/unless `macos-13` becomes available. Marketplace publish never fires for the other 8 platforms.
+- **Mitigation for affected users:** the universal `.vsix` works on macOS Intel as long as `java` 21+ is on `PATH` (Homebrew: `brew install --cask temurin@21`).
+
+**Decision:** drop `darwin-x64` from the matrix. Re-add only if (a) GitHub announces healthy Intel macOS runner capacity, or (b) we see evidence of meaningful macOS Intel user demand. Tracking via a documented open question rather than a hot follow-up.
+
+If you re-add it: the entry pattern lives in `.github/workflows/release.yml` under `build-platform.strategy.matrix.include`. Keep `runner: macos-13` (last Intel-supporting label) and set `native_smoke: true`. Verify with a `workflow_dispatch` run BEFORE tagging. Don't forget to re-add the row to the README install table, the release-notes asset table inside `release.yml`'s `publish` job, and remove the macOS-Intel callout from the release notes body.
 
 ---
 
