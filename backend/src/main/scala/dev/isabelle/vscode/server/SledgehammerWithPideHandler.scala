@@ -66,11 +66,37 @@ object SledgehammerWithPideHandler {
       case Some(theoryText) =>
         val version = versionOpt.getOrElse(documents.peekVersion(uri).getOrElse(0))
         val sessionName = session.get
+        val options = parseOptions(obj)
         runInjectedSubmission(
           requestId, uri, version, sessionName, theoryText, line, character, theoryName, workspaceUri,
-          executablePath, env, platform, fs, registry, snapshotCache
+          executablePath, env, platform, fs, registry, snapshotCache, options
         )
     }
+  }
+
+  /**
+   * Parse the optional Phase 5 fields from the request:
+   *
+   *   - `sledgehammerOptions`: object → `Options.params`
+   *   - `onlyFacts`: array of strings → `Options.onlyFacts`
+   *   - `addFacts`: array of strings → `Options.addFacts`
+   *   - `delFacts`: array of strings → `Options.delFacts`
+   */
+  private[server] def parseOptions(obj: scala.collection.mutable.Map[String, ujson.Value]): SledgehammerSourceInjector.Options = {
+    val params = obj.get("sledgehammerOptions")
+      .flatMap(_.objOpt)
+      .map(o => o.iterator.collect { case (k, v) if v.strOpt.isDefined => k -> v.str }.toMap)
+      .getOrElse(Map.empty[String, String])
+    def strArr(field: String): Seq[String] =
+      obj.get(field).flatMap(_.arrOpt)
+        .map(_.flatMap(_.strOpt).filter(_.nonEmpty).toSeq)
+        .getOrElse(Seq.empty)
+    SledgehammerSourceInjector.Options(
+      params = params,
+      onlyFacts = strArr("onlyFacts"),
+      addFacts = strArr("addFacts"),
+      delFacts = strArr("delFacts")
+    )
   }
 
   private def runInjectedSubmission(
@@ -88,7 +114,8 @@ object SledgehammerWithPideHandler {
     platform: String,
     fs: IsabelleHomeFs,
     registry: HeadlessSessionRegistry,
-    snapshotCache: SnapshotCache
+    snapshotCache: SnapshotCache,
+    options: SledgehammerSourceInjector.Options
   ): ujson.Value = {
     IsabelleHome.resolve(env, executablePath, platform, fs) match {
       case None =>
@@ -122,8 +149,9 @@ object SledgehammerWithPideHandler {
                 val translator = SymbolTranslator.load(facade.reflectionLoader).getOrElse(SymbolTranslator.Identity)
                 val translatorStore = new ScratchTheoryStore(scratchRoot, translator)
 
-                // Inject `sledgehammer` at the cursor's line.
-                val injection = SledgehammerSourceInjector.inject(theoryText, line, character)
+                // Inject `sledgehammer` at the cursor's line, with
+                // any Phase 5 fact-override / params attached.
+                val injection = SledgehammerSourceInjector.injectWithOptions(theoryText, line, character, options)
 
                 registry.markInflight(facade)
                 try {
@@ -154,7 +182,7 @@ object SledgehammerWithPideHandler {
                               failed(requestId, uri, Some(version), Some(session),
                                 s"Sledgehammer message extraction failed: $reason")
                             case Right(extracted) =>
-                              renderResult(requestId, uri, version, session, theoryName, extracted)
+                              renderResult(requestId, uri, version, session, theoryName, extracted, injection.commandSyntax)
                           }
                       }
                   }
@@ -172,7 +200,8 @@ object SledgehammerWithPideHandler {
     version: Int,
     session: String,
     theoryName: String,
-    extracted: SnapshotProofStateExtractor.ExtractedProofState
+    extracted: SnapshotProofStateExtractor.ExtractedProofState,
+    commandSyntax: String
   ): ujson.Value = {
     val raw = extracted.raw
     val suggestions = SledgehammerSuggestionParser.parse(raw)
@@ -209,6 +238,7 @@ object SledgehammerWithPideHandler {
       "status" -> "completed",
       "bridge" -> "pide-enabled",
       "command" -> commandJson,
+      "injectedCommand" -> commandSyntax,
       "suggestions" -> suggestionsArr,
       "raw" -> raw,
       "notes" -> ujson.Arr(extracted.notes.map(ujson.Str(_))*),

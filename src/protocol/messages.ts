@@ -214,6 +214,22 @@ export interface SledgehammerRunParams {
   position: ProtocolPosition;
   session?: string;
   isabelleExecutablePath?: string;
+  /** Phase 5 — optional theory text override (sent when the document
+   * may not be in the backend's DocumentStore). */
+  text?: string;
+  /** Phase 5 — optional theory name (defaults to uri's basename). */
+  theoryName?: string;
+  /** Phase 5 — optional workspace folder uri for scratch root keying. */
+  workspaceUri?: string;
+  /** Phase 5 — raw `[k=v]` Sledgehammer parameters
+   * (e.g. `{ minimize: "true", max_facts: "8", preplay_timeout: "10" }`). */
+  sledgehammerOptions?: Record<string, string>;
+  /** Phase 5 — `(fact1 fact2 ...)` fact restriction. */
+  onlyFacts?: string[];
+  /** Phase 5 — `(add: fact1 fact2 ...)` extra facts. */
+  addFacts?: string[];
+  /** Phase 5 — `(del: fact1 fact2 ...)` excluded facts. */
+  delFacts?: string[];
 }
 
 export interface SledgehammerSuggestion {
@@ -233,6 +249,10 @@ export interface SledgehammerRunResult {
   suggestions: SledgehammerSuggestion[];
   raw: string;
   message?: string;
+  /** Phase 5: the verbatim `sledgehammer [...] (...)` text the
+   * backend injected — useful for the minimize UX so the user can see
+   * exactly which fact set was tried. */
+  injectedCommand?: string;
 }
 
 export interface SledgehammerCancelParams {

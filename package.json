@@ -41,6 +41,7 @@
     "onCommand:isabelle.showPideDocumentStatus",
     "onCommand:isabelle.invalidatePideCache",
     "onCommand:isabelle.showPideProofState",
+    "onCommand:isabelle.minimizeSledgehammerProof",
     "onCommand:isabelle.discoverSessions",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
@@ -134,6 +135,10 @@
       {
         "command": "isabelle.showPideProofState",
         "title": "Isabelle: Show PIDE Proof State at Cursor"
+      },
+      {
+        "command": "isabelle.minimizeSledgehammerProof",
+        "title": "Isabelle: Minimize Sledgehammer Proof at Cursor"
       },
       {
         "command": "isabelle.discoverSessions",
