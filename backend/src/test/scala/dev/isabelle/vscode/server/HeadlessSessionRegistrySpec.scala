@@ -82,7 +82,15 @@ final class HeadlessSessionRegistrySpec extends AnyFunSuite {
 
     registry.cancelInflightWarmup()
 
-    assert(fakeFacade.facade.isShutDown, "cancelled facade must report isShutDown=true")
+    // Phase 2b polish: post-cancel teardown runs on the cleanup
+    // executor (single daemon thread), so the test must poll for
+    // the shutdown to land rather than asserting synchronously.
+    val deadline = System.currentTimeMillis() + 2000
+    while (!fakeFacade.facade.isShutDown && System.currentTimeMillis() < deadline) {
+      Thread.sleep(20)
+    }
+
+    assert(fakeFacade.facade.isShutDown, "cancelled facade must report isShutDown=true within 2 s")
   }
 
   test("Phase 2b: markInflight / clearInflight are idempotent and clearing a never-marked registry is a no-op") {

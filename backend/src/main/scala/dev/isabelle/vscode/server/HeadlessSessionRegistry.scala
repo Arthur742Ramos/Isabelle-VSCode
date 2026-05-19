@@ -88,26 +88,37 @@ final class HeadlessSessionRegistry(
    * fresh session (~20 s cost on the next call; acceptable for the
    * rare cancellation case).
    *
-   * Concurrency note: this method is called from the dispatcher's
-   * main thread while the worker thread is potentially mid-call
-   * inside `use_theories`. `Session.stop()` is designed to be safe
-   * to call from another thread (it sends a Stop signal to the
+   * Phase 2b polish: the actual `Session.stop()` / loader close
+   * runs on a dedicated cleanup executor so the dispatcher's main
+   * thread returns immediately (the user sees an instant cancel
+   * acknowledgement; the heavy teardown happens in the background).
+   * `inflightFacade.getAndSet(None)` makes the signal idempotent —
+   * a second cancel sees `None` and does nothing, so no risk of
+   * stacked tear-downs from rapid multi-clicks.
+   *
+   * Concurrency note: `Session.stop()` is designed to be safe to
+   * call from another thread (it sends a Stop signal to the
    * Isabelle session actor); the worst-case outcome is a race that
    * surfaces as a `Throwable` in the worker, which
    * [[HeadlessFacade.submitTheory]] already catches.
    */
   def cancelInflightWarmup(): Unit = {
     cancelFlag.set(true)
+    // Atomic swap → second cancel finds None, no double-teardown.
     inflightFacade.getAndSet(None).foreach { facade =>
-      try facade.shutdown() catch { case NonFatal(_) => () }
-    }
-    // The shutdown above tore down the cached facade if it matched
-    // the in-flight one — but `cached` still holds a reference.
-    // Clear it so the next acquireOrBuild call re-bootstraps cleanly.
-    cached.foreach { case (_, facade) =>
-      if (facade.isShutDown) {
-        cached = None
-      }
+      HeadlessSessionRegistry.cleanupExecutor.submit(new Runnable {
+        override def run(): Unit = {
+          try facade.shutdown() catch { case NonFatal(_) => () }
+          // Also invalidate the cache if the cached facade was the
+          // one we just tore down. Single-threaded dispatcher
+          // guarantees we don't race with a concurrent acquireOrBuild.
+          cached.foreach { case (_, cachedFacade) =>
+            if (cachedFacade.isShutDown) {
+              cached = None
+            }
+          }
+        }
+      })
     }
   }
 
@@ -182,6 +193,21 @@ final class HeadlessSessionRegistry(
 }
 
 object HeadlessSessionRegistry {
+  /**
+   * Phase 2b polish: dedicated single-thread executor for the
+   * post-cancel `Session.stop()` + loader.close() teardown. Keeps
+   * the dispatcher's main thread free to acknowledge the cancel
+   * request immediately while the heavy teardown (~100ms-1s for
+   * `Session.stop()` to acknowledge the Stop signal) runs in the
+   * background. Daemon thread so a hung teardown does not block
+   * JVM shutdown.
+   */
+  private[server] val cleanupExecutor: java.util.concurrent.ExecutorService =
+    java.util.concurrent.Executors.newSingleThreadExecutor(r => {
+      val t = new Thread(r, "pide-cleanup")
+      t.setDaemon(true)
+      t
+    })
 
   /** Stable cache key. Equality drives invalidation. */
   final case class Fingerprint(
