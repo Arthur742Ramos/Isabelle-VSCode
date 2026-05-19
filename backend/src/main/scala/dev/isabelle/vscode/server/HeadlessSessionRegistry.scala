@@ -30,6 +30,11 @@ final class HeadlessSessionRegistry(
 ) {
   private var cached: Option[(HeadlessSessionRegistry.Fingerprint, HeadlessFacade)] = None
   private val cancelFlag = new AtomicBoolean(false)
+  /** Phase 2b: tracks the facade currently inside a `use_theories`
+    * call so [[cancelInflightWarmup]] can interrupt the blocking JNI
+    * call by tearing down the `Headless.Session`. Cleared by
+    * [[clearInflight]] when the call completes (success or failure). */
+  private val inflightFacade = new java.util.concurrent.atomic.AtomicReference[Option[HeadlessFacade]](None)
 
   /**
    * Acquire the live facade for the given home + session, building it
@@ -58,10 +63,52 @@ final class HeadlessSessionRegistry(
     }
   }
 
-  /** Caller-facing cancellation signal. Sets the flag the bootstrap
-    * loop checks between steps. Idempotent. */
+  /**
+   * Phase 2b: mark the supplied facade as the in-flight target for
+   * cancellation. Caller must clear via [[clearInflight]] in a
+   * `finally` block so the registry never holds a reference to a
+   * facade that has already returned from `use_theories`.
+   */
+  def markInflight(facade: HeadlessFacade): Unit = {
+    inflightFacade.set(Some(facade))
+  }
+
+  /** Phase 2b: clear the in-flight marker. Idempotent. */
+  def clearInflight(): Unit = {
+    inflightFacade.set(None)
+  }
+
+  /**
+   * Caller-facing cancellation signal. Phase 2a: sets the warmup
+   * cancel flag the bootstrap loop checks between steps. Phase 2b:
+   * ALSO tears down the in-flight `Headless.Session` (if any) via
+   * `Session.stop()` so the blocking `use_theories` JNI call returns
+   * with an `Interrupt`-wrapped exception. The cached facade is
+   * invalidated as a side effect so the next call re-bootstraps a
+   * fresh session (~20 s cost on the next call; acceptable for the
+   * rare cancellation case).
+   *
+   * Concurrency note: this method is called from the dispatcher's
+   * main thread while the worker thread is potentially mid-call
+   * inside `use_theories`. `Session.stop()` is designed to be safe
+   * to call from another thread (it sends a Stop signal to the
+   * Isabelle session actor); the worst-case outcome is a race that
+   * surfaces as a `Throwable` in the worker, which
+   * [[HeadlessFacade.submitTheory]] already catches.
+   */
   def cancelInflightWarmup(): Unit = {
     cancelFlag.set(true)
+    inflightFacade.getAndSet(None).foreach { facade =>
+      try facade.shutdown() catch { case NonFatal(_) => () }
+    }
+    // The shutdown above tore down the cached facade if it matched
+    // the in-flight one — but `cached` still holds a reference.
+    // Clear it so the next acquireOrBuild call re-bootstraps cleanly.
+    cached.foreach { case (_, facade) =>
+      if (facade.isShutDown) {
+        cached = None
+      }
+    }
   }
 
   /** Shutdown the live facade (if any). Idempotent. */

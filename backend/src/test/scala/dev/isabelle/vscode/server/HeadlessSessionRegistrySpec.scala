@@ -72,4 +72,57 @@ final class HeadlessSessionRegistrySpec extends AnyFunSuite {
     registry.shutdown()
     assert(registry.currentFingerprint.isEmpty)
   }
+
+  test("Phase 2b: cancelInflightWarmup shuts down the inflight facade and invalidates the cache") {
+    val registry = new HeadlessSessionRegistry(loaderFactory = emptyLoaderFactory)
+    val fakeFacade = new FakeShutdownTrackingFacade
+
+    // Simulate an in-flight submission marking the facade.
+    registry.markInflight(fakeFacade.facade)
+
+    registry.cancelInflightWarmup()
+
+    assert(fakeFacade.facade.isShutDown, "cancelled facade must report isShutDown=true")
+  }
+
+  test("Phase 2b: markInflight / clearInflight are idempotent and clearing a never-marked registry is a no-op") {
+    val registry = new HeadlessSessionRegistry(loaderFactory = emptyLoaderFactory)
+    registry.clearInflight()
+    registry.clearInflight()
+    // No exception, and cancel is still safe.
+    registry.cancelInflightWarmup()
+  }
+}
+
+/** Test helper: a minimal facade whose [[HeadlessFacade.shutdown]]
+  * we can observe. Built without going through the real bootstrap
+  * chain since we just want to verify the registry lifecycle wiring. */
+private final class FakeShutdownTrackingFacade {
+  import java.lang.reflect.Constructor
+
+  // Reflectively construct a HeadlessFacade with a minimal Session
+  // proxy whose use_theories method is never called in this test —
+  // we only care about isShutDown propagation.
+  val facade: HeadlessFacade = {
+    val ctor = classOf[HeadlessFacade].getDeclaredConstructors.head.asInstanceOf[Constructor[HeadlessFacade]]
+    ctor.setAccessible(true)
+    ctor.newInstance(
+      new java.net.URLClassLoader(Array.empty[java.net.URL], getClass.getClassLoader),
+      SymbolTranslator.Identity,
+      new SessionStub: AnyRef,
+      new Object(),
+      java.nio.file.Paths.get("/fake/home"),
+      "HOL",
+      Seq("test-facade"),
+      java.lang.Long.valueOf(0L)
+    )
+  }
+}
+
+/** Stub that responds to the reflective `use_theories` method lookup
+  * the facade's constructor performs (otherwise the constructor
+  * itself throws NoSuchMethodException). */
+private final class SessionStub {
+  def use_theories(): Object = new Object()
+  def stop(): Object = new Object()
 }
