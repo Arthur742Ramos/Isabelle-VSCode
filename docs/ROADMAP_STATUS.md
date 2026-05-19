@@ -254,12 +254,28 @@ values for the bumping procedure.
 ### Code work that could land in future PRs
 
 - **Scala backend real `PideBridge` implementation.** The
-  largest open track. Requires linking against Isabelle's PIDE
-  jars and is multi-PR work. Would unblock:
-  - Milestone 7 minimization (since the LSP doesn't expose it).
-  - Live PIDE-backed proof state / Sledgehammer for users
-    WITHOUT the LSP relay (today they get the local-syntax
-    placeholders + backend boundary disclaimers).
+  largest open track. Multi-PR work. Status as of this checkpoint:
+  - **Phase 0** ✅ (PR #72) — backend now compiles + tests under
+    Scala 3.3.4 matching Isabelle's bundled Scala.
+  - **Phase 1** ✅ (this PR) — runtime classpath bridge wired. The
+    backend resolves `<ISABELLE_HOME>` from env / `isabelle.executablePath` /
+    platform defaults, constructs a child `URLClassLoader` from
+    `<home>/lib/classes/isabelle.jar` + the matching
+    `<home>/contrib/scala-*/lib/*.jar`, and reflectively loads
+    `isabelle.Isabelle_System$.MODULE$` as a proof of life. New
+    JSON-RPC method `isabelle/pideVersion` + new VS Code command
+    `Isabelle: Show PIDE Backend Status` surface the bridge readiness
+    to users with structured failure reasons. **License contract**:
+    we never bundle any `isabelle.*` jar in our `.vsix` or fat jar;
+    `backend/scripts/check-license.js` runs as part of
+    `npm run backend:package` and fails the build if violated. See
+    `THIRD_PARTY_NOTICES.md` and `AGENTS.md` §11 for the runtime
+    contract.
+  - **Phase 2+** ⏳ — would unblock:
+    - Milestone 7 minimization (since the LSP doesn't expose it).
+    - Live PIDE-backed proof state / Sledgehammer for users
+      WITHOUT the LSP relay (today they get the local-syntax
+      placeholders + backend boundary disclaimers).
 - **Decoration overlays from
   `PIDE/dynamic_output.decorations`.** Upstream sends optional
   decoration data alongside the dynamic-output content; mapping

@@ -33,6 +33,16 @@ trait PideBridge {
 
   /** Build the response for `sledgehammer/run` for a synchronized document. */
   def sledgehammer(request: SledgehammerRequest): ujson.Value
+
+  /**
+   * Phase 1 proof-of-life: the resolved Isabelle version string, or the
+   * empty string when the bridge cannot reach a real Isabelle install.
+   * The JSON-RPC dispatcher does NOT use this method directly — it
+   * builds a richer [[PideRuntimeStatus]] via [[PideBridgeSelector]] —
+   * but the trait method lets future phases query the version without
+   * going through the selector each time.
+   */
+  def isabelleVersion(): String
 }
 
 /**
@@ -63,6 +73,8 @@ final class LocalSyntaxPideBridge extends PideBridge {
       "version" -> document.version,
       "commandSpans" -> CommandSpanParser.parse(document).map(_.json)
     )
+
+  override def isabelleVersion(): String = ""
 
   override def proofState(document: TheoryDocument, line: Int, character: Int): ujson.Value = {
     val spans = CommandSpanParser.parse(document)
@@ -120,4 +132,31 @@ final class LocalSyntaxPideBridge extends PideBridge {
       "message" -> "Sledgehammer workflow is wired, but proof search is unavailable until the Scala backend integrates with Isabelle/PIDE."
     )
   }
+}
+
+/**
+ * Phase 1 bridge that delegates the document / proof-state /
+ * Sledgehammer methods to a wrapped [[LocalSyntaxPideBridge]] (Phase 2
+ * and onward will replace each method with real PIDE-backed
+ * implementations) but reports a non-empty [[isabelleVersion]] so the
+ * `Isabelle: Show PIDE Backend Status` command can show the user a
+ * resolved Isabelle version pulled from the runtime classpath.
+ *
+ * The version string is supplied at construction time by
+ * [[PideBridgeSelector]], which already had to load the Isabelle
+ * runtime classpath to construct this bridge in the first place.
+ */
+final class PideEnabledBridge(version: String) extends PideBridge {
+  private val fallback = new LocalSyntaxPideBridge
+
+  override def documentResult(document: TheoryDocument): ujson.Value =
+    fallback.documentResult(document)
+
+  override def proofState(document: TheoryDocument, line: Int, character: Int): ujson.Value =
+    fallback.proofState(document, line, character)
+
+  override def sledgehammer(request: SledgehammerRequest): ujson.Value =
+    fallback.sledgehammer(request)
+
+  override def isabelleVersion(): String = version
 }

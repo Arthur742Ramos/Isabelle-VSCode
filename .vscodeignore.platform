@@ -19,6 +19,7 @@ backend/src/**
 backend/project/**
 backend/target/**
 backend/build.sbt
+backend/scripts/**
 package-lock.json
 tsconfig.json
 vitest.config.ts
