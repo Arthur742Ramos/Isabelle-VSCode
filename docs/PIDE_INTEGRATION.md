@@ -510,20 +510,25 @@ these items are done today.
         flight. Cancellation during the wait clears the queued
         dispatch so it never reaches the server, and a follow-up `run`
         supersedes a pending request.
-  - [ ] Implement proof-minimization wiring (the second half of milestone
-        7), driven by the same upstream Sledgehammer surface.
-        **Upstream-blocked at LSP level** as of the
-        `ce22e9eaee0d486b424c1c2d1ccb66229632cf0d` source probe — see
+  - [x] Implement proof-minimization wiring (the second half of milestone
+        7), **delivered via the Headless backend route, not the LSP**
+        (PR #82). The LSP path remains upstream-blocked — see
         [`proof_state_and_minimization_lsp_research.md`](proof_state_and_minimization_lsp_research.md)
-        for the verbatim findings. Two paths forward: (a) wait for
-        upstream to add a `PIDE/sledgehammer_minimize_request`
-        notification; or (b) implement minimization in the Scala
-        backend's `PideBridge` via direct Isabelle/ML call into
-        `Sledgehammer_Minimize.run`. Recommendation: defer until the
-        backend's `PideBridge` gains a real PIDE implementation. The
-        recommended next step on the milestone-7 track is *not* this
-        checkbox but rather Milestone 6's LSP-mode proof state, which
-        is unblocked by the same research probe.
+        for the verbatim findings. The shipped path: new command
+        `Isabelle: Minimize Sledgehammer Proof at Cursor` parses the
+        proof body at the cursor (`by (metis foo bar baz qux)`),
+        extracts the fact list, and dispatches `sledgehammer/run` with
+        `onlyFacts: [...]` + `sledgehammerOptions: { minimize: "true",
+        preplay_timeout: "10" }`. The Scala backend injects
+        `sledgehammer [minimize=true, preplay_timeout=10] (fact1 ...)`
+        into the source via `SledgehammerSourceInjector`,
+        re-submits through `Headless.Session.use_theories`, and harvests
+        the minimized "Try this: ..." lines via
+        `SledgehammerSuggestionParser` (Phase 4's pipeline + Phase 5's
+        fact-override extension). See `AGENTS.md` §16 for the design
+        trade-off vs reflectively invoking `Sledgehammer_Minimize.run`
+        directly (defer until users need stricter binary-search
+        minimization).
 
 - [ ] Milestone 6 (Proof state panel)
   - [x] Replace the local-syntax-only `ProofStatePanel` placeholder
