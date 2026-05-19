@@ -17,6 +17,28 @@ import scala.util.control.NonFatal
 object SnapshotProofStateExtractor {
 
   /**
+   * How to filter `snapshot.messages` entries against the cursor's
+   * command range. Phase 3c (#92) made the filter explicit so
+   * Sledgehammer (which needs whole-file output to harvest "Try
+   * this:" lines that may sit on the injected command's range or
+   * be unpositioned) cannot be silently regressed by tightening the
+   * proof state panel's per-cursor focus.
+   */
+  sealed trait MessageFilterMode
+  object MessageFilterMode {
+    /** Phase 3c default for `proofState/getWithPide`: include only
+     *  positioned entries that overlap the cursor's command range.
+     *  Falls back to "include all" if NO entry has positional info
+     *  (so a build that emits everything unpositioned still works). */
+    case object CursorCommandOnly extends MessageFilterMode
+    /** Phase 3b legacy behavior used by `SledgehammerWithPideHandler`:
+     *  include every entry regardless of position. Required because
+     *  Sledgehammer "Try this:" output may be unpositioned OR
+     *  positioned outside the injected command's range. */
+    case object WholeSnapshot extends MessageFilterMode
+  }
+
+  /**
    * Output of [[extractAt]]. Goal list + raw flattened text.
    * Context entries are left empty for Phase 3 — populating them
    * requires more reflection into PIDE's local-context surface;
@@ -37,23 +59,30 @@ object SnapshotProofStateExtractor {
    * with a structured reason the handler can surface as
    * `status: "unavailable"`.
    *
-   * @param loader   The classloader the Headless session was built
-   *                 against — used to reflect on `isabelle.XML`.
-   * @param snapshot The live `isabelle.Document.Snapshot` instance.
+   * @param loader     The classloader the Headless session was built
+   *                   against — used to reflect on `isabelle.XML`.
+   * @param snapshot   The live `isabelle.Document.Snapshot` instance.
    * @param documentText The original (Unicode) source text — needed
-   *                     because PIDE's command ranges are character
-   *                     offsets, but the cursor came in as
-   *                     `(line, character)`. We resolve the cursor
-   *                     to an offset via [[OffsetToPosition]].
-   * @param line     0-based line of the cursor.
-   * @param character 0-based UTF-16 column of the cursor.
+   *                   because PIDE's command ranges are character
+   *                   offsets, but the cursor came in as
+   *                   `(line, character)`. We resolve the cursor
+   *                   to an offset via [[OffsetToPosition]].
+   * @param line       0-based line of the cursor.
+   * @param character  0-based UTF-16 column of the cursor.
+   * @param filterMode See [[MessageFilterMode]]. Defaults to
+   *                   `CursorCommandOnly` (Phase 3c) so the proof
+   *                   state panel shows per-cursor focus; pass
+   *                   `WholeSnapshot` from Sledgehammer to keep
+   *                   harvesting "Try this:" output regardless of
+   *                   per-command positioning.
    */
   def extractAt(
     loader: ClassLoader,
     snapshot: AnyRef,
     documentText: String,
     line: Int,
-    character: Int
+    character: Int,
+    filterMode: MessageFilterMode = MessageFilterMode.CursorCommandOnly
   ): Either[String, ExtractedProofState] = {
     val notes = scala.collection.mutable.Buffer.empty[String]
     try {
@@ -81,17 +110,16 @@ object SnapshotProofStateExtractor {
           val commandKind = invokeStringMethod(commandObj, "kind").orElse(invokeStringMethod(commandObj, "command_name")).orElse(invokeStringMethod(commandObj, "name"))
           val commandName = invokeStringMethod(commandObj, "name")
           val source = invokeStringMethod(commandObj, "source").getOrElse("")
-          notes += s"matched command at offset=$startOffset length=$length kind=${commandKind.getOrElse("?")} source-len=${source.length}"
+          notes += s"matched command at offset=$startOffset length=$length kind=${commandKind.getOrElse("?")} source-len=${source.length} filter=$filterMode"
 
           // Reflectively grab state.command_states(version, command)
           val rawAndGoals = extractStateMarkup(loader, snapshot, commandObj, notes)
 
-          // Phase 3b: also probe `snapshot.messages` for STATE / WRITELN
-          // markup filtered to the cursor's command. `messages` returns
-          // a list of (XML.Tree, ?) tuples — the prover output emitted
-          // during `use_theories` IS captured here even though it does
-          // NOT show up in `Command.State.results`.
-          val printedState = extractPrinterMessages(loader, snapshot, commandObj, startOffset, length, notes)
+          // Phase 3b/3c: also probe `snapshot.messages`. Phase 3c
+          // routes through the explicit filter mode so the proof
+          // state panel can focus on the cursor's command while
+          // Sledgehammer keeps its whole-file harvest.
+          val printedState = extractPrinterMessages(loader, snapshot, startOffset, length, filterMode, notes)
           val (raw0, goals0) = rawAndGoals.getOrElse(("", Seq.empty[String]))
           val (raw, goals) =
             if (printedState.nonEmpty) {
@@ -116,24 +144,22 @@ object SnapshotProofStateExtractor {
   }
 
   /**
-   * Phase 3b: reflectively call `snapshot.messages` and filter to
-   * the prover messages whose range falls within the cursor's
-   * command. `Document.Snapshot.messages` returns a list of
-   * `(XML.Tree, ?)` tuples — these include `Markup.STATE`,
-   * `Markup.WRITELN`, etc. that the prover emits during
-   * `use_theories`. This is the surface the `isabelle dump` tool
-   * uses for its "messages" aspect.
+   * Phase 3b/3c: reflectively call `snapshot.messages` and apply
+   * the requested filter mode. The reflective walk is unchanged
+   * from Phase 3b; what's new is that each entry is now collected
+   * WITH its optional positional info and the
+   * include-or-skip decision happens after the full pass so the
+   * "all unpositioned → include all" fallback works deterministically.
    *
-   * Returns flattened strings via `XML.content(tree)`. Empty on
-   * any reflective failure (the Phase 3a results fallback then
-   * applies).
+   * Empty on any reflective failure (the Phase 3a `[results]`
+   * fallback then applies).
    */
   private def extractPrinterMessages(
     loader: ClassLoader,
     snapshot: AnyRef,
-    commandObj: AnyRef,
     commandStartOffset: Int,
     commandLength: Int,
+    filterMode: MessageFilterMode,
     notes: scala.collection.mutable.Buffer[String]
   ): Seq[String] = {
     try {
@@ -145,9 +171,6 @@ object SnapshotProofStateExtractor {
       val messagesRaw = messagesMethod.get.invoke(snapshot)
       if (messagesRaw == null) return Seq.empty
 
-      // The result is typically a scala List[(Text.Info[XML.Elem], ?)] or
-      // List[(XML.Tree, Position)]. Iterate as a generic Seq and look at
-      // each tuple's first element.
       val xmlCls = Class.forName("isabelle.XML$", true, loader)
       val xmlModule = xmlCls.getField("MODULE$").get(null)
       val contentTree = xmlCls.getMethods.find(m =>
@@ -155,8 +178,10 @@ object SnapshotProofStateExtractor {
           m.getParameterTypes()(0).getSimpleName != "List"
       )
 
-      val out = scala.collection.mutable.Buffer.empty[String]
-      val seenSerials = scala.collection.mutable.Set.empty[Long]
+      // (Option[(start, stop)], renderedText) per entry — collected first,
+      // then policy applied. Allows the deterministic "all-unpositioned"
+      // fallback for CursorCommandOnly.
+      val collected = scala.collection.mutable.Buffer.empty[(Option[(Int, Int)], String)]
 
       def renderTree(tree: AnyRef): Option[String] =
         contentTree.flatMap { m =>
@@ -170,11 +195,18 @@ object SnapshotProofStateExtractor {
         try {
           val tuple = entry.asInstanceOf[scala.Tuple2[AnyRef, AnyRef]]
           val first = tuple._1
-          // first may be Text.Info[XML.Elem] (has .info / .range) or
-          // direct XML.Elem (has .markup / .body).
+          // Phase 3c: probe for positional info on the first element
+          // directly. Phase 3b assumed `info()` was always present,
+          // but for `Text.Info[XML.Elem]` the canonical accessors are
+          // `range()` on the wrapper and `info()` for the payload.
+          val entryRange = reflectRangeStartStop(first)
+          // The XML to render is `first.info()` when `first` was a
+          // `Text.Info[_]` wrapper, otherwise `first` itself.
           val infoMethod = first.getClass.getMethods.find(m => m.getName == "info" && m.getParameterCount == 0)
           val xmlElem = infoMethod.map(_.invoke(first)).getOrElse(first)
-          renderTree(xmlElem).foreach(out += _)
+          renderTree(xmlElem).foreach { rendered =>
+            collected += ((entryRange, rendered))
+          }
         } catch {
           case _: Throwable => () // entry doesn't match the expected shape; skip
         }
@@ -194,12 +226,115 @@ object SnapshotProofStateExtractor {
           }
       }
 
-      notes += s"snapshot.messages produced ${out.size} entries"
-      out.toSeq
+      val commandStop = commandStartOffset + commandLength
+      val filtered = applyFilter(collected.toSeq, commandStartOffset, commandStop, filterMode, notes)
+      notes += s"snapshot.messages collected=${collected.size} kept=${filtered.size} (mode=$filterMode)"
+      filtered
     } catch {
       case t: Throwable =>
         notes += s"extractPrinterMessages failure: ${describe(t)}"
         Seq.empty
+    }
+  }
+
+  /**
+   * Phase 3c filter policy. Pure function — extracted so the
+   * range-overlap behavior can be tested without standing up a
+   * synthetic reflective snapshot.
+   *
+   *   - WholeSnapshot: return every rendered entry's text.
+   *   - CursorCommandOnly:
+   *       * If NO entry has positional info, return every rendered
+   *         entry's text (with a note explaining the fallback —
+   *         range filtering is not available for this snapshot).
+   *       * Otherwise, return only positioned entries that overlap
+   *         the cursor's command range. Unpositioned entries are
+   *         dropped in this case to avoid re-introducing the
+   *         whole-file noise that Phase 3c is meant to remove.
+   */
+  private[server] def applyFilter(
+    collected: Seq[(Option[(Int, Int)], String)],
+    commandStart: Int,
+    commandStop: Int,
+    filterMode: MessageFilterMode,
+    notes: scala.collection.mutable.Buffer[String]
+  ): Seq[String] = filterMode match {
+    case MessageFilterMode.WholeSnapshot =>
+      collected.map(_._2)
+    case MessageFilterMode.CursorCommandOnly =>
+      val anyPositioned = collected.exists(_._1.isDefined)
+      if (!anyPositioned) {
+        notes += "range filtering unavailable — no positional info on any message entry; including all"
+        collected.map(_._2)
+      } else {
+        val kept = collected.collect {
+          case (Some((start, stop)), text) if rangesOverlap(start, stop, commandStart, commandStop) => text
+        }
+        val droppedPositioned = collected.count {
+          case (Some((start, stop)), _) => !rangesOverlap(start, stop, commandStart, commandStop)
+          case _                        => false
+        }
+        val droppedUnpositioned = collected.count(_._1.isEmpty)
+        if (droppedPositioned > 0) notes += s"dropped $droppedPositioned positioned message(s) outside command range [$commandStart..$commandStop)"
+        if (droppedUnpositioned > 0) notes += s"dropped $droppedUnpositioned unpositioned message(s) (mixed mode policy)"
+        kept
+      }
+  }
+
+  /**
+   * Half-open range overlap. Two ranges `[a, b)` and `[c, d)`
+   * overlap iff each is non-empty AND `a < d && c < b`. Pure —
+   * tested directly.
+   *
+   * Zero-length ranges (where start == stop) are empty intervals
+   * and overlap nothing. This matters when `cmd.length() == 0` for
+   * a malformed snapshot OR when a message position is point-like.
+   */
+  private[server] def rangesOverlap(aStart: Int, aStop: Int, bStart: Int, bStop: Int): Boolean =
+    aStart < aStop && bStart < bStop && aStart < bStop && bStart < aStop
+
+  /**
+   * Probe the first element of a `snapshot.messages` tuple for
+   * positional info. Tries `range()` on the entry directly (matches
+   * `Text.Info[_]`'s `range` accessor), falls back to `info()` then
+   * `range()` (for any wrapper-of-wrapper shape Isabelle might
+   * surface).
+   *
+   * Returns `Some((start, stop))` only when both accessors are
+   * present and return non-null Int values.
+   */
+  private def reflectRangeStartStop(target: AnyRef): Option[(Int, Int)] = {
+    def rangeOf(t: AnyRef): Option[AnyRef] =
+      try {
+        t.getClass.getMethods.find(m => m.getName == "range" && m.getParameterCount == 0)
+          .flatMap(m => Option(m.invoke(t)))
+      } catch { case _: Throwable => None }
+
+    def startStopOf(range: AnyRef): Option[(Int, Int)] = {
+      def intOf(name: String): Option[Int] =
+        try {
+          range.getClass.getMethods.find(m => m.getName == name && m.getParameterCount == 0).flatMap { m =>
+            val v = m.invoke(range)
+            if (v == null) None
+            else v match {
+              case i: java.lang.Integer => Some(i.intValue)
+              case l: java.lang.Long    => Some(l.intValue)
+              case _                    => None
+            }
+          }
+        } catch { case _: Throwable => None }
+
+      for {
+        s <- intOf("start")
+        e <- intOf("stop")
+      } yield (s, e)
+    }
+
+    rangeOf(target).flatMap(startStopOf).orElse {
+      try {
+        val infoMethod = target.getClass.getMethods.find(m => m.getName == "info" && m.getParameterCount == 0)
+        infoMethod.flatMap(m => Option(m.invoke(target))).flatMap(inner => rangeOf(inner)).flatMap(startStopOf)
+      } catch { case _: Throwable => None }
     }
   }
 

@@ -59,6 +59,7 @@ Tick each box as you verify. Open an issue with the `manual-verification` label 
 - [ ] **Re-anchor.** With auto-update off, move the cursor to a new command and run `Isabelle: Re-anchor Proof State to Cursor`. Confirm the panel jumps to the new location.
 - [ ] **Margin.** Edit `isabelle.proofState.margin` to a small value (e.g. 30). Confirm the rendered state re-wraps. Reset to 80.
 - [ ] **Dynamic output.** A "Dynamic output (caret-driven)" section should appear below the main state when Isabelle emits caret-driven messages (e.g. inside a Sledgehammer run). Confirm it hides itself when empty.
+- [ ] **PIDE per-cursor focus (Phase 3c).** Run `Isabelle: Show PIDE Proof State at Cursor` with the cursor on `add_zero_right_smoke`. Confirm the returned messages are scoped to that lemma, not the whole theory. Move the cursor to `identity_smoke` and re-run — the messages should reflect that definition instead. The `notes` field in the JSON-RPC response should record `kept=N` < `collected=M` when filtering kicked in.
 
 ### M7 — Sledgehammer
 

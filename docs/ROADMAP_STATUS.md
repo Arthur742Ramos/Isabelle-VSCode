@@ -317,9 +317,16 @@ values for the bumping procedure.
     parses the line at the cursor (`by (metis foo bar)` / `using ... by`
     / `apply (...)`) and dispatches with the extracted fact list. See
     `AGENTS.md` §16.
+  - **Phase 3c** ✅ — range-filtered `snapshot.messages` for per-cursor
+    PIDE proof state. Reflective tuple-walk probes each
+    `snapshot.messages` entry's `range()` accessor, then a pure
+    `MessageFilterMode`-driven policy (`CursorCommandOnly` default for
+    the proof state panel, `WholeSnapshot` explicit opt-in from
+    Sledgehammer) keeps only entries overlapping the cursor's command.
+    Mixed-mode policy: if some entries are positioned and some aren't,
+    drop the unpositioned (else whole-file noise creeps back). See
+    `AGENTS.md` §14.
   - **Optional follow-ups** (not committed to):
-    - **Phase 3c** — range-filtered `snapshot.messages` if users find
-      Phase 3b's "whole-file context" too broad.
     - **Phase 5b** — direct `Sledgehammer_Minimize.run` reflection if
       `preplay_timeout=10` proves insufficient.
     - **Phase 2d** — free polish slot, e.g. multi-session cache if
@@ -424,7 +431,7 @@ The repo is currently shipped as **`0.1.x-alpha`** (`preview: true` in `package.
 ### Soft gates (preferred, not blocking)
 
 - [ ] Screenshots (or a short GIF) for at least the proof state panel and Sledgehammer "Prover output" landed under `media/screenshots/` and referenced from `media/walkthrough/*.md`. See `media/screenshots/README.md` for the capture spec.
-- [ ] Phase 3c (range-filtered `snapshot.messages`) has either landed or been formally deferred — without it, the PIDE proof-state panel shows whole-file context rather than per-cursor goals, which is correct but can confuse new users.
+- [x] Phase 3c (range-filtered `snapshot.messages`) — landed. The PIDE proof-state panel now shows per-cursor focus instead of whole-file context. See [`AGENTS.md`](../AGENTS.md) §14 and `SnapshotProofStateExtractor.MessageFilterMode`.
 - [ ] At least one external contributor (not the original author) has completed the smoke transcript successfully and reported back.
 
 ### Explicit non-goals for beta
@@ -441,5 +448,5 @@ Once the gates above pass:
 1. Bump `package.json` `version` from `0.1.x-alpha.N` to `0.1.x-beta.0`, leaving `preview: true`.
 2. Tag the commit with `v0.1.x-beta.0` per `skills/prepare-release.md`.
 3. Update the README "Current milestone" section to drop the "alpha" framing.
-4. Open a tracking issue for the post-beta roadmap (Phase 3c, optional Marketplace publication, etc.).
+4. Open a tracking issue for the post-beta roadmap (optional Marketplace publication, Phase 5b, etc.).
 
