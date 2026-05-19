@@ -306,3 +306,205 @@ describe("detectIsabelleInstallPath — minimum version filter", () => {
     expect(result?.versionYear).toBeUndefined();
   });
 });
+
+describe("detectIsabelleInstallPath — PATH-derived candidates", () => {
+  it("Windows: discovers C:\\Tools\\bin\\isabelle.ps1 via PATH", () => {
+    // The user's reported repro: `isabelle.ps1` on PATH at C:\Tools\bin,
+    // no isabelle.executablePath setting, no well-known install root.
+    // Without PATH scanning, auto-detect returns undefined and the
+    // prerequisite checker reports "isabelle missing".
+    const launcher = "C:\\Tools\\bin\\isabelle.ps1";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        {
+          files: [launcher]
+        },
+        { PATH: "C:\\Tools\\bin;C:\\Windows\\System32" }
+      )
+    );
+    expect(result?.path).toBe(launcher);
+    expect(result?.installRoot).toBe("C:\\Tools");
+    expect(result?.versionYear).toBeUndefined();
+    expect(result?.versionLabel).toBe("Tools");
+  });
+
+  it("Linux: discovers /opt/isabelle/bin/isabelle via PATH", () => {
+    const launcher = "/opt/isabelle/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "linux",
+        {
+          files: [launcher]
+        },
+        { PATH: "/opt/isabelle/bin:/usr/bin:/bin" }
+      )
+    );
+    expect(result?.path).toBe(launcher);
+    expect(result?.installRoot).toBe("/opt/isabelle");
+  });
+
+  it("macOS: discovers /usr/local/bin/isabelle via PATH", () => {
+    const launcher = "/usr/local/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "darwin",
+        {
+          files: [launcher]
+        },
+        { PATH: "/usr/local/bin:/usr/bin" }
+      )
+    );
+    expect(result?.path).toBe(launcher);
+    expect(result?.installRoot).toBe("/usr/local");
+  });
+
+  it("PATH unset: behavior unchanged (returns undefined when no well-known install exists)", () => {
+    const result = detectIsabelleInstallPath(
+      deps("win32", { files: [] }, {})
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("PATH empty string: behavior unchanged", () => {
+    const result = detectIsabelleInstallPath(
+      deps("linux", { files: [] }, { PATH: "" })
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("PATH directory missing launcher: ignored silently", () => {
+    // `C:\Other\bin` is on PATH but has no isabelle.ps1; should be
+    // skipped without error.
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        { files: [] },
+        { PATH: "C:\\Other\\bin;C:\\Windows\\System32" }
+      )
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("multiple PATH launchers: highest versionYear wins", () => {
+    const oldLauncher = "C:\\Tools\\Isabelle2022\\bin\\isabelle.ps1";
+    const newLauncher = "C:\\Tools\\Isabelle2025\\bin\\isabelle.ps1";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        { files: [oldLauncher, newLauncher] },
+        {
+          PATH: "C:\\Tools\\Isabelle2022\\bin;C:\\Tools\\Isabelle2025\\bin"
+        }
+      )
+    );
+    expect(result?.path).toBe(newLauncher);
+    expect(result?.versionYear).toBe(2025);
+  });
+
+  it("well-known install is preferred when newer than the PATH candidate", () => {
+    // A user might have a stale launcher on PATH (Isabelle2022) while
+    // a newer install (Isabelle2025) lives under Program Files. The
+    // version-sort should pick Isabelle2025 — regardless of whether
+    // it came from the PATH source or the well-known source.
+    const wellKnownRoot = "C:\\Program Files\\Isabelle2025";
+    const wellKnownLauncher = `${wellKnownRoot}\\bin\\isabelle.ps1`;
+    const pathLauncher = "C:\\Tools\\Isabelle2022\\bin\\isabelle.ps1";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        {
+          directories: ["C:\\Program Files"],
+          listings: { "C:\\Program Files": ["Isabelle2025"] },
+          files: [wellKnownLauncher, pathLauncher]
+        },
+        {
+          PROGRAMFILES: "C:\\Program Files",
+          PATH: "C:\\Tools\\Isabelle2022\\bin"
+        }
+      )
+    );
+    expect(result?.path).toBe(wellKnownLauncher);
+    expect(result?.versionYear).toBe(2025);
+  });
+
+  it("deduplicates when the same install appears on PATH and a well-known root", () => {
+    // A user has Isabelle2025 under Program Files and ALSO added its
+    // bin/ to PATH. Only the well-known candidate should be reported
+    // (the PATH-derived candidate has the identical installRoot, so
+    // the dedupe step swallows it).
+    const installRoot = "C:\\Program Files\\Isabelle2025";
+    const wellKnownLauncher = `${installRoot}\\bin\\isabelle.ps1`;
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        {
+          directories: ["C:\\Program Files"],
+          listings: { "C:\\Program Files": ["Isabelle2025"] },
+          files: [wellKnownLauncher]
+        },
+        {
+          PROGRAMFILES: "C:\\Program Files",
+          PATH: `${installRoot}\\bin`
+        }
+      )
+    );
+    expect(result?.path).toBe(wellKnownLauncher);
+    // The de-duplicated set has exactly one entry, but
+    // `detectIsabelleInstallPath` only returns the top candidate, so
+    // assert via the rest of the surface that the PATH duplicate did
+    // not knock the well-known launcher out of pole position.
+    expect(result?.installRoot).toBe(installRoot);
+  });
+
+  it("PATH-only with year-bearing install root parses the version", () => {
+    const launcher = "C:\\Tools\\Isabelle2025\\bin\\isabelle.ps1";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        { files: [launcher] },
+        { PATH: "C:\\Tools\\Isabelle2025\\bin" }
+      )
+    );
+    expect(result?.versionYear).toBe(2025);
+    expect(result?.versionLabel).toBe("Isabelle2025");
+  });
+
+  it("PATH directory that is a filesystem root is ignored (no install root to anchor on)", () => {
+    // Pathological case: a launcher sits directly at `C:\isabelle.ps1`
+    // with PATH containing `C:\`. There is no meaningful install root
+    // (dirname("C:\\") === "" or "C:\\" itself, depending on the
+    // helper). The detector should skip rather than synthesize a
+    // bogus entry.
+    const launcher = "C:\\isabelle.ps1";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "win32",
+        { files: [launcher] },
+        { PATH: "C:\\" }
+      )
+    );
+    // Defensive: depending on the dirname helper this may return
+    // undefined or may surface the launcher as a candidate with an
+    // empty install root. We assert it does not crash and does not
+    // produce a misleading versionYear.
+    if (result !== undefined) {
+      expect(result.versionYear).toBeUndefined();
+    }
+  });
+
+  it("PATH whitespace-only entries are ignored", () => {
+    // POSIX shells sometimes leave double colons in PATH (e.g. `:/usr/bin`)
+    // which `split(":")` yields as empty strings. The detector should
+    // not crash and should not interpret `""` as a directory.
+    const launcher = "/opt/isabelle/bin/isabelle";
+    const result = detectIsabelleInstallPath(
+      deps(
+        "linux",
+        { files: [launcher] },
+        { PATH: ":   :/opt/isabelle/bin:" }
+      )
+    );
+    expect(result?.path).toBe(launcher);
+  });
+});

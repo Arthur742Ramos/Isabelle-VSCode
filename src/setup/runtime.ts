@@ -119,10 +119,15 @@ export function realAutoDetectDependencies(): AutoDetectDependencies {
       HOME: process.env.HOME,
       LOCALAPPDATA: process.env.LOCALAPPDATA,
       PROGRAMFILES: process.env["ProgramFiles"],
-      "PROGRAMFILES(X86)": process.env["ProgramFiles(x86)"]
+      "PROGRAMFILES(X86)": process.env["ProgramFiles(x86)"],
+      // Node lowercases the Windows `Path` to `PATH` automatically, so a
+      // single read of `process.env.PATH` covers both platforms.
+      PATH: process.env.PATH
     },
     fs: realAutoDetectFs,
-    join: (...parts: string[]) => path.join(...parts)
+    join: (...parts: string[]) => path.join(...parts),
+    pathDelimiter: path.delimiter,
+    dirname: (p: string) => path.dirname(p)
   };
 }
 
