@@ -38,6 +38,7 @@
     "onCommand:isabelle.showVersion",
     "onCommand:isabelle.checkBackendHealth",
     "onCommand:isabelle.showPideBackendStatus",
+    "onCommand:isabelle.showPideDocumentStatus",
     "onCommand:isabelle.discoverSessions",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
@@ -119,6 +120,10 @@
       {
         "command": "isabelle.showPideBackendStatus",
         "title": "Isabelle: Show PIDE Backend Status"
+      },
+      {
+        "command": "isabelle.showPideDocumentStatus",
+        "title": "Isabelle: Show PIDE Document Status"
       },
       {
         "command": "isabelle.discoverSessions",
@@ -513,6 +518,17 @@
           "default": 10000,
           "minimum": 1000,
           "description": "Timeout in milliseconds for backend protocol requests."
+        },
+        "isabelle.backend.maxHeapMb": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum JVM heap (in MB) passed to the Scala backend as `-Xmx<N>m`. Default `0` means do NOT pass `-Xmx`, so the JVM's ergonomic defaults (typically 25% of system RAM, capped) apply. Bump to 4096 for typical PIDE document checks against `HOL`, or 8192+ when working in large AFP entries. Takes effect on the next backend restart (reload the window after changing)."
+        },
+        "isabelle.pide.prewarmOnActivation": {
+          "type": "boolean",
+          "default": false,
+          "description": "When `true`, the extension warms up an Isabelle/PIDE `Headless.Session` for the active session right after activation so the first `Isabelle: Show PIDE Document Status` call returns instantly. Power-user opt-in — the warmup costs 5-30 s of CPU and ~2-4 GB of heap on first activation. Default `false` so users who never touch PIDE features pay nothing."
         },
         "isabelle.executablePath": {
           "type": "string",

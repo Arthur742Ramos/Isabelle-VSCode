@@ -8,6 +8,8 @@ export type ServerMethod =
   | "document/openTheory"
   | "document/update"
   | "document/close"
+  | "document/checkWithPide"
+  | "pide/cancelWarmup"
   | "proofState/get"
   | "sledgehammer/run"
   | "sledgehammer/cancel";
@@ -249,6 +251,78 @@ export class ProtocolRequestError extends Error {
     this.code = error.code;
     this.data = error.data;
   }
+}
+
+/**
+ * Phase 2a `document/checkWithPide` JSON-RPC types. The bridge
+ * resolves an Isabelle install, lazy-builds a long-lived
+ * `Headless.Session`, stages the editor's text on disk (with Symbol
+ * encoding applied), and runs `use_theories` against it.
+ *
+ * Use this for ad-hoc theory checks triggered by
+ * `Isabelle: Show PIDE Document Status` (and future save-time
+ * hooks). NOT used for per-keystroke `document/update` — that path
+ * still returns local-syntax command spans for fast UI feedback.
+ */
+export interface CheckWithPideParams {
+  uri: string;
+  version: number;
+  session: string;
+  theoryName?: string;
+  workspaceUri?: string;
+  isabelleExecutablePath?: string;
+  /** Optional inline text. If absent, the backend uses the most
+    * recent text synchronized via `document/openTheory`/`update`. */
+  text?: string;
+}
+
+export type CheckWithPideStatus =
+  | "pide-ok"
+  | "pide-errors"
+  | "pide-cancelled"
+  | "pide-unavailable"
+  | "pide-failed";
+
+export type CheckWithPideReason =
+  | "text-missing"
+  | "session-not-selected"
+  | "home-not-found"
+  | "isabelle-jar-missing"
+  | "scala-runtime-missing"
+  | "warmup-cancelled"
+  | "environment-init"
+  | "options-init"
+  | "resources-make"
+  | "start-session"
+  | string;
+
+export interface CheckWithPideResult {
+  uri: string;
+  version?: number;
+  theoryName: string;
+  session?: string;
+  status: CheckWithPideStatus;
+  bridge: "pide-enabled" | "local-syntax";
+  ok?: boolean;
+  nodeCount?: number;
+  nodeNames?: string[];
+  errorCount?: number;
+  errorMessages?: string[];
+  elapsedMs?: number;
+  bootstrapElapsedMs?: number;
+  reason?: CheckWithPideReason;
+  message: string;
+  notes?: string[];
+}
+
+export interface CancelWarmupParams {
+  // Reserved for future use; currently the backend cancels the
+  // single in-flight warmup regardless of params.
+}
+
+export interface CancelWarmupResult {
+  cancelled: boolean;
+  message: string;
 }
 
 export function createRequest<TParams>(

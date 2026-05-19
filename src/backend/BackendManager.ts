@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { BackendClient } from "./BackendClient";
+import { buildPideEnv, realPideEnvDeps } from "./pideEnvBuilder";
 import { ProcessTransport } from "./ProcessTransport";
 import { chooseJavaCommand, JavaResolveDeps } from "./resolveJavaCommand";
 
@@ -55,6 +56,12 @@ export class BackendManager implements vscode.Disposable {
     const config = vscode.workspace.getConfiguration("isabelle");
     const launch = resolveBackendLaunch(this.context, config, this.javaCommandOverride);
     this.output.appendLine(`Starting Isabelle backend: ${launch.command} ${launch.args.join(" ")}`.trim());
+    if (launch.env && launch.env.BACKEND_SCRATCH_DIR) {
+      this.output.appendLine(`  BACKEND_SCRATCH_DIR=${launch.env.BACKEND_SCRATCH_DIR}`);
+    }
+    if (launch.env && launch.env.ISABELLE_HOME) {
+      this.output.appendLine(`  ISABELLE_HOME=${launch.env.ISABELLE_HOME}`);
+    }
 
     const transport = new ProcessTransport(launch);
     transport.onStderr((chunk) => this.output.append(chunk.toString("utf8")));
@@ -120,11 +127,25 @@ function resolveBackendLaunch(
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const cwd = configuredCwd || workspaceFolder || context.extensionPath;
 
+  // Phase 2a PIDE-bridge env vars + maxHeapMb derived from settings.
+  // Applied to all launch paths (configuredCommand, env-command, bundled
+  // jar, development jar). The backend bootstraps Isabelle's Headless
+  // session from these vars when a user runs `Isabelle: Show PIDE
+  // Document Status` or any future PIDE-requiring action.
+  const pideEnv = buildPideEnv({
+    baseEnv: process.env,
+    isabelleExecutablePath: config.get<string>("executablePath", "isabelle").trim(),
+    globalStorageDir: context.globalStorageUri.fsPath,
+    maxHeapMb: config.get<number>("backend.maxHeapMb", 0),
+    platform: process.platform
+  }, realPideEnvDeps);
+
   if (configuredCommand.length > 0) {
     return {
       command: configuredCommand,
       args: configuredArgs,
-      cwd
+      cwd,
+      env: pideEnv.env
     };
   }
 
@@ -133,7 +154,8 @@ function resolveBackendLaunch(
     return {
       command: envCommand,
       args: configuredArgs,
-      cwd
+      cwd,
+      env: pideEnv.env
     };
   }
 
@@ -148,8 +170,9 @@ function resolveBackendLaunch(
   if (fs.existsSync(bundledJar)) {
     return {
       command: javaCommand,
-      args: ["-jar", bundledJar, ...configuredArgs],
-      cwd
+      args: [...pideEnv.jvmArgs, "-jar", bundledJar, ...configuredArgs],
+      cwd,
+      env: pideEnv.env
     };
   }
 
@@ -157,14 +180,16 @@ function resolveBackendLaunch(
   if (fs.existsSync(developmentJar)) {
     return {
       command: javaCommand,
-      args: ["-jar", developmentJar, ...configuredArgs],
-      cwd
+      args: [...pideEnv.jvmArgs, "-jar", developmentJar, ...configuredArgs],
+      cwd,
+      env: pideEnv.env
     };
   }
 
   return {
     command: "isabelle-vscode-server",
     args: configuredArgs,
-    cwd
+    cwd,
+    env: pideEnv.env
   };
 }

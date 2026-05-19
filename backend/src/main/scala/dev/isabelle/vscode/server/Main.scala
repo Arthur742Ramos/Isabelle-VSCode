@@ -1,26 +1,88 @@
 package dev.isabelle.vscode.server
 
 import java.io.{BufferedInputStream, BufferedOutputStream}
+import java.util.concurrent.{ExecutorService, Executors}
+import scala.jdk.CollectionConverters.MapHasAsScala
 import scala.sys.process.Process
 import scala.util.control.NonFatal
 
 object Main {
   private val documents = new DocumentStore(new LocalSyntaxPideBridge)
+  private val headlessRegistry = new HeadlessSessionRegistry()
+
+  /** Single worker thread for the long-running PIDE warmup +
+    * use_theories call. Keeps the main dispatcher loop free to
+    * process `pide/cancelWarmup` mid-warmup. */
+  private val pideWorker: ExecutorService = Executors.newSingleThreadExecutor(r => {
+    val t = new Thread(r, "pide-worker")
+    t.setDaemon(true)
+    t
+  })
 
   def main(args: Array[String]): Unit = {
     val in = new BufferedInputStream(System.in)
     val out = new BufferedOutputStream(System.out)
     val framing = new ContentLengthFraming(in, out)
+    val writeLock = new Object
+
+    def writeResponse(response: Protocol.Response): Unit = writeLock.synchronized {
+      framing.write(response.json)
+    }
+
+    Runtime.getRuntime.addShutdownHook(new Thread(new Runnable {
+      override def run(): Unit = {
+        try headlessRegistry.shutdown() catch { case _: Throwable => () }
+        try pideWorker.shutdownNow() catch { case _: Throwable => () }
+      }
+    }))
 
     Iterator.continually(framing.read()).takeWhile(_.isDefined).flatten.foreach { request =>
-      val response =
-        try handle(request)
-        catch {
-          case NonFatal(error) =>
-            Protocol.error(request.id, -32000, error.getMessage)
-        }
+      try {
+        request.method match {
+          // Heavy method — dispatch to worker so cancelWarmup can interrupt mid-call.
+          case "document/checkWithPide" =>
+            pideWorker.submit(new Runnable {
+              override def run(): Unit = {
+                val response =
+                  try {
+                    val env = System.getenv().asScala.toMap
+                    val platform = Option(System.getProperty("os.name")).getOrElse("")
+                    Protocol.success(request.id, CheckWithPideHandler.handle(
+                      params = request.params,
+                      documents = documents,
+                      registry = headlessRegistry,
+                      env = env,
+                      platform = platform
+                    ))
+                  } catch {
+                    case t: Throwable =>
+                      Protocol.error(request.id, -32000, Option(t.getMessage).getOrElse(t.getClass.getSimpleName))
+                  }
+                writeResponse(response)
+              }
+            })
 
-      framing.write(response.json)
+          // Synchronous on main thread — must NOT be queued behind the worker.
+          case "pide/cancelWarmup" =>
+            headlessRegistry.cancelInflightWarmup()
+            writeResponse(Protocol.success(request.id, ujson.Obj(
+              "cancelled" -> true,
+              "message" -> "Warmup cancellation signaled; the in-flight bootstrap will exit at the next safe boundary."
+            )))
+
+          case _ =>
+            val response =
+              try handle(request)
+              catch {
+                case NonFatal(error) =>
+                  Protocol.error(request.id, -32000, error.getMessage)
+              }
+            writeResponse(response)
+        }
+      } catch {
+        case NonFatal(error) =>
+          writeResponse(Protocol.error(request.id, -32000, error.getMessage))
+      }
     }
   }
 

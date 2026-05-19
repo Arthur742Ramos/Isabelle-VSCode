@@ -62,9 +62,15 @@ import {
   PideVersionResult,
   ProtocolPosition,
   VersionParams,
-  VersionResult
+  VersionResult,
+  CheckWithPideParams,
+  CheckWithPideResult
 } from "./protocol/messages";
 import { formatPideBackendStatus } from "./backend/showPideBackendStatus";
+import { formatPideDocumentStatus, formatErrorMessages } from "./backend/showPideDocumentStatus";
+import { runCheckWithPideUx } from "./backend/checkWithPide";
+import { decideOomToast } from "./backend/oomToast";
+import { decideSessionCascade, SESSION_CASCADE_HOL_WARNING_KEY } from "./session/sessionCascade";
 import { REPAIR_PREVIEW_SCHEME, RepairPreviewProvider } from "./repair/RepairPreviewProvider";
 import { ManualPasteBackRepairAiProvider } from "./repair/ManualPasteBackRepairAiProvider";
 import { RepairAiProviderRegistry } from "./repair/repairAiProvider";
@@ -151,8 +157,16 @@ let activationJavaCommand: string | undefined;
  * lazily on first command invocation so cold startup does not pay for it.
  */
 let explainCurrentModeOutput: vscode.OutputChannel | undefined;
+/**
+ * Reference to the extension context retained at activation so
+ * top-level command handlers can persist/read `workspaceState` and
+ * `globalState`. Phase 2a uses this for the HOL-fallback warning
+ * dedupe and the OOM toast dedupe.
+ */
+let extensionContextRef: vscode.ExtensionContext | undefined;
 
 export function activate(context: vscode.ExtensionContext): IsabellePideExtensionApi {
+  extensionContextRef = context;
   const output = vscode.window.createOutputChannel("Isabelle PIDE");
   backendManager = new BackendManager(context, output);
   buildService = new BuildService(output);
@@ -286,6 +300,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.showVersion", async () => showVersion(output)),
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
     vscode.commands.registerCommand("isabelle.showPideBackendStatus", async () => showPideBackendStatus(output)),
+    vscode.commands.registerCommand("isabelle.showPideDocumentStatus", async () => showPideDocumentStatus(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
@@ -838,6 +853,131 @@ async function showPideBackendStatus(output: vscode.OutputChannel): Promise<void
     }
   } catch (error) {
     showBackendError("Unable to check Isabelle/PIDE backend status", error, output);
+  }
+}
+
+async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "isabelle") {
+    vscode.window.showInformationMessage("Open an Isabelle theory file before running `Isabelle: Show PIDE Document Status`.");
+    return;
+  }
+
+  // 4-step session cascade (Phase 2a item 1). Reuses the existing
+  // M2 ROOT/ROOTS discovery — does not re-implement it.
+  const sessionsConfig = vscode.workspace.getConfiguration("isabelle");
+  const activeSessionSetting = (sessionsConfig.get<string>("session.active", "") ?? "").trim();
+  const discovered = sessionService ? sessionService.getSessions().map((s) => s.name) : [];
+  const holWarningSeen = extensionContextRef?.workspaceState.get<boolean>(SESSION_CASCADE_HOL_WARNING_KEY, false) ?? false;
+
+  const decision = decideSessionCascade({
+    activeSessionSetting,
+    discoveredSessions: discovered,
+    holFallbackWarningSeen: holWarningSeen
+  });
+
+  let session: string;
+  switch (decision.kind) {
+    case "resolved":
+      session = decision.session;
+      if (decision.source === "single-root-auto-select") {
+        await sessionsConfig.update("session.active", session, vscode.ConfigurationTarget.Workspace);
+      }
+      break;
+    case "needs-pick": {
+      const pick = await vscode.window.showQuickPick(decision.candidates.slice(), {
+        title: "Select an Isabelle session for the PIDE check",
+        placeHolder: "Multiple sessions discovered — pick one (persisted as the active session)"
+      });
+      if (!pick) {
+        return;
+      }
+      session = pick;
+      await sessionsConfig.update("session.active", session, vscode.ConfigurationTarget.Workspace);
+      break;
+    }
+    case "hol-fallback":
+      session = decision.session;
+      if (!decision.suppressFurtherWarnings) {
+        const action = await vscode.window.showWarningMessage(
+          "No Isabelle ROOT files discovered in this workspace. Defaulting to the `HOL` session for this PIDE check.",
+          "Select Active Session",
+          "Don't show again"
+        );
+        if (action === "Select Active Session") {
+          await vscode.commands.executeCommand("isabelle.selectSession");
+        } else if (action === "Don't show again") {
+          await extensionContextRef?.workspaceState.update(SESSION_CASCADE_HOL_WARNING_KEY, true);
+        }
+      }
+      break;
+  }
+
+  // Derive a friendly theory name from the document basename.
+  const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
+  const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
+  const workspaceUri = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.toString() ?? "default";
+
+  const params: CheckWithPideParams = {
+    uri: editor.document.uri.toString(),
+    version: editor.document.version,
+    session,
+    theoryName,
+    workspaceUri,
+    isabelleExecutablePath: getIsabelleExecutablePath(),
+    text: editor.document.getText()
+  };
+
+  try {
+    const result = await runCheckWithPideUx(
+      requireBackendManager().getClient(),
+      params,
+      { theoryDisplayName: theoryName, sessionDisplayName: session }
+    );
+
+    output.appendLine("--- PIDE document status ---");
+    output.appendLine(`uri: ${result.uri}`);
+    output.appendLine(`theory: ${result.theoryName}  session: ${result.session ?? "(none)"}`);
+    output.appendLine(`status: ${result.status}  bridge: ${result.bridge}`);
+    if (typeof result.nodeCount === "number") {
+      output.appendLine(`nodes: ${result.nodeCount}  errors: ${result.errorCount ?? 0}`);
+    }
+    if (typeof result.elapsedMs === "number" || typeof result.bootstrapElapsedMs === "number") {
+      output.appendLine(`timings: bootstrap=${result.bootstrapElapsedMs ?? 0}ms check=${result.elapsedMs ?? 0}ms`);
+    }
+    if (result.errorMessages && result.errorMessages.length > 0) {
+      output.appendLine(`errors:\n${formatErrorMessages(result.errorMessages)}`);
+    }
+    if (result.notes && result.notes.length > 0) {
+      output.appendLine(`notes:\n  ${result.notes.join("\n  ")}`);
+    }
+    output.appendLine(`message: ${result.message}`);
+
+    const oom = decideOomToast({
+      errorMessage: result.message,
+      reason: result.reason,
+      alreadyShown: (key) => extensionContextRef?.globalState.get<boolean>(key, false) ?? false
+    });
+    if (oom.shouldShow) {
+      const action = await vscode.window.showErrorMessage(oom.title + " " + oom.detail, "Open Setting");
+      await extensionContextRef?.globalState.update(oom.storageKey, true);
+      if (action === "Open Setting") {
+        await vscode.commands.executeCommand("workbench.action.openSettings", "isabelle.backend.maxHeapMb");
+      }
+      return;
+    }
+
+    const formatted = formatPideDocumentStatus(result);
+    const fullMessage = `${formatted.title}\n${formatted.detail}`;
+    if (formatted.severity === "info") {
+      vscode.window.showInformationMessage(fullMessage);
+    } else if (formatted.severity === "warning") {
+      vscode.window.showWarningMessage(fullMessage);
+    } else {
+      vscode.window.showErrorMessage(fullMessage);
+    }
+  } catch (error) {
+    showBackendError("Unable to run PIDE document check", error, output);
   }
 }
 
