@@ -405,6 +405,25 @@ Phase 3a (PR #79) wires `proofState/getWithPide` end-to-end against `Document.Sn
 
 **Headless-mode UX divergence** (documented in `docs/PIDE_INTEGRATION.md`): proof state in Headless mode (LSP off) refreshes on cursor move + explicit command, NOT continuously as the prover progresses. Live progress notifications require the LSP relay's `PIDE/state_output` channel.
 
+### 15. PIDE Phase 4 Sledgehammer — source-injection trick, not Query_Operation reflection
+
+The jEdit / LSP path to Sledgehammer is `isabelle.Query_Operation`, which requires an `Editor` + `editor.Context`, a `print_function` overlay attached to a live Session, and subscription to `Session.commands_changed` for the result. That surface is heavyweight in Headless mode — it would require either implementing an `Editor` stub reflectively OR finding a Headless-flavored "submit print overlay" entry point that doesn't exist in the public PIDE API.
+
+**Phase 4 solution (PR #81)**: instead of going through Query_Operation, treat `sledgehammer` as a regular Isabelle command and inject it into the source text at the cursor before re-submitting through `Headless.Session.use_theories`. Implementation:
+
+1. `SledgehammerSourceInjector` (pure) — given the cursor `(line, character)`, inserts a `sledgehammer` line with the same indentation immediately before the cursor's line, returns the mutated text + the position of the injected keyword.
+2. `SledgehammerWithPideHandler.runInjectedSubmission` — reuses the entire Phase 2a/3 pipeline (resolve home, build classpath, acquire/build facade, write scratch theory via `ScratchTheoryStore` after Symbol-encoding, call `facade.submitTheoryWithRaw`).
+3. After submission, walk `snapshot.messages` via the Phase 3b `SnapshotProofStateExtractor.extractPrinterMessages` path — the prover output emitted while elaborating the injected `sledgehammer` command shows up there as "Try this: ..." lines.
+4. `SledgehammerSuggestionParser` (pure regex) — `^\s*(\w+):\s*Try this:\s*(.+?)(?:\s*\(([^()]+)\))?\s*$` extracts the prover name, proof text, and optional timing. Duplicates by `(method, proofText)` are removed preserving first occurrence.
+
+Tested live against `Isabelle2025-2` + `Smoke.thy` cursor on the `sorry` line: returns 4 structured suggestions (`fastforce`, `simp`, `auto`, `metis`) with timings and `using assms by ...` / `by (metis ...)` proof bodies. End-to-end ~80 s on a cold session (covered by the cold bootstrap + Sledgehammer's own ~15-30 s elaboration); sub-second on a hot session because `Headless.Session` is cached for backend lifetime (Phase 2a).
+
+**Important: do NOT cache the injected snapshot.** The cache key (uri, version, session) refers to the user's actual source. A sledgehammer submission has a DIFFERENT source (we mutated it). `SledgehammerWithPideHandler` evicts any existing entry for the URI after running so a follow-up `proofState/getWithPide` re-submits the user's original text against the now-mutated Session — important because the Session has remembered the mutated text. Re-submission of the user's actual text against the same Session is correctly handled because `use_theories` is keyed on theory name + content.
+
+**Cancellation reuses Phase 2b**: `sledgehammer/cancel` calls `HeadlessSessionRegistry.cancelInflightWarmup` which tears down the in-flight facade via `Session.stop()` on a background executor. The next `sledgehammer/run` or `proofState/getWithPide` pays the ~20 s re-bootstrap cost.
+
+**The "command at cursor" reported in the result is from the INJECTED text, not the user's text.** This is by design — the user wants to know "what command did the prover see Sledgehammer applied to?" and the injected sledgehammer is exactly that. The reported offsets are in the injected text's coordinate system; the TS panel does not currently visualize them.
+
 ---
 
 ## When opening a PR
