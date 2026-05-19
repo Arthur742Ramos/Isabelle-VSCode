@@ -34,6 +34,16 @@ export async function runCheckWithPideUx(
     async (progress, token) => {
       progress.report({ message: "warming up Headless session (first call may take 5-30 seconds)" });
       const cancelSubscription = token.onCancellationRequested(() => {
+        // Phase 2b polish: surface a transient status-bar message so
+        // the user understands why their next PIDE operation will be
+        // slow (the cancel tore down the cached Session, so the next
+        // request will pay another ~20 s of bootstrap). 25 s window
+        // generously covers the expected re-bootstrap latency on the
+        // dev machine.
+        vscode.window.setStatusBarMessage(
+          "Isabelle: PIDE session cancelled; will rebuild on next request (~20 s)...",
+          25_000
+        );
         void client
           .request<CancelWarmupResult, Record<string, never>>("pide/cancelWarmup", {})
           .catch(() => undefined);

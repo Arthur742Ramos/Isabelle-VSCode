@@ -345,6 +345,24 @@ Always build the executable ServerOptions through `buildExecutableServerOptions(
 
 When `transport` is undefined, vscode-languageclient still wires stdout/stdin to the protocol reader/writer — you get stdio behavior without the rejected argument. If you ever genuinely need to set `transport` (e.g. socket fallback for remote/SSH dev containers), first verify that the running upstream `isabelle vscode_server` build actually accepts the corresponding `--...` switch — most likely it does not.
 
+### 13. PIDE Phase 2b cancellation tears down + re-bootstraps the Headless session
+
+Phase 2b chose **Option A** (`Session.stop()` teardown on cancel + re-bootstrap on next request) over Option B (custom `isabelle.Progress` subclass via ByteBuddy) and Option C (async-with-callback JSON-RPC refactor). The trade-off has a non-trivial UX cost (~20 s on the next request after a cancel) that future agents need to understand before working on Phase 4 (Sledgehammer non-LSP) and Phase 5 (Sledgehammer minimization), which inherit this cost.
+
+- **Why A won**: smallest blast radius (~150 LOC, no new deps), no protocol changes affecting stable code paths, no fragile bytecode subclassing of Scala-3 modules. The re-bootstrap cost is acceptable because cancellation is rare in practice — users typically cancel by mistake (cursor moved, dialog appeared), not as a routine workflow step.
+- **Why NOT B**: ByteBuddy adds 2-3 MB of runtime dep weight, and reliably emitting Scala-3-compatible bytecode that subclasses `isabelle.Progress` (with its non-trivial initialization patterns) is fragile across Isabelle releases. The cost-to-value ratio doesn't make sense for a feature that ships in one PR.
+- **Why NOT C**: pulls in wire-shape changes (notification channel for results) that affect every existing synchronous operation. Risk of regression on stable code paths (`document/openTheory`, `proofState/get`, etc.). Defer until we have a second long-running operation that needs the same pattern.
+- **Hidden Option D** (compile-time `isabelle.jar % Provided` + direct `Progress` subclass): cleaner than A but pins our compile against Isabelle's API surface — re-pinning per upstream release becomes a maintenance tax. Worth revisiting only if Option A's UX cost becomes painful in practice (especially during Phase 4 Sledgehammer real-world use, where the re-bootstrap cost stacks on top of an already-multi-second proof search).
+
+**Upgrade trigger**: if a user complaint or telemetry signal shows users routinely cancel PIDE operations (e.g. >5% of `pide/cancelWarmup` calls per session over a representative population), pivot to Option D in a Phase 2x PR: add `isabelle.jar` as `% Provided` to `backend/build.sbt`, implement `CancellableProgress extends isabelle.Progress` with an `AtomicBoolean stopped` flag the `check()` override consults, swap `HeadlessFacade.submitTheory` to pass the custom Progress as `use_theories$default$12`. License contract preserved (no bundling — `% Provided` is compile-only).
+
+**Implementation guardrails preserved across Phase 2b + the 2b polish PR**:
+- The post-cancel `Session.stop()` runs on `HeadlessSessionRegistry.cleanupExecutor` (single daemon thread) so the dispatcher's main thread acknowledges cancels immediately. Don't move it back to the main thread under any "but it's only 100ms" justification — `Session.stop()` can block 100ms-1s while the actor acknowledges, and that's user-visible jank on a clearly-cancellable operation.
+- `inflightFacade.getAndSet(None)` is the atomic-swap idempotence guard. Don't replace with a plain `inflightFacade.get()` + conditional clear — the race window allows double-teardown on rapid multi-clicks.
+- TS side surfaces a transient status-bar message after the user cancels: "Isabelle: PIDE session cancelled; will rebuild on next request (~20 s)...". This is the only way users see WHY their next operation pays the rebootstrap cost.
+
+---
+
 ### 11. Never bundle Isabelle's PIDE jars; load reflectively from `<ISABELLE_HOME>` at runtime
 
 The Phase 1 PIDE classpath bridge (`backend/src/main/scala/dev/isabelle/vscode/server/{IsabelleHome,IsabellePideClasspath,PideBridgeSelector}.scala`) loads `isabelle.Isabelle_System` and the rest of Isabelle's PIDE API surface from the user's local install at runtime, through a child `URLClassLoader` constructed against `<ISABELLE_HOME>/lib/classes/isabelle.jar` plus the matching `<ISABELLE_HOME>/contrib/scala-*/lib/*.jar` directory.
