@@ -85,7 +85,20 @@ object SnapshotProofStateExtractor {
 
           // Reflectively grab state.command_states(version, command)
           val rawAndGoals = extractStateMarkup(loader, snapshot, commandObj, notes)
-          val (raw, goals) = rawAndGoals.getOrElse(("", Seq.empty[String]))
+
+          // Phase 3b: also probe `snapshot.messages` for STATE / WRITELN
+          // markup filtered to the cursor's command. `messages` returns
+          // a list of (XML.Tree, ?) tuples — the prover output emitted
+          // during `use_theories` IS captured here even though it does
+          // NOT show up in `Command.State.results`.
+          val printedState = extractPrinterMessages(loader, snapshot, commandObj, startOffset, length, notes)
+          val (raw0, goals0) = rawAndGoals.getOrElse(("", Seq.empty[String]))
+          val (raw, goals) =
+            if (printedState.nonEmpty) {
+              val printedRaw = printedState.mkString("\n").trim
+              val combined = if (raw0.isEmpty) printedRaw else printedRaw + "\n---\n" + raw0
+              (combined, splitGoals(printedRaw))
+            } else (raw0, goals0)
 
           Right(ExtractedProofState(
             commandKind = commandKind,
@@ -99,6 +112,94 @@ object SnapshotProofStateExtractor {
     } catch {
       case t: Throwable =>
         Left(s"snapshot extraction failed: ${describe(t)}")
+    }
+  }
+
+  /**
+   * Phase 3b: reflectively call `snapshot.messages` and filter to
+   * the prover messages whose range falls within the cursor's
+   * command. `Document.Snapshot.messages` returns a list of
+   * `(XML.Tree, ?)` tuples — these include `Markup.STATE`,
+   * `Markup.WRITELN`, etc. that the prover emits during
+   * `use_theories`. This is the surface the `isabelle dump` tool
+   * uses for its "messages" aspect.
+   *
+   * Returns flattened strings via `XML.content(tree)`. Empty on
+   * any reflective failure (the Phase 3a results fallback then
+   * applies).
+   */
+  private def extractPrinterMessages(
+    loader: ClassLoader,
+    snapshot: AnyRef,
+    commandObj: AnyRef,
+    commandStartOffset: Int,
+    commandLength: Int,
+    notes: scala.collection.mutable.Buffer[String]
+  ): Seq[String] = {
+    try {
+      val messagesMethod = snapshot.getClass.getMethods.find(m => m.getName == "messages" && m.getParameterCount == 0)
+      if (messagesMethod.isEmpty) {
+        notes += "snapshot.messages() not found"
+        return Seq.empty
+      }
+      val messagesRaw = messagesMethod.get.invoke(snapshot)
+      if (messagesRaw == null) return Seq.empty
+
+      // The result is typically a scala List[(Text.Info[XML.Elem], ?)] or
+      // List[(XML.Tree, Position)]. Iterate as a generic Seq and look at
+      // each tuple's first element.
+      val xmlCls = Class.forName("isabelle.XML$", true, loader)
+      val xmlModule = xmlCls.getField("MODULE$").get(null)
+      val contentTree = xmlCls.getMethods.find(m =>
+        m.getName == "content" && m.getParameterCount == 1 &&
+          m.getParameterTypes()(0).getSimpleName != "List"
+      )
+
+      val out = scala.collection.mutable.Buffer.empty[String]
+      val seenSerials = scala.collection.mutable.Set.empty[Long]
+
+      def renderTree(tree: AnyRef): Option[String] =
+        contentTree.flatMap { m =>
+          try {
+            val s = m.invoke(xmlModule, tree).asInstanceOf[String]
+            if (s == null || s.isEmpty) None else Some(s)
+          } catch { case _: Throwable => None }
+        }
+
+      def processEntry(entry: AnyRef): Unit = {
+        try {
+          val tuple = entry.asInstanceOf[scala.Tuple2[AnyRef, AnyRef]]
+          val first = tuple._1
+          // first may be Text.Info[XML.Elem] (has .info / .range) or
+          // direct XML.Elem (has .markup / .body).
+          val infoMethod = first.getClass.getMethods.find(m => m.getName == "info" && m.getParameterCount == 0)
+          val xmlElem = infoMethod.map(_.invoke(first)).getOrElse(first)
+          renderTree(xmlElem).foreach(out += _)
+        } catch {
+          case _: Throwable => () // entry doesn't match the expected shape; skip
+        }
+      }
+
+      messagesRaw match {
+        case list: scala.collection.immutable.List[?] =>
+          list.foreach(e => processEntry(e.asInstanceOf[AnyRef]))
+        case iterable: scala.collection.Iterable[?] =>
+          iterable.foreach(e => processEntry(e.asInstanceOf[AnyRef]))
+        case other =>
+          // Try toList
+          val toListMethod = other.getClass.getMethods.find(m => m.getName == "toList" && m.getParameterCount == 0)
+          toListMethod.foreach { m =>
+            val list = m.invoke(other).asInstanceOf[scala.collection.immutable.List[AnyRef]]
+            list.foreach(processEntry)
+          }
+      }
+
+      notes += s"snapshot.messages produced ${out.size} entries"
+      out.toSeq
+    } catch {
+      case t: Throwable =>
+        notes += s"extractPrinterMessages failure: ${describe(t)}"
+        Seq.empty
     }
   }
 
