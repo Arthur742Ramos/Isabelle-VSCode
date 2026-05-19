@@ -195,18 +195,14 @@ object ProofStateWithPideHandler {
         )
       case None => ujson.Null
     }
-    // Phase 3a honesty: Headless's `use_theories` produces command
-    // identity + status snapshots but does NOT auto-populate prover
-    // print-state output (the LSP path gets this via the separate
-    // Print_State agent + PIDE/state_output channel). Phase 3b will
-    // reflectively wire the Print_Operation surface so users see
-    // actual goals. Until then, surface the snapshot-extracted raw
-    // accurately and flag the limitation in the message.
+    // Phase 3b: real prover messages reach us. Update the heuristic
+    // accordingly — non-empty `goals` without the placeholder marker
+    // means we have actual content.
     val hasRealGoals = extracted.goals.exists(g => g.nonEmpty && !g.startsWith("[results]") && !g.startsWith("[markup]"))
     val message = {
       val cmd = extracted.commandKind.getOrElse("(no command at cursor)")
       if (hasRealGoals) s"PIDE proof state ready ($cmd, ${extracted.goals.size} goal(s))."
-      else s"PIDE snapshot ready ($cmd at offset ${extracted.commandRangeOffsets.map(_._1).getOrElse(0)}). Goal printing requires Phase 3b Print_Operation wiring; raw markup shown below."
+      else s"PIDE snapshot ready ($cmd at offset ${extracted.commandRangeOffsets.map(_._1).getOrElse(0)}). No prover messages at this command (likely already finished without state output)."
     }
     ujson.Obj(
       "uri" -> uri,
