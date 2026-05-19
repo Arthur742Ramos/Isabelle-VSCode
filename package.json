@@ -39,6 +39,7 @@
     "onCommand:isabelle.checkBackendHealth",
     "onCommand:isabelle.showPideBackendStatus",
     "onCommand:isabelle.showPideDocumentStatus",
+    "onCommand:isabelle.invalidatePideCache",
     "onCommand:isabelle.discoverSessions",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
@@ -124,6 +125,10 @@
       {
         "command": "isabelle.showPideDocumentStatus",
         "title": "Isabelle: Show PIDE Document Status"
+      },
+      {
+        "command": "isabelle.invalidatePideCache",
+        "title": "Isabelle: Invalidate PIDE Cache"
       },
       {
         "command": "isabelle.discoverSessions",

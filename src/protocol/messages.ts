@@ -10,6 +10,9 @@ export type ServerMethod =
   | "document/close"
   | "document/checkWithPide"
   | "pide/cancelWarmup"
+  | "pide/warmup"
+  | "pide/cacheState"
+  | "pide/invalidateCache"
   | "proofState/get"
   | "sledgehammer/run"
   | "sledgehammer/cancel";
@@ -322,6 +325,63 @@ export interface CancelWarmupParams {
 
 export interface CancelWarmupResult {
   cancelled: boolean;
+  message: string;
+}
+
+/**
+ * Phase 2c PIDE cache lifecycle types.
+ *
+ * The backend exposes three new methods around the long-lived
+ * `Headless.Session` cache the registry holds for the process
+ * lifetime:
+ *
+ *   - `pide/warmup` — eagerly build the cached facade so the first
+ *     user-facing PIDE call is sub-second. Honored from
+ *     `isabelle.pide.prewarmOnActivation`.
+ *   - `pide/cacheState` — read-only snapshot used by
+ *     `Isabelle: Show PIDE Document Status` to surface why the next
+ *     call might be slow.
+ *   - `pide/invalidateCache` — force-evict the cached facade.
+ *     Surfaced as `Isabelle: Invalidate PIDE Cache` for users who
+ *     updated their Isabelle install in place.
+ */
+export interface WarmupParams {
+  session?: string;
+  isabelleExecutablePath?: string;
+}
+
+export type WarmupStatus = "ready" | "skipped" | "cancelled" | "failed";
+
+export interface WarmupResult {
+  status: WarmupStatus;
+  message: string;
+  reason?: string;
+  session?: string;
+  isabelleHome?: string;
+  elapsedMs?: number;
+  bootstrapElapsedMs?: number;
+  alreadyCached?: boolean;
+  cacheState?: PideCacheStateResult;
+  notes?: string[];
+}
+
+export interface PideCacheFingerprint {
+  canonicalHome: string;
+  sessionName: string;
+  isabelleJarSize: number;
+  isabelleJarMtimeMillis: number;
+}
+
+export interface PideCacheStateResult {
+  hasCachedFacade: boolean;
+  fingerprint?: PideCacheFingerprint;
+  hasInflightSubmission: boolean;
+  lastBootstrapElapsedMs?: number;
+}
+
+export interface InvalidatePideCacheResult {
+  invalidated: boolean;
+  previousFingerprint: PideCacheFingerprint | null;
   message: string;
 }
 
