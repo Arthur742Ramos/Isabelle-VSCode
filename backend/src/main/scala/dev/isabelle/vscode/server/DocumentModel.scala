@@ -25,6 +25,14 @@ final class DocumentStore(bridge: PideBridge = new LocalSyntaxPideBridge) {
     ujson.Obj("uri" -> uri)
   }
 
+  /** Read-only peek at a synchronized document's text. Used by the
+    * Phase 2a `document/checkWithPide` path to retrieve the editor's
+    * current text without going through the open/update mutation
+    * cycle. Returns None when the document is not currently
+    * synchronized. */
+  def peekText(uri: String): Option[String] =
+    documents.get(uri).map(_.text)
+
   def proofState(uri: String, line: Int, character: Int): ujson.Value =
     documents.get(uri) match {
       case None =>

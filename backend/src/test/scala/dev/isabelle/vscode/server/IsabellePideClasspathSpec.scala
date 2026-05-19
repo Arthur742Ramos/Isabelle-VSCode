@@ -123,4 +123,93 @@ final class IsabellePideClasspathSpec extends AnyFunSuite {
     assert(urls.size == 3)
     assert(urls.forall(_.getProtocol == "file"))
   }
+
+  test("includes contrib/<other>/lib/*.jar in addition to Scala jars") {
+    val scalaLib = s"$Home/contrib/scala-3.3.4/lib"
+    val setupLib = s"$Home/contrib/isabelle_setup-20250613/lib"
+    val sqliteLib = s"$Home/contrib/sqlite-3.51.0.0/lib"
+    val cygwinLib = s"$Home/contrib/cygwin/lib"
+
+    val isabelleJar = s"$Home/lib/classes/isabelle.jar"
+    val scala3Jar = s"$scalaLib/scala3-library_3-3.3.4.jar"
+    val scala2Jar = s"$scalaLib/scala-library-2.13.14.jar"
+    val setupJar = s"$setupLib/isabelle_setup.jar"
+    val sqliteJar = s"$sqliteLib/sqlite-jdbc-3.51.0.0.jar"
+    val slf4jJar = s"$sqliteLib/slf4j-api-2.0.17.jar"
+    // cygwin component has no lib/*.jar — should be skipped silently.
+
+    val fs = fsWithLayout(
+      extraFiles = Set(isabelleJar, scala3Jar, scala2Jar, setupJar, sqliteJar, slf4jJar),
+      extraDirs = Set(
+        s"$Home/contrib",
+        s"$Home/contrib/scala-3.3.4", scalaLib,
+        s"$Home/contrib/isabelle_setup-20250613", setupLib,
+        s"$Home/contrib/sqlite-3.51.0.0", sqliteLib,
+        s"$Home/contrib/cygwin"
+      ),
+      extraChildren = Map(
+        s"$Home/contrib" -> Seq(
+          s"$Home/contrib/scala-3.3.4",
+          s"$Home/contrib/isabelle_setup-20250613",
+          s"$Home/contrib/sqlite-3.51.0.0",
+          s"$Home/contrib/cygwin"
+        ),
+        scalaLib -> Seq(scala3Jar, scala2Jar),
+        setupLib -> Seq(setupJar),
+        sqliteLib -> Seq(sqliteJar, slf4jJar)
+      )
+    )
+
+    val resolved = IsabellePideClasspath.build(Paths.get(Home), fs).toOption.get
+
+    val jarNames = resolved.allJars.map(_.getFileName.toString)
+    assert(jarNames.contains("isabelle.jar"))
+    assert(jarNames.contains("scala3-library_3-3.3.4.jar"))
+    assert(jarNames.contains("scala-library-2.13.14.jar"))
+    assert(jarNames.contains("isabelle_setup.jar"))
+    assert(jarNames.contains("sqlite-jdbc-3.51.0.0.jar"))
+    assert(jarNames.contains("slf4j-api-2.0.17.jar"))
+    // isabelle.jar first
+    assert(jarNames.head == "isabelle.jar")
+    // Scala jars before other contrib jars (so URLClassLoader resolves
+    // duplicated transitive libs like jsoup against the Scala-bundled
+    // version that Scala was compiled against).
+    val firstScalaIdx = jarNames.indexWhere(_.startsWith("scala"))
+    val firstSetupIdx = jarNames.indexOf("isabelle_setup.jar")
+    val firstSqliteIdx = jarNames.indexOf("sqlite-jdbc-3.51.0.0.jar")
+    assert(firstScalaIdx < firstSetupIdx, "Scala jars must precede other contrib jars in URL order")
+    assert(firstScalaIdx < firstSqliteIdx, "Scala jars must precede other contrib jars in URL order")
+  }
+
+  test("excludes the selected Scala contrib dir from otherContribJars") {
+    val scalaLib = s"$Home/contrib/scala-3.3.4/lib"
+    val setupLib = s"$Home/contrib/isabelle_setup-20250613/lib"
+
+    val isabelleJar = s"$Home/lib/classes/isabelle.jar"
+    val scala3Jar = s"$scalaLib/scala3-library_3-3.3.4.jar"
+    val scala2Jar = s"$scalaLib/scala-library-2.13.14.jar"
+    val setupJar = s"$setupLib/isabelle_setup.jar"
+
+    val fs = fsWithLayout(
+      extraFiles = Set(isabelleJar, scala3Jar, scala2Jar, setupJar),
+      extraDirs = Set(
+        s"$Home/contrib",
+        s"$Home/contrib/scala-3.3.4", scalaLib,
+        s"$Home/contrib/isabelle_setup-20250613", setupLib
+      ),
+      extraChildren = Map(
+        s"$Home/contrib" -> Seq(s"$Home/contrib/scala-3.3.4", s"$Home/contrib/isabelle_setup-20250613"),
+        scalaLib -> Seq(scala3Jar, scala2Jar),
+        setupLib -> Seq(setupJar)
+      )
+    )
+
+    val resolved = IsabellePideClasspath.build(Paths.get(Home), fs).toOption.get
+
+    // The scala jars must appear in scalaJars only — NOT duplicated in otherContribJars.
+    val otherNames = resolved.otherContribJars.map(_.getFileName.toString)
+    assert(!otherNames.contains("scala3-library_3-3.3.4.jar"))
+    assert(!otherNames.contains("scala-library-2.13.14.jar"))
+    assert(otherNames.contains("isabelle_setup.jar"))
+  }
 }

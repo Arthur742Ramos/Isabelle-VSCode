@@ -257,7 +257,7 @@ values for the bumping procedure.
   largest open track. Multi-PR work. Status as of this checkpoint:
   - **Phase 0** ✅ (PR #72) — backend now compiles + tests under
     Scala 3.3.4 matching Isabelle's bundled Scala.
-  - **Phase 1** ✅ (this PR) — runtime classpath bridge wired. The
+  - **Phase 1** ✅ (PR #74) — runtime classpath bridge wired. The
     backend resolves `<ISABELLE_HOME>` from env / `isabelle.executablePath` /
     platform defaults, constructs a child `URLClassLoader` from
     `<home>/lib/classes/isabelle.jar` + the matching
@@ -271,7 +271,37 @@ values for the bumping procedure.
     `npm run backend:package` and fails the build if violated. See
     `THIRD_PARTY_NOTICES.md` and `AGENTS.md` §11 for the runtime
     contract.
-  - **Phase 2+** ⏳ — would unblock:
+  - **Phase 2a** ✅ (this PR) — PIDE document submission wired via
+    `Headless.Session.use_theories(...)`. New JSON-RPC method
+    `document/checkWithPide` (lazy-builds + caches a long-lived
+    `Headless.Session` per `(home, session, isabelle.jar fingerprint)`
+    tuple), `pide/cancelWarmup` (best-effort cancel between
+    bootstrap steps; full cancel of in-flight `use_theories`
+    arrives in 2b), classpath extended from 57 to 212 jars to
+    include `contrib/*/lib/*.jar` (isabelle_setup, jsoup, sqlite,
+    xz, zstd, …) so `setup.Environment.init` can locate its
+    dependencies. New `Isabelle: Show PIDE Document Status`
+    command wraps the call with `vscode.window.withProgress({
+    location: Notification, cancellable: true })`, runs the
+    4-step session cascade (active-setting → single-ROOT
+    auto-select → multi-ROOT QuickPick → HOL fallback with
+    one-time warning), and emits a deep-linked OOM toast when
+    `isabelle.backend.maxHeapMb` needs bumping. Symbol round-trip
+    via reflective `isabelle.Symbol.encode/decode` so editor
+    Unicode (`λ`) reaches Isabelle as `\<lambda>` (without it,
+    every submission hits "undefined symbol" errors).
+    `BackendManager.spawn` threads three env vars
+    (`ISABELLE_HOME`, `ISABELLE_ROOT`, `CYGWIN_ROOT` on Windows)
+    plus `BACKEND_SCRATCH_DIR` from
+    `context.globalStorageUri.fsPath`, and passes `-Xmx<N>m` only
+    when the new `isabelle.backend.maxHeapMb` setting is positive
+    (default `0` = JVM ergonomics). License contract preserved
+    (0 `isabelle/` entries in fat jar). See `AGENTS.md` §12 for
+    the lifecycle + bootstrap-order gotchas the spike surfaced.
+  - **Phase 2b/2c/2d** ⏳ — async + structured cancellation of
+    `use_theories` itself (2b); classloader fingerprint cache
+    invalidation polish (2c); 2d remains a free polish slot.
+  - Would still unblock:
     - Milestone 7 minimization (since the LSP doesn't expose it).
     - Live PIDE-backed proof state / Sledgehammer for users
       WITHOUT the LSP relay (today they get the local-syntax
