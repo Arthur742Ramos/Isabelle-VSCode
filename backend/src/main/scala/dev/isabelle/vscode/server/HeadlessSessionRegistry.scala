@@ -124,6 +124,40 @@ final class HeadlessSessionRegistry(
     * `Isabelle: Show PIDE Document Status` command. */
   def currentFingerprint: Option[HeadlessSessionRegistry.Fingerprint] = cached.map(_._1)
 
+  /**
+   * Phase 2c diagnostic: rich snapshot of the cache state for
+   * surfacing via the `pide/cacheState` JSON-RPC method. Includes
+   * the live fingerprint (if any) and lifecycle counters that help
+   * users understand why their next call might be slow (e.g.
+   * "facade was just invalidated by a cancel, next call will
+   * re-bootstrap"). Read-only — does NOT mutate cache state.
+   */
+  def cacheStateSnapshot: HeadlessSessionRegistry.CacheStateSnapshot = {
+    val fp = currentFingerprint
+    val inflight = inflightFacade.get().isDefined
+    HeadlessSessionRegistry.CacheStateSnapshot(
+      hasCachedFacade = fp.isDefined,
+      fingerprint = fp,
+      hasInflightSubmission = inflight,
+      lastBootstrapElapsedMs = cached.map(_._2.bootstrapElapsedMs)
+    )
+  }
+
+  /**
+   * Phase 2c power-user invalidation: force-evicts the cached
+   * facade (and tears down its Session). Useful when the user has
+   * updated their Isabelle install or wants to clear stuck state
+   * without restarting the backend. Safe to call when no facade is
+   * cached.
+   */
+  def invalidateCache(): Unit = {
+    cached.foreach { case (_, facade) =>
+      try facade.shutdown() catch { case NonFatal(_) => () }
+    }
+    cached = None
+    inflightFacade.set(None)
+  }
+
   private def buildFresh(
     classpath: IsabellePideClasspath.Resolved,
     home: Path,
@@ -155,7 +189,35 @@ object HeadlessSessionRegistry {
     sessionName: String,
     isabelleJarSize: Long,
     isabelleJarMtimeMillis: Long
-  )
+  ) {
+    /** JSON serialization for the `pide/cacheState` diagnostic. */
+    def toJson: ujson.Value = ujson.Obj(
+      "canonicalHome" -> canonicalHome,
+      "sessionName" -> sessionName,
+      "isabelleJarSize" -> isabelleJarSize,
+      "isabelleJarMtimeMillis" -> isabelleJarMtimeMillis
+    )
+  }
+
+  /** Phase 2c read-only diagnostic returned by
+    * [[HeadlessSessionRegistry.cacheStateSnapshot]]. Serialized as
+    * the result of the new `pide/cacheState` JSON-RPC method. */
+  final case class CacheStateSnapshot(
+    hasCachedFacade: Boolean,
+    fingerprint: Option[Fingerprint],
+    hasInflightSubmission: Boolean,
+    lastBootstrapElapsedMs: Option[Long]
+  ) {
+    def toJson: ujson.Value = {
+      val obj = ujson.Obj(
+        "hasCachedFacade" -> hasCachedFacade,
+        "hasInflightSubmission" -> hasInflightSubmission
+      )
+      fingerprint.foreach(fp => obj("fingerprint") = fp.toJson)
+      lastBootstrapElapsedMs.foreach(ms => obj("lastBootstrapElapsedMs") = ms)
+      obj
+    }
+  }
 
   object Fingerprint {
     def compute(home: Path, sessionName: String, isabelleJar: Path): Fingerprint = {

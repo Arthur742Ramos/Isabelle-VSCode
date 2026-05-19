@@ -62,6 +62,30 @@ object Main {
               }
             })
 
+          // Phase 2c: heavy method — dispatch to worker so the dispatcher
+          // stays free for pide/cancelWarmup mid-warmup.
+          case "pide/warmup" =>
+            pideWorker.submit(new Runnable {
+              override def run(): Unit = {
+                val response =
+                  try {
+                    Protocol.success(request.id, PideCacheHandlers.warmupWithSystemEnv(request.params, headlessRegistry))
+                  } catch {
+                    case t: Throwable =>
+                      Protocol.error(request.id, -32000, Option(t.getMessage).getOrElse(t.getClass.getSimpleName))
+                  }
+                writeResponse(response)
+              }
+            })
+
+          // Phase 2c: fast diagnostic on main thread.
+          case "pide/cacheState" =>
+            writeResponse(Protocol.success(request.id, PideCacheHandlers.cacheState(headlessRegistry)))
+
+          // Phase 2c: fast invalidation on main thread.
+          case "pide/invalidateCache" =>
+            writeResponse(Protocol.success(request.id, PideCacheHandlers.invalidateCache(headlessRegistry)))
+
           // Synchronous on main thread — must NOT be queued behind the worker.
           case "pide/cancelWarmup" =>
             headlessRegistry.cancelInflightWarmup()

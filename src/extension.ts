@@ -64,7 +64,10 @@ import {
   VersionParams,
   VersionResult,
   CheckWithPideParams,
-  CheckWithPideResult
+  CheckWithPideResult,
+  WarmupParams,
+  WarmupResult,
+  InvalidatePideCacheResult
 } from "./protocol/messages";
 import { formatPideBackendStatus } from "./backend/showPideBackendStatus";
 import { formatPideDocumentStatus, formatErrorMessages } from "./backend/showPideDocumentStatus";
@@ -301,6 +304,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.checkBackendHealth", async () => checkBackendHealth(output)),
     vscode.commands.registerCommand("isabelle.showPideBackendStatus", async () => showPideBackendStatus(output)),
     vscode.commands.registerCommand("isabelle.showPideDocumentStatus", async () => showPideDocumentStatus(output)),
+    vscode.commands.registerCommand("isabelle.invalidatePideCache", async () => invalidatePideCache(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
@@ -432,6 +436,12 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       );
     }
   })();
+
+  // Phase 2c: opt-in eager warmup of the cached HeadlessFacade so
+  // power users do not pay the 5-30 s bootstrap on their first
+  // user-facing PIDE call. Default `false` so users who never touch
+  // PIDE features pay nothing on activation.
+  maybePrewarmPide(output);
 
   return createIsabellePideExtensionApi(repairAiProviderRegistry, repairAiSecretStore);
 }
@@ -979,6 +989,72 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
   } catch (error) {
     showBackendError("Unable to run PIDE document check", error, output);
   }
+}
+
+async function invalidatePideCache(output: vscode.OutputChannel): Promise<void> {
+  try {
+    const client = requireBackendManager().getClient();
+    const result = await client.request<InvalidatePideCacheResult, Record<string, never>>(
+      "pide/invalidateCache",
+      {}
+    );
+    output.appendLine("--- PIDE cache invalidation ---");
+    output.appendLine(`invalidated: ${result.invalidated}`);
+    if (result.previousFingerprint) {
+      output.appendLine(`previousSession: ${result.previousFingerprint.sessionName}`);
+      output.appendLine(`previousHome: ${result.previousFingerprint.canonicalHome}`);
+    }
+    output.appendLine(`message: ${result.message}`);
+    vscode.window.showInformationMessage(result.message);
+  } catch (error) {
+    showBackendError("Unable to invalidate Isabelle/PIDE cache", error, output);
+  }
+}
+
+/**
+ * Phase 2c: honor `isabelle.pide.prewarmOnActivation` by triggering
+ * an eager `pide/warmup` for the user's currently-active session
+ * shortly after activation. Runs in the background (non-blocking) so
+ * activation does not pay the 5-30 s bootstrap cost for users who
+ * left the setting at its `false` default. Failures are logged to
+ * the output channel only — no user-facing toast — because a failed
+ * prewarm is harmless (the next user-facing PIDE call retries from
+ * scratch).
+ */
+function maybePrewarmPide(output: vscode.OutputChannel): void {
+  const config = vscode.workspace.getConfiguration("isabelle");
+  if (!config.get<boolean>("pide.prewarmOnActivation", false)) {
+    return;
+  }
+  const session = (config.get<string>("session.active", "") ?? "").trim();
+  if (session.length === 0) {
+    output.appendLine(
+      "PIDE prewarm skipped: `isabelle.pide.prewarmOnActivation` is enabled but `isabelle.session.active` is empty."
+    );
+    return;
+  }
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const client = requireBackendManager().getClient();
+        const params: WarmupParams = {
+          session,
+          isabelleExecutablePath: getIsabelleExecutablePath()
+        };
+        const result = await client.request<WarmupResult, WarmupParams>("pide/warmup", params);
+        output.appendLine(
+          `PIDE prewarm: status=${result.status} session=${result.session ?? session} ` +
+            `elapsedMs=${result.elapsedMs ?? "?"} alreadyCached=${result.alreadyCached ?? "?"}`
+        );
+        if (result.status !== "ready") {
+          output.appendLine(`  reason: ${result.reason ?? "(none)"}`);
+          output.appendLine(`  message: ${result.message}`);
+        }
+      } catch (error) {
+        output.appendLine(`PIDE prewarm failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })();
+  }, 1500);
 }
 
 async function discoverSessions(output: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<void> {
