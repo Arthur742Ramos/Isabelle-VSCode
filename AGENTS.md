@@ -24,7 +24,7 @@ A Visual Studio Code extension for [Isabelle/PIDE](https://isabelle.in.tum.de/).
 | Half | Language | What it does |
 |---|---|---|
 | **VS Code extension** (`src/`, `test/`) | TypeScript (strict, ES2020, CommonJS) | Activation, command palette, panels, decorations, semantic tokens, LSP relay client. Bundled with esbuild into a single `out/extension.js`. |
-| **Scala backend** (`backend/`) | Scala 2.13 | JSON-RPC server that fronts Isabelle CLI invocations, parses ROOT/ROOTS, exposes a `PideBridge` seam for future real PIDE integration. Built as a fat jar via `sbt assembly` and bundled in the `.vsix`. |
+| **Scala backend** (`backend/`) | Scala 3.3.4 | JSON-RPC server that fronts Isabelle CLI invocations, parses ROOT/ROOTS, exposes a `PideBridge` seam wired to the real Isabelle/PIDE Headless API (Phases 1-5, PRs #74-#82). Built as a fat jar via `sbt assembly` and bundled in the `.vsix`. Scala version is pinned to match Isabelle 2025-2's bundled PIDE — see AGENTS.md §11. |
 
 The VS Code extension launches the backend with `java -jar backend/dist/isabelle-vscode-server.jar`. The backend in turn shells out to whatever `isabelle` executable the user has on `PATH` (or in the `isabelle.executablePath` setting).
 
@@ -245,7 +245,7 @@ The scope (`setup`, `build`, `ci`, `roadmap-status`, etc) usually maps to the to
              ▼                          ▼
 ┌──────────────────────────┐  ┌───────────────────────────────────┐
 │  Scala Backend           │  │  isabelle vscode_server           │
-│  (backend/, Scala 2.13)  │  │  (bundled with Isabelle)          │
+│  (backend/, Scala 3.3.4) │  │  (bundled with Isabelle)          │
 │                          │  │                                   │
 │  PideBridge seam         │  │  PIDE-flavoured LSP features:     │
 │  (LocalSyntaxPideBridge  │  │  decorations, hover, completion,  │

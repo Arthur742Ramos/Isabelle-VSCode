@@ -20,3 +20,4 @@ out/**/*.map
 out/test/**
 jre/**
 .vscodeignore.platform
+media/screenshots/README.md

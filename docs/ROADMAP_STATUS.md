@@ -23,12 +23,12 @@ single page to read for "what is shipped, what is still open, why."
 | 4 PIDE document connection | ✅ Done (Tier-2 manual still recommended) |
 | 5 Semantic markup | ✅ 8 of 9 — `documentSymbol` upstream-blocked; PIDE/decoration overlay + PIDE/abbrevs completion + PIDE/documentation browser + PIDE/preview live theory preview + PIDE spell-checker dictionary commands shipped |
 | 6 Proof state panel | ✅ 3 of 3 — LSP-backed via PIDE state-panel + dynamic_output + user-facing auto-update / margin / relocate settings and commands |
-| 7 Sledgehammer workflow | ✅ 6 of 7 — minimization upstream-blocked |
+| 7 Sledgehammer workflow | ✅ 7 of 7 — minimization shipped via Headless `PideBridge` (PR #82); LSP-side `PIDE/sledgehammer_minimize*` surface still upstream-blocked but no longer user-visible |
 | 8 Theory graph + proof-engineering tools | ✅ Done |
 | 9 Checked AI repair loop | ✅ Seam + 3rd-party API + SecretStorage + safe bundled provider |
-| Install UX — bundled per-platform JRE | ✅ 8 per-platform `.vsix` files (win32 / linux / alpine / darwin × x64 / arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback |
+| Install UX — bundled per-platform JRE | ✅ 7 per-platform `.vsix` files (win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-arm64) bundle Eclipse Temurin 21; universal `.vsix` still available for bring-your-own-Java fallback. macOS Intel (`darwin-x64`) was dropped from the matrix in v0.1.0-alpha.3 due to chronic `macos-13` runner-pool unavailability — see AGENTS.md §17. |
 
-Vitest baseline: **749 cases, all green**.
+Vitest baseline: **all green**. The exact case count drifts as the suite grows — read it from `npm run test` or the CI `validate` job log per release. (Per AGENTS.md gotcha #7, hard-coded test counts in docs go stale on the next PR, so we intentionally don't pin one here.)
 
 ## What is fully shipped
 
@@ -141,7 +141,7 @@ The panel branches on `IsabelleLanguageClient.getStatus().state ===
   panel.
 
 ### Milestone 7 — Sledgehammer
-Six of seven recommendations from
+All seven recommendations from
 `sledgehammer_lsp_research.md` are shipped:
 
 1. LSP notification I/O seam on `IsabelleLanguageClient` (PR #31).
@@ -165,13 +165,18 @@ Plus a polish PR (#41) for the `Pick Sledgehammer Suggestion`
 quick-pick when multiple sendbacks come back.
 
 The **seventh recommendation** in the research note —
-proof-minimization — is upstream-blocked: the upstream LSP
-exposes no `PIDE/sledgehammer_minimize*` notification (verified
-at `mirror-isabelle@ce22e9ea`). The only paths are an upstream
-change to `isabelle vscode_server` or a Scala-backend
-`PideBridge` implementation that calls `Sledgehammer_Minimize.run`
-directly. Documented in
-`proof_state_and_minimization_lsp_research.md`.
+proof-minimization — is shipped via the **Headless `PideBridge`
+route** (PR #82), not via the LSP. The upstream LSP still exposes
+no `PIDE/sledgehammer_minimize*` notification (verified at
+`mirror-isabelle@ce22e9ea`), so the Scala backend's `PideBridge`
+extends the Phase 4 source-injection path with
+`Options.{params, onlyFacts, addFacts, delFacts}` and submits
+`sledgehammer [minimize=true, preplay_timeout=10] (fact1 fact2 ...)`
+through `Headless.Session.use_theories`. A new TS command
+`Isabelle: Minimize Sledgehammer Proof at Cursor` parses an
+existing `by (metis foo bar)` / `using ... by` / `apply (...)`
+line at the cursor and dispatches with the extracted fact list.
+See `AGENTS.md` §16 and `proof_state_and_minimization_lsp_research.md`.
 
 ### Milestone 8 — Theory graph + proof-engineering tools
 Explorer-side **Isabelle Theory Graph** tree, forward/reverse
@@ -400,3 +405,41 @@ Documented per checkbox in `PIDE_INTEGRATION.md`:
 - [`AI_REPAIR.md`](AI_REPAIR.md) — Milestone 9 safety contract,
   provider authoring contract, bundled `manual-paste-back`
   walkthrough, third-party extension-API example.
+
+## Beta readiness
+
+The repo is currently shipped as **`0.1.x-alpha`** (`preview: true` in `package.json`). "Beta" in this project means "the alpha demo has been verified end-to-end on three OSes against a real Isabelle install, with no known regressions". The predicates below are the gate for promoting the version label from `alpha.N` to `beta.0`. They are intentionally narrow — most of them are already true; the bottleneck is **live verification**, not more code.
+
+### Hard gates (all must be true)
+
+- [ ] `npm run test:all` is green on `main` (both the structural Vitest suite AND the hosted Mocha integration suite under `xvfb`).
+- [ ] CI `validate` + `integration-tests` jobs pass on the candidate commit.
+- [ ] The Release workflow has produced all 8 `.vsix` artifacts (1 universal + 7 per-platform) for the candidate tag, and `npm run package:validate` confirms each one has the expected layout.
+- [ ] `docs/SMOKE_THEORY_CHECKLIST.md` "Quick dogfood transcript" (steps 1–9 against `examples/Smoke.thy` + the bundled `Isabelle_VSCode_Smoke` session) runs cleanly on a clean machine on **at least three** of: Windows x64, Linux x64, macOS arm64. ("Clean" = no prior install of the extension, only the per-platform `.vsix` + Isabelle 2025-2.)
+- [ ] The full per-capability checklist in `SMOKE_THEORY_CHECKLIST.md` (M4–M9 + Install UX) has been walked at least once on one of those three OSes for the candidate build.
+- [ ] No open `alpha-blocker` (or equivalent) issue. Issues with the `manual-verification` label may remain open if they don't block the dogfood transcript.
+- [ ] `THIRD_PARTY_NOTICES.md` and the bundled-JRE license summary are current — bumping Temurin in `release.yml` requires re-validating the notices.
+- [ ] No `Scala 2.13` doc drift (the backend is Scala 3.3.4 since PR #72 — see AGENTS.md §11); no hard-coded test counts; no `darwin-x64` claims in release docs (dropped in alpha.3 — see AGENTS.md §17).
+
+### Soft gates (preferred, not blocking)
+
+- [ ] Screenshots (or a short GIF) for at least the proof state panel and Sledgehammer "Prover output" landed under `media/screenshots/` and referenced from `media/walkthrough/*.md`. See `media/screenshots/README.md` for the capture spec.
+- [ ] Phase 3c (range-filtered `snapshot.messages`) has either landed or been formally deferred — without it, the PIDE proof-state panel shows whole-file context rather than per-cursor goals, which is correct but can confuse new users.
+- [ ] At least one external contributor (not the original author) has completed the smoke transcript successfully and reported back.
+
+### Explicit non-goals for beta
+
+- VS Code Marketplace publication (`preview: true` stays; `"private": true` stays). Marketplace is a separate decision after beta has been stable for at least one minor release.
+- Cross-arch live smoke on every CI runner (Alpine musl, Linux/Windows ARM64 cross-compiled JRE bundles, etc.). CI continues to layout-smoke those targets; live verification stays Tier-2 manual.
+- Documentation localization, formal accessibility audit, or any UX polish that requires more than a session of editor-side work.
+- Default network-calling AI repair provider (intentionally blocked — see `docs/AI_REPAIR.md`).
+
+### What "post-beta" means
+
+Once the gates above pass:
+
+1. Bump `package.json` `version` from `0.1.x-alpha.N` to `0.1.x-beta.0`, leaving `preview: true`.
+2. Tag the commit with `v0.1.x-beta.0` per `skills/prepare-release.md`.
+3. Update the README "Current milestone" section to drop the "alpha" framing.
+4. Open a tracking issue for the post-beta roadmap (Phase 3c, optional Marketplace publication, etc.).
+
