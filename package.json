@@ -686,6 +686,9 @@
     "watch": "tsc -watch -p .",
     "test": "vitest run",
     "check": "npm run compile && npm test",
+    "test:integration:compile": "tsc -p test/integration/tsconfig.json",
+    "test:integration": "npm run bundle && npm run test:integration:compile && node ./out/test/integration/runTest.js",
+    "test:all": "npm run check && npm run test:integration",
     "bundle": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\" && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 --log-level=warning",
     "vscode:prepublish": "npm run bundle && node -e \"const fs=require('fs');if(!fs.existsSync('backend/dist/isabelle-vscode-server.jar')){console.error('Missing backend/dist/isabelle-vscode-server.jar. Run \\\"npm run backend:package\\\" first (requires Java + sbt).');process.exit(1);}\"",
     "package": "npm run check && npm run backend:package && vsce package --no-dependencies --out isabelle-pide-vscode.vsix",
@@ -700,11 +703,19 @@
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.1",
     "esbuild": "^0.28.0",
+    "glob": "^13.0.6",
+    "mocha": "^11.7.5",
     "typescript": "^5.5.3",
     "vitest": "^4.1.6"
+  },
+  "overrides": {
+    "diff": "^9.0.0",
+    "serialize-javascript": "^7.0.5"
   }
 }

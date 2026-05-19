@@ -8,10 +8,10 @@ Thank you for thinking about contributing! This file is the **human onboarding**
 git clone https://github.com/Arthur742Ramos/Isabelle-VSCode.git
 cd Isabelle-VSCode
 npm install
-npm run check     # compile + 749 vitest cases (~3 s on a warm cache)
+npm run check     # compile + vitest suite (~3 s on a warm cache)
 ```
 
-If `npm run check` is green, you're set up for **any TypeScript-only change**. For backend (Scala) or full-build work, see "Tier 2 toolchain" below.
+If `npm run check` is green, you're set up for **any TypeScript-only change**. For backend (Scala), VS Code-hosted integration tests, or full-build work, see "Tier 2 toolchain" below.
 
 ## How to contribute
 
@@ -20,6 +20,7 @@ If `npm run check` is green, you're set up for **any TypeScript-only change**. F
 3. **Make the change.** Keep the diff focused — one logical change per PR.
 4. **Test it.**
    - TypeScript changes: `npm run check`.
+   - Adding or renaming a contributed command, or anything touching `activate()`: also `npm run test:integration` so the hosted activation + command-registration drift detector picks up the change.
    - Backend changes: `npm run backend:test` (needs Java + sbt).
    - Packaging changes: `npm run package`.
 5. **Commit** using Conventional Commits — `feat(scope):`, `fix(scope):`, `ci:`, `docs(scope):`. Look at recent `git log` for the established scopes (`setup`, `build`, `roadmap-status`, etc).
@@ -35,7 +36,7 @@ If `npm run check` is green, you're set up for **any TypeScript-only change**. F
 
 That's it. Most contributions only need this.
 
-### Tier 2 — Backend / packaging / install (optional)
+### Tier 2 — Backend / packaging / install / hosted integration tests (optional)
 
 | Tool | Version | Used for |
 |---|---|---|
@@ -43,15 +44,18 @@ That's it. Most contributions only need this.
 | sbt | 1.12+ | `npm run backend:*` |
 | `code` / `code-insiders` CLI on PATH | any recent | `npm run install:extension` |
 | Isabelle | 2019+ | Only to **exercise** features — not to build them |
+| Display server (or `xvfb-run` on headless Linux) | any | `npm run test:integration` boots a real VS Code |
 
 OS-by-OS install commands for Java and Isabelle are in the [README install matrix](README.md#installation).
 
 ## Useful npm scripts
 
 ```powershell
-npm run check               # compile + vitest (the CI gate)
+npm run check               # compile + vitest (the CI gate; Tier 1)
 npm run watch               # tsc -watch for fast iteration
 npm run bundle              # esbuild -> out/extension.js
+npm run test:integration    # boot VS Code, run hosted activation + command-registration tests (Tier 2; CI runs this in parallel under xvfb-run)
+npm run test:all            # check + test:integration (combined gate)
 npm run package             # produce isabelle-pide-vscode.vsix
 npm run install:extension   # package + code --install-extension --force
 npm run backend:compile     # sbt compile (Tier 2)
@@ -60,9 +64,9 @@ npm run backend:test        # sbt test    (Tier 2)
 
 ## Test conventions
 
-All 66 test files under `test/**` are **structural** — they avoid importing `vscode` and exercise pure modules with injected fakes (for `fs`, `child_process.spawn`, VS Code UI surfaces, …). The cleanest current examples are under `src/setup/` + `test/setup/`. New tests should follow this pattern.
+Tests under `test/**/*.test.ts` (excluding `test/integration/**`) are **structural** — they avoid importing `vscode` and exercise pure modules with injected fakes (for `fs`, `child_process.spawn`, VS Code UI surfaces, …). The cleanest current examples are under `src/setup/` + `test/setup/`. New tests should follow this pattern.
 
-Add VS Code-hosted integration tests only when behavior cannot be tested structurally.
+A small VS Code-hosted Mocha suite lives under `test/integration/` (driven by `@vscode/test-electron`) and exists only to catch end-to-end activation regressions and command-registration drift. Run it with `npm run test:integration`. It is deliberately tiny — add hosted tests only when behaviour genuinely cannot be tested structurally.
 
 ## What reviewers look for
 
