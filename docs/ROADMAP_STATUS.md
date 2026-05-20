@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-20 (alpha posture pass: `v0.1.0-alpha.5` is published; smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90), walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93), Marketplace posture is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97), and AFP-scale dogfood is documented in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md#beyond-smokethy-afp-scale-dogfood-record)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
+> Last refreshed: 2026-05-20 (alpha posture pass: `v0.1.0-alpha.6` is published; smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90), walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93), Marketplace posture is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97), and AFP-scale dogfood is documented in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md#beyond-smokethy-afp-scale-dogfood-record)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -413,9 +413,9 @@ Documented per checkbox in `PIDE_INTEGRATION.md`:
   provider authoring contract, bundled `manual-paste-back`
   walkthrough, third-party extension-API example.
 
-## Post-alpha.5 release hardening
+## Post-alpha.6 release hardening
 
-`v0.1.0-alpha.5` has been cut and the Release workflow produced the universal
+`v0.1.0-alpha.6` has been cut and the Release workflow produced the universal
 VSIX plus seven per-platform assets. The remaining hardening work is to dogfood
 those assets and keep the smoke checklist as the gate for the next alpha/beta
 tag.
@@ -434,10 +434,10 @@ Current blockers / trackers:
 - [#89](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/89) — track the
   remaining upstream `textDocument/documentSymbol` gap.
 
-Known `alpha.5` limitations:
+Known `alpha.6` limitations:
 
 - No platform has recorded the full VS Code-hosted smoke transcript for the
-  published `v0.1.0-alpha.5` assets yet.
+  published `v0.1.0-alpha.6` assets yet.
 - Screenshot/GIF captures are intentionally absent until a contributor with a
   real graphical Isabelle setup records them.
 - The bundled `Smoke.thy` fixture proves the wiring, not AFP-scale behavior,
