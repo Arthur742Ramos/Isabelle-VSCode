@@ -9,10 +9,12 @@ name: Release
 #    embed an Eclipse Temurin 21 JRE under `extension/jre/`, so end users
 #    on those platforms don't need any system Java install.
 #
-# A trailing `publish` job gathers every VSIX, attaches them to a single
-# GitHub Release, and publishes each to the VS Code Marketplace when a
-# `VSCE_PAT` repository secret is configured. Manual workflow_dispatch runs
-# build and upload artifacts only (no release, no Marketplace publish).
+# A trailing `publish` job gathers every VSIX and attaches them to a single
+# GitHub Release. Marketplace publish is intentionally stricter: it only runs
+# when `VSCE_PAT` is configured AND package.json is a stable non-preview build.
+# Alpha/beta/rc tags remain GitHub-Release-only even if the secret exists.
+# Manual workflow_dispatch runs build and upload artifacts only (no release,
+# no Marketplace publish).
 #
 # Bumping the bundled Temurin version
 # -----------------------------------
@@ -48,6 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.pkg.outputs.version }}
+      is_prerelease: ${{ steps.pkg.outputs.is_prerelease }}
+      package_preview: ${{ steps.pkg.outputs.package_preview }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,8 +60,18 @@ jobs:
         id: pkg
         run: |
           version="$(node -p "require('./package.json').version")"
+          package_preview="$(node -p "require('./package.json').preview === true ? 'true' : 'false'")"
+          if [[ "$version" == *-* ]]; then
+            is_prerelease=true
+          else
+            is_prerelease=false
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+          echo "package_preview=$package_preview" >> "$GITHUB_OUTPUT"
           echo "Extension version from package.json: $version"
+          echo "Prerelease version: $is_prerelease"
+          echo "package.json preview flag: $package_preview"
 
       - name: Verify tag matches package.json version
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -404,6 +418,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PKG_VERSION: ${{ needs.read-version.outputs.version }}
+      IS_PRERELEASE: ${{ needs.read-version.outputs.is_prerelease }}
+      PACKAGE_PREVIEW: ${{ needs.read-version.outputs.package_preview }}
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
     steps:
       - name: Checkout
@@ -477,7 +493,7 @@ jobs:
             See the [README](https://github.com/${{ github.repository }}#installation) and [`THIRD_PARTY_NOTICES.md`](https://github.com/${{ github.repository }}/blob/main/THIRD_PARTY_NOTICES.md) for full installation guidance and the bundled-JRE license summary.
 
       - name: Publish to VS Code Marketplace
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != ''
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != '' && env.IS_PRERELEASE == 'false' && env.PACKAGE_PREVIEW == 'false'
         run: |
           set -e
           shopt -s nullglob
@@ -494,6 +510,11 @@ jobs:
             exit 1
           fi
           echo "Published $published VSIX file(s) to the Marketplace."
+
+      - name: Note Marketplace publish blocked for preview/prerelease
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != '' && (env.IS_PRERELEASE == 'true' || env.PACKAGE_PREVIEW == 'true')
+        run: |
+          echo "::notice::Skipped Marketplace publish: package.json version '${PKG_VERSION}' is prerelease=${IS_PRERELEASE} and preview=${PACKAGE_PREVIEW}. Publish is enabled only for stable, non-preview builds."
 
       - name: Note Marketplace publish skipped
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT == ''

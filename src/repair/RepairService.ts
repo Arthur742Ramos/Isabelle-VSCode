@@ -5,6 +5,7 @@ import { BackendManager } from "../backend/BackendManager";
 import { ProofStateParams, ProofStateResult } from "../protocol/messages";
 import {
   RepairAiProviderRegistry,
+  RepairAiRequest,
   runRepairAi
 } from "./repairAiProvider";
 import { buildRepairRequestMarkdown, RepairDiagnosticSnapshot, RepairRequestSnapshot } from "./repairRequest";
@@ -85,6 +86,10 @@ export class RepairService {
         documentUri: captured.snapshot.documentUri,
         documentVersion: captured.snapshot.documentVersion,
         capturedAt: captured.snapshot.capturedAt
+      },
+      {
+        authorizeRequest: ({ providerDisplayName, request }) =>
+          this.confirmAiRepairRequest(providerDisplayName, request)
       }
     );
     if (!result.ok) {
@@ -113,6 +118,45 @@ export class RepairService {
       this.output.appendLine(`AI repair: failed to stage patch: ${message}`);
       vscode.window.showErrorMessage(`AI repair: failed to stage patch: ${message}`);
     }
+  }
+
+  private async confirmAiRepairRequest(
+    providerDisplayName: string,
+    request: RepairAiRequest
+  ): Promise<boolean> {
+    const reviewAction = "Review Request";
+    const sendAction = "Send Request";
+    const cancelAction = "Cancel";
+    const firstChoice = await vscode.window.showWarningMessage(
+      `AI repair provider "${providerDisplayName}" will receive the full checked-repair request (${request.requestMarkdown.length} bytes). Review it before sending.`,
+      { modal: true },
+      reviewAction,
+      cancelAction
+    );
+    if (firstChoice !== reviewAction) {
+      return false;
+    }
+
+    const document = await vscode.workspace.openTextDocument(
+      this.createAiRepairReviewUri(request)
+    );
+    await vscode.window.showTextDocument(document, { preview: false });
+
+    const finalChoice = await vscode.window.showWarningMessage(
+      `Send the reviewed checked-repair request to "${providerDisplayName}" now?`,
+      { modal: true },
+      sendAction,
+      cancelAction
+    );
+    return finalChoice === sendAction;
+  }
+
+  private createAiRepairReviewUri(request: RepairAiRequest): vscode.Uri {
+    const targetUri = vscode.Uri.parse(request.documentUri);
+    const reviewTargetUri = targetUri.with({
+      path: `${targetUri.path}.checked-repair-request.md`
+    });
+    return this.previewProvider.createPreviewUri(reviewTargetUri, request.requestMarkdown);
   }
 
   private async captureRepairRequest(): Promise<{ snapshot: RepairRequestSnapshot; markdown: string } | undefined> {

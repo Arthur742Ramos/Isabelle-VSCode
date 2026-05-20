@@ -10,6 +10,7 @@ safety contract it sits behind.
 - A built-in **"manual paste-back" provider** ships under the id `manual-paste-back`. It satisfies the provider contract without making any network call: it copies the request to the clipboard and waits for you to point at a `.patch` file containing the AI's response. See [Built-in `manual-paste-back` provider](#built-in-manual-paste-back-provider) below.
 - The new commands `Isabelle: Copy Checked Repair Request to Clipboard` and `Isabelle: Request AI Repair Suggestion` are additive — the original `Isabelle: Create Checked Repair Request` workflow is unchanged and still strictly local.
 - Even when a provider is selected, the request command refuses to call it until you have explicitly set `isabelle.repair.aiAcknowledgedSharing` to `true`. The acknowledgement applies whether the network call is made by the extension or by you in another tool.
+- After the settings gate passes, the command opens the exact Markdown bundle for review and asks for one final confirmation before any provider receives it.
 
 ## Built-in `manual-paste-back` provider
 
@@ -54,9 +55,15 @@ the following are true:
 2. `isabelle.repair.aiAcknowledgedSharing` is `true`.
 3. A provider with the configured id is registered in the running
    extension.
+4. The user reviews the exact checked-repair bundle and confirms the
+   pre-send prompt.
 
 Any refusal surfaces as a VS Code warning with a descriptive
 reason; the seam never silently drops a request.
+
+The pre-send review opens a readonly Markdown preview containing the same bytes
+passed to `provider.generatePatch(...)`. Cancelling either prompt returns a
+typed refusal and the provider is not invoked.
 
 The gate logic is pure (`src/repair/repairAiSettings.ts`
 `decideRepairAiGate`) and covered by a dedicated vitest suite so

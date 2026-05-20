@@ -32,7 +32,7 @@ If all nine steps work cleanly, the alpha is healthy enough to share.
 
 ## Release-candidate smoke record
 
-For future release candidates, do not push a `v*` release tag until this table has real evidence for the candidate build. A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
+For future release candidates, do not push a `v*` release tag until this table has real evidence for the candidate build, or until the missing platform evidence is explicitly accepted in [`RELEASE_READINESS.md`](RELEASE_READINESS.md). A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
 
 ### Automated subset
 

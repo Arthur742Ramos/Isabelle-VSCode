@@ -624,7 +624,7 @@
         "isabelle.repair.aiProvider": {
           "type": "string",
           "default": "",
-          "description": "Optional id of a registered AI repair provider that the `Isabelle: Request AI Repair Suggestion` command will delegate to. Empty (the default) means no provider is selected; the command refuses to call anything until both this setting and `isabelle.repair.aiAcknowledgedSharing` are set. No provider ships with the extension by default — see docs/AI_REPAIR.md for the registration contract."
+          "description": "Optional id of a registered AI repair provider that the `Isabelle: Request AI Repair Suggestion` command will delegate to. Empty (the default) means no provider is selected; the command refuses to call anything until both this setting and `isabelle.repair.aiAcknowledgedSharing` are set. The bundled `manual-paste-back` provider makes no network calls; third-party providers must be registered through the extension API. See docs/AI_REPAIR.md for the registration contract."
         },
         "isabelle.repair.aiAcknowledgedSharing": {
           "type": "boolean",

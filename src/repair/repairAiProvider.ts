@@ -107,8 +107,22 @@ export interface RegistryDisposable {
 
 export const DEFAULT_REPAIR_AI_TIMEOUT_MS = 60_000;
 
+export interface RepairAiAuthorizationRequest {
+  readonly providerId: string;
+  readonly providerDisplayName: string;
+  readonly request: RepairAiRequest;
+}
+
 export interface RunRepairAiOptions {
   readonly timeoutMs?: number;
+  /**
+   * Last-chance policy hook invoked after the settings gate passes and before
+   * the provider sees the request. UI callers use this to show the exact
+   * request bundle and ask for explicit confirmation.
+   */
+  readonly authorizeRequest?: (
+    authorization: RepairAiAuthorizationRequest
+  ) => boolean | Promise<boolean>;
   /**
    * Time source for the timeout race. Pure for testability; defaults
    * to a real setTimeout / clearTimeout pair.
@@ -144,6 +158,27 @@ export async function runRepairAi(
       ok: false,
       reason: `Provider "${settings.providerId}" disappeared between gate check and lookup.`
     };
+  }
+  if (options.authorizeRequest) {
+    let authorized: boolean;
+    try {
+      authorized = await options.authorizeRequest({
+        providerId: provider.id,
+        providerDisplayName: provider.displayName,
+        request
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `AI repair provider "${provider.id}" was not invoked because request confirmation failed: ${errorMessage(error)}`
+      };
+    }
+    if (!authorized) {
+      return {
+        ok: false,
+        reason: `AI repair provider "${provider.id}" was not invoked because the repair request was not confirmed.`
+      };
+    }
   }
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_REPAIR_AI_TIMEOUT_MS;

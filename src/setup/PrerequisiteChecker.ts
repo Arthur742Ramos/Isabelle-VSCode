@@ -121,6 +121,8 @@ export interface PrerequisiteState {
   readonly javaVersionMajor?: number;
   /** `true` when Java is present but its major version is below the minimum. */
   readonly javaTooOld?: boolean;
+  /** Extra actionable detail for a failed bundled runtime probe. */
+  readonly javaFailureHint?: string;
   readonly isabelle: boolean;
   readonly isabellePath?: string;
   readonly isabelleVersion?: string;
@@ -226,6 +228,14 @@ export class PrerequisiteChecker {
       javaPresent &&
       javaVersionMajor !== undefined &&
       javaVersionMajor >= MIN_JAVA_MAJOR_VERSION;
+    const javaFailureHint =
+      javaOk
+        ? undefined
+        : bundledJavaFailureHint(
+            primaryJavaCommand,
+            this.deps.autoDetect.platform,
+            primaryJavaResult
+          );
 
     const isabelleOk = !isabelleResult.spawnFailed && isabelleResult.exitCode === 0;
 
@@ -237,6 +247,7 @@ export class PrerequisiteChecker {
       javaVersion: javaVersionLine,
       javaVersionMajor,
       javaTooOld: javaTooOld || undefined,
+      javaFailureHint,
       isabelle: isabelleOk,
       isabellePath: isabelleOk ? isabelleExecutable : undefined,
       isabelleVersion: isabelleOk ? extractFirstLine(isabelleResult.stdout) : undefined,
@@ -307,7 +318,8 @@ export class PrerequisiteChecker {
     const message = state.javaTooOld
       ? `Isabelle PIDE: Java ${state.javaVersionMajor} is too old. The bundled Scala backend requires Java ${MIN_JAVA_MAJOR_VERSION}+. Install a newer JDK or point PATH at one.`
       : `Isabelle PIDE: Java ${MIN_JAVA_MAJOR_VERSION}+ is required to run the Scala backend.`;
-    const choice = await this.deps.ui.showWarning(message, openWalkthrough, dontShow);
+    const fullMessage = state.javaFailureHint ? `${message} ${state.javaFailureHint}` : message;
+    const choice = await this.deps.ui.showWarning(fullMessage, openWalkthrough, dontShow);
     return this.handleSetupChoice(choice, openWalkthrough, dontShow);
   }
 
@@ -462,6 +474,33 @@ function evaluateJavaProbe(result: SpawnResult): JavaProbeEvaluation {
   const major = spawnOk ? parseJavaMajorVersion(result.stderr || result.stdout) : undefined;
   const ok = major !== undefined && major >= MIN_JAVA_MAJOR_VERSION;
   return { spawnOk, major, ok };
+}
+
+function bundledJavaFailureHint(
+  primaryJavaCommand: string,
+  platform: NodeJS.Platform,
+  primaryJavaResult: SpawnResult
+): string | undefined {
+  if (platform !== "darwin" || primaryJavaCommand === "java") {
+    return undefined;
+  }
+  if (!primaryJavaResult.spawnFailed && primaryJavaResult.exitCode === 0) {
+    return undefined;
+  }
+  const jreRoot = macosBundledJreRoot(primaryJavaCommand);
+  if (!jreRoot) {
+    return undefined;
+  }
+  return `If this is a per-platform macOS .vsix, macOS Gatekeeper may have quarantined the bundled JRE. Clear it with \`xattr -dr com.apple.quarantine "${jreRoot}"\`, or install the universal .vsix and provide Java ${MIN_JAVA_MAJOR_VERSION}+ on PATH.`;
+}
+
+function macosBundledJreRoot(javaCommand: string): string | undefined {
+  const normalized = javaCommand.replace(/\\/g, "/");
+  const suffix = "/Contents/Home/bin/java";
+  if (!normalized.endsWith(suffix)) {
+    return undefined;
+  }
+  return normalized.slice(0, -suffix.length);
 }
 
 function emptyState(): PrerequisiteState {

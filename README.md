@@ -1,6 +1,6 @@
 # Isabelle PIDE for VS Code
 
-This repository is a preview-stage Isabelle/PIDE frontend for VS Code. The current `0.1.0-alpha.6` line is installable from GitHub Releases, but it is still intentionally marked `preview` / `private` until the live smoke evidence and Marketplace polish catch up.
+This repository is a preview-stage Isabelle/PIDE frontend for VS Code. The current `0.1.0-alpha.6` line is installable from GitHub Releases, but it is still intentionally marked `preview` / `private` until the live smoke evidence and Marketplace polish catch up. See [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) for the release gate.
 
 The architecture is deliberately more than a syntax-highlighting or build-on-save extension:
 
@@ -76,6 +76,7 @@ The latest alpha release is published on the [Releases page](https://github.com/
 > ```bash
 > xattr -dr com.apple.quarantine ~/.vscode/extensions/arthur742ramos.isabelle-pide-vscode-*/extension/jre
 > ```
+> The setup prerequisite check also surfaces this hint when the bundled macOS JRE cannot be spawned.
 
 ### Option 2 — Build and install from source (one command)
 
@@ -94,7 +95,7 @@ If you only want the `.vsix` (for example to share with a teammate), run `npm ru
 
 ### Option 3 — VS Code Marketplace
 
-Not yet. Marketplace publication is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97); until that decision is made, use Option 1 or 2.
+Not yet. Marketplace publication is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97); until that decision is made, use Option 1 or 2. The Release workflow refuses Marketplace publish for prerelease versions or `preview: true` packages even if a `VSCE_PAT` secret exists.
 
 ## Alpha status and limitations
 
@@ -108,7 +109,7 @@ Known alpha limitations:
 - `textDocument/documentSymbol` from Isabelle/PIDE remains upstream-blocked, so Outline / breadcrumbs still use the local syntax provider.
 - `examples/Smoke.thy` is the release smoke fixture, but it is intentionally tiny. AFP-scale dogfooding and latency/performance notes still need to be recorded before claiming beta or paper-level evidence.
 
-For the fastest confidence check, run [`docs/SMOKE_THEORY_CHECKLIST.md`](docs/SMOKE_THEORY_CHECKLIST.md) against `examples/Smoke.thy`; for release-candidate automation, manually dispatch `.github/workflows/tier2-smoke.yml`.
+For the fastest confidence check, run [`docs/SMOKE_THEORY_CHECKLIST.md`](docs/SMOKE_THEORY_CHECKLIST.md) against `examples/Smoke.thy`; for release-candidate automation, manually dispatch `.github/workflows/tier2-smoke.yml`. Before tagging, check [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md), update [`CHANGELOG.md`](CHANGELOG.md), and keep [`SECURITY.md`](SECURITY.md) current.
 
 ## Current milestone
 
@@ -209,7 +210,7 @@ Repair requests may include source excerpts, diagnostics, and proof-state detail
 Two additional, additive entry points sit on top of the same local request bundle:
 
 - `Isabelle: Copy Checked Repair Request to Clipboard` puts the same Markdown bundle on the clipboard so you can paste it into any AI tool you already trust. No network call is made.
-- `Isabelle: Request AI Repair Suggestion (Experimental)` delegates the bundle to an extension-registered AI provider. The extension ships **no default provider**. Even when a provider is registered, the command refuses to call it until both `isabelle.repair.aiProvider` and `isabelle.repair.aiAcknowledgedSharing` are set — the second is the explicit acknowledgement that the provider will receive the full repair request. Any patch a provider returns is opened for review and still has to go through `Isabelle: Preview Repair Patch` before any edit is applied. See [docs/AI_REPAIR.md](docs/AI_REPAIR.md) for the full safety contract and provider registration shape.
+- `Isabelle: Request AI Repair Suggestion (Experimental)` delegates the bundle to an extension-registered AI provider. The bundled `manual-paste-back` provider makes no network calls; third-party providers must be selected explicitly. Even when a provider is registered, the command refuses to call it until both `isabelle.repair.aiProvider` and `isabelle.repair.aiAcknowledgedSharing` are set — the second is the explicit acknowledgement that the provider will receive the full repair request. After that gate passes, the command opens the exact Markdown bundle for review and asks for one final confirmation before invoking the provider. Any patch a provider returns is opened for review and still has to go through `Isabelle: Preview Repair Patch` before any edit is applied. See [docs/AI_REPAIR.md](docs/AI_REPAIR.md) for the full safety contract and provider registration shape.
 
 ## Isabelle language server
 
