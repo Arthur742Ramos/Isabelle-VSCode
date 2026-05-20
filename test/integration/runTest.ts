@@ -12,6 +12,7 @@ import { runTests } from "@vscode/test-electron";
 // declared `engines.vscode` minimum (^1.90.0 — see package.json) is what we
 // actually test against. Bump in lockstep with engines.vscode.
 const VSCODE_VERSION = "1.90.0";
+const TIER2_SMOKE_SESSION = "Isabelle_VSCode_Smoke";
 
 async function main(): Promise<void> {
   // Per-run unique root under os.tmpdir() so concurrent runs cannot collide
@@ -27,20 +28,33 @@ async function main(): Promise<void> {
   try {
     // From compiled out/test/integration/runTest.js, the project root is three
     // levels up (out/, test/, integration/).
-    const extensionDevelopmentPath = path.resolve(__dirname, "..", "..", "..");
+    const defaultExtensionDevelopmentPath = path.resolve(__dirname, "..", "..", "..");
+    const extensionDevelopmentPath =
+      process.env.ISABELLE_VSCODE_EXTENSION_UNDER_TEST?.trim() ||
+      defaultExtensionDevelopmentPath;
     const extensionTestsPath = path.resolve(__dirname, "./suite/index");
+    const tier2SmokeEnabled = process.env.ISABELLE_VSCODE_TIER2_SMOKE === "1";
+    const requestedWorkspace = process.env.ISABELLE_VSCODE_TEST_WORKSPACE?.trim();
+    const workspacePath = requestedWorkspace || (tier2SmokeEnabled ? defaultExtensionDevelopmentPath : undefined);
+
+    if (tier2SmokeEnabled) {
+      seedTier2SmokeSettings(userDataDir);
+    }
+
+    const launchArgs = [
+      ...(workspacePath ? [workspacePath] : []),
+      "--user-data-dir",
+      userDataDir,
+      "--extensions-dir",
+      extensionsDir,
+      "--disable-workspace-trust"
+    ];
 
     await runTests({
       version: VSCODE_VERSION,
       extensionDevelopmentPath,
       extensionTestsPath,
-      launchArgs: [
-        "--user-data-dir",
-        userDataDir,
-        "--extensions-dir",
-        extensionsDir,
-        "--disable-workspace-trust"
-      ]
+      launchArgs
     });
   } catch (err) {
     console.error("Failed to run integration tests");
@@ -58,4 +72,38 @@ async function main(): Promise<void> {
 }
 
 void main();
+
+function seedTier2SmokeSettings(userDataDir: string): void {
+  const userSettingsDir = path.join(userDataDir, "User");
+  fs.mkdirSync(userSettingsDir, { recursive: true });
+
+  const runSledgehammer = process.env.ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER === "1";
+  const settings = {
+    "isabelle.executablePath": process.env.ISABELLE_VSCODE_ISABELLE?.trim() || "isabelle",
+    "isabelle.session.active": TIER2_SMOKE_SESSION,
+    "isabelle.languageServer.autoStart": false,
+    "isabelle.backend.requestTimeoutMs": runSledgehammer ? 10 * 60_000 : 5 * 60_000,
+    "isabelle.backend.maxHeapMb": readTier2HeapMb(),
+    "isabelle.build.extraArgs": ["-o", "quick_and_dirty"]
+  };
+
+  fs.writeFileSync(
+    path.join(userSettingsDir, "settings.json"),
+    `${JSON.stringify(settings, null, 2)}\n`,
+    "utf8"
+  );
+}
+
+function readTier2HeapMb(): number {
+  const raw = process.env.ISABELLE_VSCODE_TIER2_HEAP_MB?.trim();
+  if (!raw) {
+    return 4096;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`ISABELLE_VSCODE_TIER2_HEAP_MB must be a non-negative integer, got: ${raw}`);
+  }
+  return parsed;
+}
 

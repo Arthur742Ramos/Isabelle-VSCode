@@ -436,6 +436,13 @@ Automation that is useful but not sufficient for the next tag:
 - `npm run check`
 - `npm run package:validate`
 - `npm run test:integration` when a VS Code executable is available
+- Manual-dispatch **Tier-2 smoke** workflow (`.github/workflows/tier2-smoke.yml`):
+  installs a real Isabelle distribution on Linux, Windows, and macOS runners,
+  packages/extracts a universal VSIX, launches the VS Code extension host with
+  `ISABELLE_VSCODE_TIER2_SMOKE=1`, and checks the deterministic subset of
+  `SMOKE_THEORY_CHECKLIST.md` against `examples/Smoke.thy`. Enable its
+  `run_sledgehammer` input when you need CI evidence for the slow proof-search
+  path.
 - `isabelle build -o quick_and_dirty -D <absolute examples path>` as a headless
   sanity check for the bundled `Smoke.thy` session
 
