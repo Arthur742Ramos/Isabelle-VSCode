@@ -151,6 +151,37 @@ Tick each box as you verify. Open an issue with the `manual-verification` label 
 - **AFP integration** — `Smoke.thy` only imports `Main`. AFP path discovery is exercised by the unit test suite; live verification needs a real AFP checkout.
 - **Long-running proofs** — `Smoke.thy` is deliberately tiny. Real-world performance / timeout behavior needs a heavier theory.
 
+## Beyond `Smoke.thy`: AFP-scale dogfood record
+
+The quick transcript is the release smoke gate. It is not enough evidence for a
+beta announcement, Marketplace listing, or paper/tool-demo evaluation. For that,
+record at least one real development session against a larger Isabelle workspace
+or AFP entry.
+
+Suggested record format:
+
+| Field | Record |
+| --- | --- |
+| OS / CPU | e.g. Windows 11 x64, Ubuntu 24.04 x64, macOS arm64 |
+| Extension asset | exact `.vsix` filename or source commit |
+| Isabelle version | output of `isabelle version` |
+| Workspace | project name, AFP entry, or session family |
+| Active session | session selected in the extension |
+| Cold-start notes | LSP start time, Headless `PideBridge` warmup time, first proof-state latency |
+| Hot-path notes | cursor proof-state latency, preview refresh, Sledgehammer run/minimize latency |
+| Failures / quirks | linked issue numbers, logs, or "none observed" |
+
+Recommended flow:
+
+1. Install a release `.vsix` into a clean VS Code profile.
+2. Open the larger Isabelle workspace and select the intended active session.
+3. Exercise the same surfaces as the quick transcript: diagnostics, proof state,
+   Sledgehammer search/insert, minimization, preview, and build.
+4. Record timings as rough wall-clock observations; exact benchmarking can come
+   later, but "cold proof state took ~25 s, hot refresh ~1 s" is already useful.
+5. Open `alpha-blocker` issues for correctness failures, and plain dogfood notes
+   for performance or UX observations.
+
 ## When this checklist passes
 
 The alpha is healthy enough to share with a small group. Cut a release per [`skills/prepare-release.md`](../skills/prepare-release.md). Open an issue with the `alpha-blocker` label for anything that fails.

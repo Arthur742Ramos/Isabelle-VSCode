@@ -1,21 +1,25 @@
 # Isabelle PIDE for VS Code
 
-This repository is becoming a modern Isabelle/PIDE frontend for VS Code. The target architecture is deliberately more than a syntax-highlighting or build-on-save extension:
+This repository is a preview-stage Isabelle/PIDE frontend for VS Code. The current `0.1.0-alpha.5` line is installable from GitHub Releases, but it is still intentionally marked `preview` / `private` until the live smoke evidence and Marketplace polish catch up.
+
+The architecture is deliberately more than a syntax-highlighting or build-on-save extension:
 
 ```text
 VS Code Extension (TypeScript)
   -> custom protocol client, commands, panels, decorations
 Scala Backend
-  -> Isabelle-facing session, PIDE, tool, and build bridge
+  -> Content-Length JSON-RPC, session/build tooling, Headless PideBridge
+Isabelle vscode_server LSP relay
+  -> editor-facing PIDE diagnostics, proof state, decorations, preview, Sledgehammer
 Isabelle/PIDE
   -> the semantic source of truth
 ```
 
-The current foundation establishes the extension/backend boundary and keeps future PIDE work explicit instead of pretending it already exists.
+The Scala backend and Isabelle LSP relay are additive: backend PIDE operations keep working without the LSP when Isabelle can be bootstrapped, while the LSP owns live editor-facing PIDE features when it is running.
 
 ## Installation
 
-The extension is not yet on the VS Code Marketplace. For now, install it via one of the two paths below.
+The extension is not yet on the VS Code Marketplace. For now, install it from GitHub Releases or build it from source.
 
 ### Runtime prerequisites
 
@@ -41,7 +45,7 @@ The extension activates without either prerequisite (basic syntax features still
 
 ### Option 1 — Install a pre-built `.vsix` from GitHub Releases (recommended for end-users)
 
-> Available once the first `v*` tag has been pushed and the [Release workflow](.github/workflows/release.yml) has run. Check the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) — if it is empty, use Option 2.
+The latest alpha release is published on the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases). Pick the newest `v0.1.0-alpha.*` release unless you are intentionally testing an older build.
 
 1. Open the [Releases page](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) and pick the asset matching the **host where the extension will run** (for SSH-Remote / WSL / dev-container setups, this is the remote host's OS + CPU, not your laptop's):
 
@@ -90,7 +94,21 @@ If you only want the `.vsix` (for example to share with a teammate), run `npm ru
 
 ### Option 3 — VS Code Marketplace
 
-Not yet. See [Roadmap](#roadmap). Until then, use Option 1 or 2.
+Not yet. Marketplace publication is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97); until that decision is made, use Option 1 or 2.
+
+## Alpha status and limitations
+
+`0.1.0-alpha.5` is a credible alpha, not a stable Marketplace release. It has the hybrid PIDE/LSP/Headless architecture, bundled per-platform JRE assets, proof state, Sledgehammer search/insertion/minimization, theory tooling, and the checked repair seam; the remaining work is mostly confidence and presentation.
+
+Known alpha limitations:
+
+- Live Tier-2 smoke evidence is still incomplete. [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) tracks clean Windows x64, Linux x64, and macOS arm64 verification against a real Isabelle install.
+- Walkthrough screenshots/GIFs are not captured yet. [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93) tracks the real screenshot pass; the capture spec is in [`media/screenshots/README.md`](media/screenshots/README.md).
+- VS Code Marketplace publication is deliberately deferred until the smoke transcript and visual polish are good enough for external users. See [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97).
+- `textDocument/documentSymbol` from Isabelle/PIDE remains upstream-blocked, so Outline / breadcrumbs still use the local syntax provider.
+- `examples/Smoke.thy` is the release smoke fixture, but it is intentionally tiny. AFP-scale dogfooding and latency/performance notes still need to be recorded before claiming beta or paper-level evidence.
+
+For the fastest confidence check, run [`docs/SMOKE_THEORY_CHECKLIST.md`](docs/SMOKE_THEORY_CHECKLIST.md) against `examples/Smoke.thy`; for release-candidate automation, manually dispatch `.github/workflows/tier2-smoke.yml`.
 
 ## Current milestone
 
