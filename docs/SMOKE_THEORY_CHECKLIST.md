@@ -34,6 +34,33 @@ If all nine steps work cleanly, the alpha is healthy enough to share.
 
 For future release candidates, do not push a `v*` release tag until this table has real evidence for the candidate build. A local `isabelle build` is useful as a sanity check, but it is **not** a substitute for this VS Code-hosted smoke path: the checklist below is what exercises activation, panels, LSP notifications, Headless `PideBridge` commands, Sledgehammer insertion, preview, and user-facing commands together.
 
+### Automated subset
+
+The manual-dispatch **Tier-2 smoke** workflow (`.github/workflows/tier2-smoke.yml`)
+automates the deterministic subset of this checklist on GitHub-hosted Linux,
+Windows, and macOS runners:
+
+- download a real Isabelle distribution;
+- build the Scala backend fat jar;
+- package and extract a universal `.vsix` so the extension host runs the same
+  `out/extension.js` + `backend/dist/isabelle-vscode-server.jar` layout users
+  install;
+- run `isabelle build -o quick_and_dirty -D examples`;
+- boot the VS Code extension host against this repo as a workspace;
+- run the gated integration smoke (`ISABELLE_VSCODE_TIER2_SMOKE=1`) that checks
+  prerequisites, session discovery, backend health, PIDE bridge availability,
+  LSP startup, PIDE document status, PIDE proof state, active-session build, and
+  live theory preview against `examples/Smoke.thy`.
+
+The workflow has an optional `run_sledgehammer` input for the slower proof-search
+check. Leave it off for routine release-candidate sanity runs; enable it before
+promoting an alpha/beta candidate if you want CI evidence for the Sledgehammer
+path too.
+
+This automation reduces the manual surface, but it does **not** replace human
+verification of visual UX, screenshots/GIFs, or "does this feel right in the
+editor" checks.
+
 `v0.1.0-alpha.5` has already been published; use the table below to record post-release dogfood for those assets and to avoid repeating that gap on the next release. The intended minimum rule remains:
 
 - Windows x64: quick dogfood transcript passed.

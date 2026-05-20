@@ -1,0 +1,224 @@
+name: Tier-2 smoke
+
+# Manual, expensive end-to-end smoke lane for the parts of
+# docs/SMOKE_THEORY_CHECKLIST.md that can run without a human looking at the UI.
+# It installs a real Isabelle distribution, builds a universal VSIX, launches a
+# VS Code extension host against the extracted package, and runs the gated
+# integration smoke test against examples/Smoke.thy. Keep this off pull_request
+# until it proves stable: each matrix leg downloads roughly 1-2 GB of Isabelle
+# payload.
+
+on:
+  workflow_dispatch:
+    inputs:
+      isabelle_version:
+        description: "Isabelle distribution basename to download from https://isabelle.in.tum.de/dist/"
+        required: true
+        default: "Isabelle2025-2"
+        type: string
+      run_sledgehammer:
+        description: "Also run the slow/flakier Sledgehammer proof-search check"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tier2-smoke-${{ github.ref }}-${{ inputs.isabelle_version }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            runner: ubuntu-latest
+          - name: Windows x64
+            runner: windows-latest
+          - name: macOS arm64
+            runner: macos-latest
+
+    env:
+      ISABELLE_VERSION: ${{ inputs.isabelle_version }}
+      ISABELLE_VSCODE_TIER2_SMOKE: "1"
+      ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER: ${{ inputs.run_sledgehammer && '1' || '0' }}
+      ISABELLE_VSCODE_TIER2_HEAP_MB: "4096"
+      ISABELLE_VSCODE_TEST_WORKSPACE: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java for sbt
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build Scala backend fat jar
+        run: npm run backend:package
+
+      - name: Package universal VSIX for smoke
+        run: npx --yes @vscode/vsce@^3.9.1 package --no-dependencies --out isabelle-pide-vscode-tier2-smoke.vsix
+
+      - name: Extract packaged extension on Linux/macOS
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_root="$RUNNER_TEMP/isabelle-vscode-package"
+          rm -rf "$package_root"
+          mkdir -p "$package_root"
+          unzip -q "$GITHUB_WORKSPACE/isabelle-pide-vscode-tier2-smoke.vsix" -d "$package_root"
+          test -f "$package_root/extension/out/extension.js"
+          test -f "$package_root/extension/backend/dist/isabelle-vscode-server.jar"
+          echo "ISABELLE_VSCODE_EXTENSION_UNDER_TEST=$package_root/extension" >> "$GITHUB_ENV"
+
+      - name: Extract packaged extension on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packageRoot = Join-Path $env:RUNNER_TEMP "isabelle-vscode-package"
+          if (Test-Path $packageRoot) {
+            Remove-Item -Recurse -Force $packageRoot
+          }
+          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+          7z x (Join-Path $env:GITHUB_WORKSPACE "isabelle-pide-vscode-tier2-smoke.vsix") "-o$packageRoot" -y | Out-Host
+          if (-not (Test-Path (Join-Path $packageRoot "extension\out\extension.js"))) {
+            Write-Error "Packaged extension/out/extension.js missing"
+          }
+          if (-not (Test-Path (Join-Path $packageRoot "extension\backend\dist\isabelle-vscode-server.jar"))) {
+            Write-Error "Packaged backend jar missing"
+          }
+          $extensionUnderTest = Join-Path $packageRoot "extension"
+          "ISABELLE_VSCODE_EXTENSION_UNDER_TEST=$extensionUnderTest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Cache VS Code test download
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test/
+          key: ${{ runner.os }}-vscode-test-1.90.0
+
+      - name: Install Isabelle on Linux/macOS
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux)
+              archive="${ISABELLE_VERSION}_linux.tar.gz"
+              ;;
+            macOS)
+              archive="${ISABELLE_VERSION}_macos.tar.gz"
+              ;;
+            *)
+              echo "::error::Unsupported runner OS for this step: $RUNNER_OS"
+              exit 1
+              ;;
+          esac
+
+          url="https://isabelle.in.tum.de/dist/${archive}"
+          dest="$RUNNER_TEMP/${archive}"
+          echo "Downloading $url"
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 10 \
+            --output "$dest" "$url"
+
+          install_dir="$RUNNER_TEMP/isabelle"
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -xzf "$dest" -C "$install_dir"
+
+          isabelle_bin="$(find "$install_dir" -path '*/bin/isabelle' -type f | head -n 1)"
+          if [ -z "$isabelle_bin" ]; then
+            echo "::error::Could not find bin/isabelle under $install_dir"
+            find "$install_dir" -maxdepth 4 -type f | head -n 100
+            exit 1
+          fi
+
+          chmod +x "$isabelle_bin"
+          echo "ISABELLE_EXECUTABLE=$isabelle_bin" >> "$GITHUB_ENV"
+          echo "$(dirname "$isabelle_bin")" >> "$GITHUB_PATH"
+          "$isabelle_bin" version
+
+      - name: Install Isabelle on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $archive = Join-Path $env:RUNNER_TEMP "$env:ISABELLE_VERSION.exe"
+          $url = "https://isabelle.in.tum.de/dist/$env:ISABELLE_VERSION.exe"
+          Write-Host "Downloading $url"
+          curl.exe --fail --location --retry 5 --retry-delay 10 --output $archive $url
+
+          $installDir = Join-Path $env:RUNNER_TEMP "isabelle"
+          if (Test-Path $installDir) {
+            Remove-Item -Recurse -Force $installDir
+          }
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+          7z x $archive "-o$installDir" -y | Out-Host
+
+          $launchers = Get-ChildItem -Path $installDir -Recurse -File |
+            Where-Object { $_.Name -in @("isabelle.bat", "isabelle.exe", "isabelle.ps1") } |
+            Sort-Object @{ Expression = { if ($_.Name -eq "isabelle.bat") { 0 } elseif ($_.Name -eq "isabelle.exe") { 1 } else { 2 } } }, FullName
+          $launcher = $launchers | Select-Object -First 1
+          if (-not $launcher) {
+            Write-Error "Could not find isabelle.bat, isabelle.exe, or isabelle.ps1 under $installDir"
+          }
+
+          $wrapper = Join-Path $env:RUNNER_TEMP "isabelle.cmd"
+          if ($launcher.Name -eq "isabelle.ps1") {
+            Set-Content -Path $wrapper -Encoding ASCII -Value "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$($launcher.FullName)`" %*`r`n"
+          } else {
+            Set-Content -Path $wrapper -Encoding ASCII -Value "@echo off`r`n`"$($launcher.FullName)`" %*`r`n"
+          }
+
+          "ISABELLE_EXECUTABLE=$wrapper" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Split-Path -Parent $wrapper | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & $wrapper version
+
+      - name: Sanity-check bundled Smoke session on Linux/macOS
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ISABELLE_EXECUTABLE" build -o quick_and_dirty -D "$GITHUB_WORKSPACE/examples"
+
+      - name: Sanity-check bundled Smoke session on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & $env:ISABELLE_EXECUTABLE build -o quick_and_dirty -D (Join-Path $env:GITHUB_WORKSPACE "examples")
+
+      - name: Run hosted Tier-2 smoke on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          ISABELLE_VSCODE_ISABELLE: ${{ env.ISABELLE_EXECUTABLE }}
+        run: xvfb-run -a npm run test:integration
+
+      - name: Run hosted Tier-2 smoke on Windows/macOS
+        if: runner.os != 'Linux'
+        env:
+          ISABELLE_VSCODE_ISABELLE: ${{ env.ISABELLE_EXECUTABLE }}
+        run: npm run test:integration

@@ -27,20 +27,28 @@ async function main(): Promise<void> {
   try {
     // From compiled out/test/integration/runTest.js, the project root is three
     // levels up (out/, test/, integration/).
-    const extensionDevelopmentPath = path.resolve(__dirname, "..", "..", "..");
+    const defaultExtensionDevelopmentPath = path.resolve(__dirname, "..", "..", "..");
+    const extensionDevelopmentPath =
+      process.env.ISABELLE_VSCODE_EXTENSION_UNDER_TEST?.trim() ||
+      defaultExtensionDevelopmentPath;
     const extensionTestsPath = path.resolve(__dirname, "./suite/index");
+    const tier2SmokeEnabled = process.env.ISABELLE_VSCODE_TIER2_SMOKE === "1";
+    const requestedWorkspace = process.env.ISABELLE_VSCODE_TEST_WORKSPACE?.trim();
+    const workspacePath = requestedWorkspace || (tier2SmokeEnabled ? extensionDevelopmentPath : undefined);
+    const launchArgs = [
+      ...(workspacePath ? [workspacePath] : []),
+      "--user-data-dir",
+      userDataDir,
+      "--extensions-dir",
+      extensionsDir,
+      "--disable-workspace-trust"
+    ];
 
     await runTests({
       version: VSCODE_VERSION,
       extensionDevelopmentPath,
       extensionTestsPath,
-      launchArgs: [
-        "--user-data-dir",
-        userDataDir,
-        "--extensions-dir",
-        extensionsDir,
-        "--disable-workspace-trust"
-      ]
+      launchArgs
     });
   } catch (err) {
     console.error("Failed to run integration tests");
