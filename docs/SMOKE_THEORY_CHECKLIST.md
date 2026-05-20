@@ -81,10 +81,10 @@ Known issues for the candidate:
 Optional local sanity check:
 
 ```powershell
-isabelle build -o quick_and_dirty -D <absolute-path-to-repo>\examples
+npm run smoke:cli
 ```
 
-Use an absolute path on Windows so Isabelle's Cygwin layer does not resolve `examples` relative to `/home/<user>`. The `quick_and_dirty` option is required because `Smoke.thy` intentionally contains a `sorry` until the Sledgehammer insertion step replaces it. Passing this command only proves the bundled session and ROOT file load; it does **not** satisfy the release-candidate smoke record above.
+The script resolves `examples/` to an absolute path before invoking Isabelle, which avoids Windows Cygwin path surprises, and wraps Isabelle's `.ps1` launcher on Windows when that is what `PATH` contains. The `quick_and_dirty` option is required because `Smoke.thy` intentionally contains a `sorry` until the Sledgehammer insertion step replaces it. Passing this command only proves the bundled session and ROOT file load; it does **not** satisfy the release-candidate smoke record above.
 
 ## Capability-by-capability checklist
 

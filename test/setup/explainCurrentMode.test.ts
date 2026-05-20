@@ -16,6 +16,8 @@ function makeAccessors(overrides: Partial<ExplainModeAccessors> = {}): ExplainMo
     getActiveSessionName: () => undefined,
     getLanguageServerEnabledSetting: () => "default",
     getLanguageServerAutoStart: () => true,
+    getLanguageServerExtraArgs: () => [],
+    getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.test" }),
     getIsabelleExecutablePathSetting: () => "isabelle",
     getBackendCommandSetting: () => undefined,
     getJavaIsBundled: () => undefined
@@ -48,12 +50,14 @@ describe("derivePideFeaturesReport", () => {
     const r = derivePideFeaturesReport("running", "default", true, prereq());
     expect(r.available).toBe(true);
     expect(r.reason).toContain("running");
+    expect(r.nextSteps).toEqual([]);
   });
 
   it("reports starting transiently", () => {
     const r = derivePideFeaturesReport("starting", "default", true, prereq());
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/still starting/i);
+    expect(r.nextSteps.map((s) => s.id)).toContain("wait-for-language-server");
   });
 
   it("reports failed with troubleshooting hint", () => {
@@ -61,18 +65,22 @@ describe("derivePideFeaturesReport", () => {
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/failed to start/i);
     expect(r.reason).toContain("Isabelle: Show Language Server Status");
+    expect(r.nextSteps.map((s) => s.id)).toContain("show-language-server-status");
+    expect(r.nextSteps.map((s) => s.id)).toContain("check-prerequisites");
   });
 
   it("reports stopping", () => {
     const r = derivePideFeaturesReport("stopping", "default", true, prereq());
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/stopping/i);
+    expect(r.nextSteps.map((s) => s.id)).toContain("wait-for-language-server");
   });
 
   it("reports user opt-out when enabled = false", () => {
     const r = derivePideFeaturesReport("disabled", "false", true, prereq());
     expect(r.available).toBe(false);
     expect(r.reason).toContain("isabelle.languageServer.enabled");
+    expect(r.nextSteps.map((s) => s.id)).toEqual(["enable-language-server"]);
   });
 
   it("reports Java missing when prereq has java=false", () => {
@@ -80,6 +88,7 @@ describe("derivePideFeaturesReport", () => {
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/Java 21\+/i);
     expect(r.reason).not.toMatch(/too old/i);
+    expect(r.nextSteps.map((s) => s.id)).toContain("install-java");
   });
 
   it("reports Java too old with the major version", () => {
@@ -92,6 +101,7 @@ describe("derivePideFeaturesReport", () => {
     expect(r.available).toBe(false);
     expect(r.reason).toContain("17");
     expect(r.reason).toMatch(/too old/i);
+    expect(r.nextSteps.map((s) => s.id)).toContain("install-java");
   });
 
   it("reports Isabelle missing when prereq has isabelle=false but java=true", () => {
@@ -104,6 +114,37 @@ describe("derivePideFeaturesReport", () => {
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/Isabelle CLI is not reachable/i);
     expect(r.reason).toContain("isabelle.executablePath");
+    expect(r.nextSteps.map((s) => s.id)).toContain("set-isabelle-executable");
+  });
+
+  it("includes a detected Isabelle path in the missing-Isabelle next step", () => {
+    const r = derivePideFeaturesReport(
+      "disabled",
+      "default",
+      true,
+      prereq({
+        isabelle: false,
+        isabellePath: undefined,
+        isabelleVersion: undefined,
+        detectedIsabelle: {
+          path: "/Applications/Isabelle2025-2.app/Isabelle/bin/isabelle",
+          installRoot: "/Applications/Isabelle2025-2.app",
+          versionLabel: "Isabelle2025-2"
+        }
+      })
+    );
+    expect(r.nextSteps.find((s) => s.id === "set-isabelle-executable")?.label).toContain(
+      "/Applications/Isabelle2025-2.app/Isabelle/bin/isabelle"
+    );
+  });
+
+  it("reports remembered auto-start failures with a manual retry next step", () => {
+    const r = derivePideFeaturesReport("disabled", "default", true, prereq(), {
+      autoStartFailureRemembered: true
+    });
+    expect(r.available).toBe(false);
+    expect(r.reason).toMatch(/auto-start is paused/i);
+    expect(r.nextSteps.map((s) => s.id)).toContain("start-language-server");
   });
 
   it("reports auto-start opt-out when autoStart is false with prereqs ok", () => {
@@ -111,12 +152,14 @@ describe("derivePideFeaturesReport", () => {
     expect(r.available).toBe(false);
     expect(r.reason).toContain("isabelle.languageServer.autoStart");
     expect(r.reason).toContain("Isabelle: Start Language Server");
+    expect(r.nextSteps.map((s) => s.id)).toContain("start-language-server");
   });
 
   it("falls back to generic message when nothing else applies", () => {
     const r = derivePideFeaturesReport("disabled", "default", true, undefined);
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/has not been initialised/i);
+    expect(r.nextSteps.map((s) => s.id)).toEqual(["wait-for-prerequisite-probe"]);
   });
 
   it("prefers the LSP-state diagnostic over a missing prereq", () => {
@@ -144,6 +187,11 @@ describe("buildExplainModeReport", () => {
         getActiveSessionName: () => "HOL",
         getLanguageServerEnabledSetting: () => "default",
         getLanguageServerAutoStart: () => true,
+        getLanguageServerExtraArgs: () => ["-L", "./isabelle.log"],
+        getAutoStartFailure: () => ({
+          remembered: false,
+          key: "isabelle.lsp.autoStartFailed.ok"
+        }),
         getJavaIsBundled: () => true
       })
     );
@@ -152,6 +200,8 @@ describe("buildExplainModeReport", () => {
     expect(report.backend.state).toBe("running");
     expect(report.languageServer.state).toBe("running");
     expect(report.languageServer.isabelleVersion).toBe("Isabelle2025-2");
+    expect(report.languageServer.extraArgs).toEqual(["-L", "./isabelle.log"]);
+    expect(report.languageServer.autoStartFailure.remembered).toBe(false);
     expect(report.activeSession).toBe("HOL");
     expect(report.java.available).toBe(true);
     expect(report.java.bundled).toBe(true);
@@ -165,6 +215,7 @@ describe("buildExplainModeReport", () => {
     expect(report.backend.state).toBe("not-initialized");
     expect(report.languageServer.state).toBe("not-initialized");
     expect(report.pideFeatures.available).toBe(false);
+    expect(report.languageServer.autoStartFailure.key).toBe("isabelle.lsp.autoStartFailed.test");
     expect(report.java.available).toBe(false);
     expect(report.isabelle.available).toBe(false);
     expect(report.activeSession).toBeUndefined();
@@ -205,6 +256,25 @@ describe("buildExplainModeReport", () => {
     expect(report.pideFeatures.available).toBe(false);
     expect(report.languageServer.enabledSetting).toBe("false");
     expect(report.pideFeatures.reason).toContain("isabelle.languageServer.enabled");
+  });
+
+  it("surfaces the remembered auto-start failure for the current runtime", () => {
+    const report = buildExplainModeReport(
+      makeAccessors({
+        getLanguageServerStatus: () => lspStatus("disabled"),
+        getPrerequisiteState: () => prereq(),
+        getAutoStartFailure: () => ({
+          remembered: true,
+          key: "isabelle.lsp.autoStartFailed.deadbeef"
+        })
+      })
+    );
+    expect(report.languageServer.autoStartFailure.remembered).toBe(true);
+    expect(report.languageServer.autoStartFailure.key).toBe(
+      "isabelle.lsp.autoStartFailed.deadbeef"
+    );
+    expect(report.pideFeatures.reason).toMatch(/auto-start is paused/i);
+    expect(report.pideFeatures.nextSteps.map((s) => s.id)).toContain("start-language-server");
   });
 
   it("captures the LSP-failed case with the last error", () => {

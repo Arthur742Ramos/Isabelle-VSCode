@@ -14,12 +14,14 @@ import {
   ExplainModeIsabelleReport,
   ExplainModeJavaReport,
   ExplainModeLanguageServerReport,
+  ExplainModeNextStep,
   ExplainModeReport
 } from "./explainCurrentMode";
 
 const SEPARATOR = "──────────────────────────────────────────────────";
 
 export function formatExplainModeReport(report: ExplainModeReport): string {
+  const nextStepLines = formatNextSteps(report.pideFeatures.nextSteps);
   const lines: string[] = [
     SEPARATOR,
     "Isabelle PIDE — current mode",
@@ -39,6 +41,7 @@ export function formatExplainModeReport(report: ExplainModeReport): string {
     ...formatJavaSection(report.java),
     "",
     ...formatIsabelleSection(report.isabelle),
+    ...(nextStepLines.length > 0 ? ["", ...nextStepLines] : []),
     "",
     SEPARATOR,
     "Tip: re-run `Isabelle: Check Setup Prerequisites` for a fresh probe of Java and Isabelle.",
@@ -51,6 +54,15 @@ function formatLanguageServerSection(ls: ExplainModeLanguageServerReport): strin
   const lines: string[] = ["Language server:", `  State: ${ls.state}`];
   lines.push(`  Setting: isabelle.languageServer.enabled = ${ls.enabledSetting}`);
   lines.push(`  Auto-start: ${ls.autoStart ? "enabled" : "disabled"}`);
+  if (ls.extraArgs.length > 0) {
+    lines.push(`  Extra args: ${ls.extraArgs.map(quoteArg).join(" ")}`);
+  }
+  lines.push(
+    `  Auto-start failure remembered: ${ls.autoStartFailure.remembered ? "yes" : "no"}`
+  );
+  if (ls.autoStartFailure.key) {
+    lines.push(`  Auto-start failure key: ${ls.autoStartFailure.key}`);
+  }
   if (ls.isabelleVersion) {
     lines.push(`  Isabelle version (per LSP): ${ls.isabelleVersion}`);
   }
@@ -67,6 +79,18 @@ function formatLanguageServerSection(ls: ExplainModeLanguageServerReport): strin
     lines.push(`  Last error: ${ls.lastError}`);
   }
   return lines;
+}
+
+function formatNextSteps(nextSteps: readonly ExplainModeNextStep[]): string[] {
+  if (nextSteps.length === 0) return [];
+  return [
+    "Next steps:",
+    ...nextSteps.map((nextStep, index) => `  ${index + 1}. ${nextStep.label}`)
+  ];
+}
+
+function quoteArg(value: string): string {
+  return /\s/.test(value) ? JSON.stringify(value) : value;
 }
 
 function formatJavaSection(java: ExplainModeJavaReport): string[] {

@@ -21,6 +21,27 @@ export type LanguageServerEnabledSetting = "true" | "false" | "default";
 
 export type BackendState = "running" | "not-initialized";
 
+export type ExplainModeNextStepId =
+  | "wait-for-language-server"
+  | "show-language-server-status"
+  | "restart-language-server"
+  | "enable-language-server"
+  | "check-prerequisites"
+  | "install-java"
+  | "set-isabelle-executable"
+  | "start-language-server"
+  | "wait-for-prerequisite-probe";
+
+export interface ExplainModeNextStep {
+  readonly id: ExplainModeNextStepId;
+  readonly label: string;
+}
+
+export interface ExplainModeAutoStartFailureReport {
+  readonly remembered: boolean;
+  readonly key: string | undefined;
+}
+
 export interface ExplainModeAccessors {
   /**
    * Current state of the LSP language client. `undefined` if the language
@@ -60,6 +81,17 @@ export interface ExplainModeAccessors {
    */
   readonly getLanguageServerAutoStart: () => boolean;
   /**
+   * Type-filtered effective `isabelle.languageServer.extraArgs` list that
+   * the language client would pass to `isabelle vscode_server` right now.
+   */
+  readonly getLanguageServerExtraArgs: () => readonly string[];
+  /**
+   * Whether a previous auto-start failure is remembered for the current
+   * resolved Isabelle runtime. The key is included so users can paste it
+   * into bug reports when auto-start behavior is confusing.
+   */
+  readonly getAutoStartFailure: () => ExplainModeAutoStartFailureReport;
+  /**
    * Effective `isabelle.executablePath` setting (possibly the default
    * `"isabelle"` literal). Backed by
    * `vscode.workspace.getConfiguration("isabelle").get<string>(...)` in
@@ -90,6 +122,8 @@ export interface ExplainModeLanguageServerReport {
   readonly state: IsabelleLanguageServerStatus["state"] | "not-initialized";
   readonly enabledSetting: LanguageServerEnabledSetting;
   readonly autoStart: boolean;
+  readonly extraArgs: readonly string[];
+  readonly autoStartFailure: ExplainModeAutoStartFailureReport;
   readonly isabelleVersion: string | undefined;
   readonly commandLine: string | undefined;
   readonly lastError: string | undefined;
@@ -101,6 +135,8 @@ export interface ExplainModePideFeaturesReport {
   readonly available: boolean;
   /** Single-line, user-facing reason. Always populated. */
   readonly reason: string;
+  /** Actionable next steps. Empty means no action is needed. */
+  readonly nextSteps: readonly ExplainModeNextStep[];
 }
 
 export interface ExplainModeJavaReport {
@@ -150,11 +186,15 @@ export function buildExplainModeReport(accessors: ExplainModeAccessors): Explain
   const lspState = lspStatus?.state ?? "not-initialized";
   const enabledSetting = accessors.getLanguageServerEnabledSetting();
   const autoStart = accessors.getLanguageServerAutoStart();
+  const extraArgs = accessors.getLanguageServerExtraArgs();
+  const autoStartFailure = accessors.getAutoStartFailure();
 
   const languageServer: ExplainModeLanguageServerReport = {
     state: lspState,
     enabledSetting,
     autoStart,
+    extraArgs,
+    autoStartFailure,
     isabelleVersion: lspStatus?.isabelleVersion,
     commandLine: lspStatus?.commandLine,
     lastError: lspStatus?.lastError,
@@ -168,7 +208,9 @@ export function buildExplainModeReport(accessors: ExplainModeAccessors): Explain
       commandSetting: accessors.getBackendCommandSetting()
     },
     languageServer,
-    pideFeatures: derivePideFeaturesReport(lspState, enabledSetting, autoStart, prereq),
+    pideFeatures: derivePideFeaturesReport(lspState, enabledSetting, autoStart, prereq, {
+      autoStartFailureRemembered: autoStartFailure.remembered
+    }),
     activeSession: accessors.getActiveSessionName(),
     java: {
       available: prereq?.java ?? false,
@@ -210,33 +252,54 @@ export function derivePideFeaturesReport(
   lspState: IsabelleLanguageServerStatus["state"] | "not-initialized",
   enabledSetting: LanguageServerEnabledSetting,
   autoStart: boolean,
-  prereq: PrerequisiteState | undefined
+  prereq: PrerequisiteState | undefined,
+  context: { readonly autoStartFailureRemembered?: boolean } = {}
 ): ExplainModePideFeaturesReport {
   if (lspState === "running") {
-    return { available: true, reason: "Isabelle language server is running." };
+    return {
+      available: true,
+      reason: "Isabelle language server is running.",
+      nextSteps: []
+    };
   }
   if (lspState === "starting") {
     return {
       available: false,
-      reason: "Isabelle language server is still starting — features will appear once it reaches `running`."
+      reason: "Isabelle language server is still starting — features will appear once it reaches `running`.",
+      nextSteps: [
+        step("wait-for-language-server", "Wait for the Isabelle language server to finish starting."),
+        step("show-language-server-status", "Run `Isabelle: Show Language Server Status` if it stays in this state.")
+      ]
     };
   }
   if (lspState === "failed") {
     return {
       available: false,
-      reason: "Isabelle language server failed to start. See `Isabelle: Show Language Server Status` for the error."
+      reason: "Isabelle language server failed to start. See `Isabelle: Show Language Server Status` for the error.",
+      nextSteps: [
+        step("show-language-server-status", "Run `Isabelle: Show Language Server Status` for the startup error."),
+        step("check-prerequisites", "Run `Isabelle: Check Setup Prerequisites` to re-probe Java and Isabelle."),
+        step("restart-language-server", "Run `Isabelle: Restart Language Server` after fixing the configuration.")
+      ]
     };
   }
   if (lspState === "stopping") {
     return {
       available: false,
-      reason: "Isabelle language server is stopping."
+      reason: "Isabelle language server is stopping.",
+      nextSteps: [
+        step("wait-for-language-server", "Wait for the stop to finish."),
+        step("start-language-server", "Run `Isabelle: Start Language Server` if you want PIDE features back on.")
+      ]
     };
   }
   if (enabledSetting === "false") {
     return {
       available: false,
-      reason: "Isabelle language server is disabled via the `isabelle.languageServer.enabled` setting."
+      reason: "Isabelle language server is disabled via the `isabelle.languageServer.enabled` setting.",
+      nextSteps: [
+        step("enable-language-server", "Set `isabelle.languageServer.enabled` to `true` or run `Isabelle: Start Language Server`.")
+      ]
     };
   }
   if (prereq && !prereq.java) {
@@ -244,23 +307,57 @@ export function derivePideFeaturesReport(
       available: false,
       reason: prereq.javaTooOld
         ? `Java ${prereq.javaVersionMajor ?? "?"} is too old — PIDE features need Java 21+.`
-        : "Java 21+ is not available — PIDE features need a runtime."
+        : "Java 21+ is not available — PIDE features need a runtime.",
+      nextSteps: [
+        step("install-java", "Install Java 21+ or install a per-platform `.vsix` that bundles Temurin 21."),
+        step("check-prerequisites", "Run `Isabelle: Check Setup Prerequisites` after Java is available.")
+      ]
     };
   }
   if (prereq && !prereq.isabelle) {
     return {
       available: false,
-      reason: "Isabelle CLI is not reachable — PIDE features need it on PATH or in `isabelle.executablePath`."
+      reason: "Isabelle CLI is not reachable — PIDE features need it on PATH or in `isabelle.executablePath`.",
+      nextSteps: [
+        step(
+          "set-isabelle-executable",
+          prereq.detectedIsabelle?.path
+            ? `Set \`isabelle.executablePath\` to the detected launcher: ${prereq.detectedIsabelle.path}`
+            : "Put `isabelle` on PATH or set `isabelle.executablePath` to the Isabelle launcher."
+        ),
+        step("check-prerequisites", "Run `Isabelle: Check Setup Prerequisites` after changing the Isabelle path.")
+      ]
+    };
+  }
+  if (context.autoStartFailureRemembered) {
+    return {
+      available: false,
+      reason: "A previous language-server auto-start failed for this Isabelle runtime, so auto-start is paused.",
+      nextSteps: [
+        step("start-language-server", "Run `Isabelle: Start Language Server` to retry now; a successful manual start clears the remembered failure."),
+        step("check-prerequisites", "Run `Isabelle: Check Setup Prerequisites` if the retry still fails.")
+      ]
     };
   }
   if (!autoStart) {
     return {
       available: false,
-      reason: "Auto-start is disabled via `isabelle.languageServer.autoStart`; run `Isabelle: Start Language Server` to start it manually."
+      reason: "Auto-start is disabled via `isabelle.languageServer.autoStart`; run `Isabelle: Start Language Server` to start it manually.",
+      nextSteps: [
+        step("start-language-server", "Run `Isabelle: Start Language Server` for this workspace."),
+        step("enable-language-server", "Set `isabelle.languageServer.autoStart` to `true` to resume automatic startup.")
+      ]
     };
   }
   return {
     available: false,
-    reason: "Isabelle language server has not been initialised yet."
+    reason: "Isabelle language server has not been initialised yet.",
+    nextSteps: [
+      step("wait-for-prerequisite-probe", "Wait for the activation-time prerequisite probe to finish, or run `Isabelle: Check Setup Prerequisites`.")
+    ]
   };
+}
+
+function step(id: ExplainModeNextStepId, label: string): ExplainModeNextStep {
+  return { id, label };
 }

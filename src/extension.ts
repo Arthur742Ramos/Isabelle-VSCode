@@ -394,9 +394,9 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.showTheoryDependents", async () => showTheoryDependents(output)),
     vscode.commands.registerCommand("isabelle.toggleTheoryGraphMode", () => toggleTheoryGraphMode()),
     vscode.commands.registerCommand("isabelle.refreshTheoryOutline", () => theoryOutlineTree?.refresh()),
-    vscode.commands.registerCommand("isabelle.startLanguageServer", async () => startLanguageServer(output)),
+    vscode.commands.registerCommand("isabelle.startLanguageServer", async () => startLanguageServer(output, context)),
     vscode.commands.registerCommand("isabelle.stopLanguageServer", async () => stopLanguageServer(output)),
-    vscode.commands.registerCommand("isabelle.restartLanguageServer", async () => restartLanguageServer(output)),
+    vscode.commands.registerCommand("isabelle.restartLanguageServer", async () => restartLanguageServer(output, context)),
     vscode.commands.registerCommand("isabelle.showLanguageServerStatus", () => showLanguageServerStatus()),
     vscode.commands.registerCommand(SHOW_DOCUMENTATION_COMMAND_ID, () => browseDocumentationCommand(output)),
     vscode.commands.registerCommand(PREVIEW_THEORY_COMMAND_ID, () => previewTheoryCommand(output, { split: false })),
@@ -468,13 +468,20 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   // don't add startup latency to users who deliberately opted in.
   const initialDecision = decideExtensionLanguageServerStartup(context);
   if (initialDecision === "explicit-start") {
-    void languageClient.start().catch((error) => {
-      output.appendLine(
-        `Isabelle language server: initial start failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    });
+    void (async () => {
+      try {
+        await languageClient.start();
+        if (languageClient.getStatus().state === "running") {
+          await clearAutoStartFailureForCurrentRuntime(context);
+        }
+      } catch (error) {
+        output.appendLine(
+          `Isabelle language server: initial start failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    })();
   }
 
   // Auto-start path: kick off the prerequisite check, then conditionally
@@ -721,6 +728,15 @@ function clearAutoStartFailureFlags(context: vscode.ExtensionContext): void {
     if (key.startsWith("isabelle.lsp.autoStartFailed.")) {
       void context.workspaceState.update(key, undefined);
     }
+  }
+}
+
+async function clearAutoStartFailureForCurrentRuntime(
+  context: vscode.ExtensionContext
+): Promise<void> {
+  const failureKey = resolveAutoStartFailureKey();
+  if (context.workspaceState.get<boolean>(failureKey)) {
+    await context.workspaceState.update(failureKey, undefined);
   }
 }
 
@@ -2114,7 +2130,10 @@ function updateSessionStatus(): void {
   statusBar.tooltip = active ? "Active Isabelle session" : "Select an Isabelle session";
 }
 
-async function startLanguageServer(output: vscode.OutputChannel): Promise<void> {
+async function startLanguageServer(
+  output: vscode.OutputChannel,
+  context: vscode.ExtensionContext
+): Promise<void> {
   if (!languageClient) {
     return;
   }
@@ -2123,6 +2142,9 @@ async function startLanguageServer(output: vscode.OutputChannel): Promise<void> 
       .getConfiguration("isabelle")
       .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
     await languageClient.start();
+    if (languageClient.getStatus().state === "running") {
+      await clearAutoStartFailureForCurrentRuntime(context);
+    }
   } catch (error) {
     showBackendError("Unable to start Isabelle language server", error, output);
   }
@@ -2142,7 +2164,10 @@ async function stopLanguageServer(output: vscode.OutputChannel): Promise<void> {
   }
 }
 
-async function restartLanguageServer(output: vscode.OutputChannel): Promise<void> {
+async function restartLanguageServer(
+  output: vscode.OutputChannel,
+  context: vscode.ExtensionContext
+): Promise<void> {
   if (!languageClient) {
     return;
   }
@@ -2151,6 +2176,9 @@ async function restartLanguageServer(output: vscode.OutputChannel): Promise<void
       .getConfiguration("isabelle")
       .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
     await languageClient.restart();
+    if (languageClient.getStatus().state === "running") {
+      await clearAutoStartFailureForCurrentRuntime(context);
+    }
   } catch (error) {
     showBackendError("Unable to restart Isabelle language server", error, output);
   }
@@ -2194,6 +2222,21 @@ function createExplainModeAccessors(): ExplainModeAccessors {
     },
     getLanguageServerAutoStart: () =>
       vscode.workspace.getConfiguration("isabelle").get<boolean>("languageServer.autoStart", true),
+    getLanguageServerExtraArgs: () =>
+      resolveLanguageServerRuntime(
+        getIsabelleExecutablePath,
+        vscode.workspace.getConfiguration("isabelle")
+      ).extraArgs,
+    getAutoStartFailure: () => {
+      if (!extensionContextRef) {
+        return { remembered: false, key: undefined };
+      }
+      const key = resolveAutoStartFailureKey();
+      return {
+        remembered: Boolean(extensionContextRef.workspaceState.get<boolean>(key)),
+        key
+      };
+    },
     getIsabelleExecutablePathSetting: () => getIsabelleExecutablePath(),
     getBackendCommandSetting: () => {
       const configured = vscode.workspace
