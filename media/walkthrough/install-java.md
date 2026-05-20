@@ -1,7 +1,7 @@
 # Install Java 21+
 
 > **You can probably skip this step.** Per-platform `.vsix` builds from the
-> VS Code Marketplace and GitHub Releases (`-win32-x64.vsix`,
+> GitHub Releases, and future Marketplace builds once published (`-win32-x64.vsix`,
 > `-linux-x64.vsix`, `-darwin-arm64.vsix`, …) embed Eclipse Temurin 21
 > under `extension/jre/`, so there is nothing to install on your machine.
 > You only need to install Java yourself if you:

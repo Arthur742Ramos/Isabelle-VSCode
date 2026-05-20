@@ -4,7 +4,7 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-19 (post-`v0.1.0-alpha.5` hardening: the release is published, and follow-up smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) while walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
+> Last refreshed: 2026-05-20 (alpha posture pass: `v0.1.0-alpha.5` is published; smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90), walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93), Marketplace posture is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97), and AFP-scale dogfood is documented in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md#beyond-smokethy-afp-scale-dogfood-record)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -428,8 +428,24 @@ Current blockers / trackers:
 - [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93) — capture
   real walkthrough screenshots / GIFs; do not ship fake or broken image
   references.
+- [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97) — keep the
+  Marketplace posture explicit. Current stance: GitHub Releases only until the
+  smoke transcript passes on the core OS trio and the screenshot pass lands.
 - [#89](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/89) — track the
   remaining upstream `textDocument/documentSymbol` gap.
+
+Known `alpha.5` limitations:
+
+- No platform has recorded the full VS Code-hosted smoke transcript for the
+  published `v0.1.0-alpha.5` assets yet.
+- Screenshot/GIF captures are intentionally absent until a contributor with a
+  real graphical Isabelle setup records them.
+- The bundled `Smoke.thy` fixture proves the wiring, not AFP-scale behavior,
+  long-running proof latency, or a paper-style case study.
+- `textDocument/documentSymbol` remains local-provider-only until Isabelle's LSP
+  advertises `documentSymbolProvider`.
+- Marketplace publication remains a product/release decision, not a workflow
+  accident.
 
 Automation that is useful but not sufficient for the next tag:
 
@@ -473,7 +489,7 @@ The repo is currently shipped as **`0.1.x-alpha`** (`preview: true` in `package.
 
 ### Explicit non-goals for beta
 
-- VS Code Marketplace publication (`preview: true` stays; `"private": true` stays). Marketplace is a separate decision after beta has been stable for at least one minor release.
+- VS Code Marketplace publication (`preview: true` stays; `"private": true` stays). Marketplace is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97) and remains a separate decision after beta has been stable for at least one minor release.
 - Cross-arch live smoke on every CI runner (Alpine musl, Linux/Windows ARM64 cross-compiled JRE bundles, etc.). CI continues to layout-smoke those targets; live verification stays Tier-2 manual.
 - Documentation localization, formal accessibility audit, or any UX polish that requires more than a session of editor-side work.
 - Default network-calling AI repair provider (intentionally blocked — see `docs/AI_REPAIR.md`).
