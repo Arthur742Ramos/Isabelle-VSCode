@@ -100,7 +100,12 @@ describe("runRepairAi", () => {
 
   it("forwards the gate refusal verbatim when acknowledge flag is false", async () => {
     const registry = new RepairAiProviderRegistry();
-    registry.register(stubProvider("my"));
+    const generatePatch = vi.fn(async () => ({ ok: true as const, patchText: "diff" }));
+    registry.register({
+      id: "my",
+      displayName: "my",
+      generatePatch
+    });
     const result = await runRepairAi(
       registry,
       makeConfig({ "repair.aiProvider": "my" }),
@@ -110,6 +115,7 @@ describe("runRepairAi", () => {
     if (!result.ok) {
       expect(result.reason).toMatch(/aiAcknowledgedSharing/);
     }
+    expect(generatePatch).not.toHaveBeenCalled();
   });
 
   it("invokes the configured provider when the gate passes and returns its result", async () => {
@@ -157,6 +163,85 @@ describe("runRepairAi", () => {
       REQUEST
     );
     expect(captured).toEqual(REQUEST);
+  });
+
+  it("requires the optional authorization hook to approve before invoking a provider", async () => {
+    const registry = new RepairAiProviderRegistry();
+    const generatePatch = vi.fn(async () => ({ ok: true as const, patchText: "diff" }));
+    registry.register({
+      id: "guarded",
+      displayName: "Guarded Provider",
+      generatePatch
+    });
+    const authorizeRequest = vi.fn(async () => false);
+    const result = await runRepairAi(
+      registry,
+      makeConfig({
+        "repair.aiProvider": "guarded",
+        "repair.aiAcknowledgedSharing": true
+      }),
+      REQUEST,
+      { authorizeRequest }
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/not confirmed/);
+    }
+    expect(authorizeRequest).toHaveBeenCalledWith({
+      providerId: "guarded",
+      providerDisplayName: "Guarded Provider",
+      request: REQUEST
+    });
+    expect(generatePatch).not.toHaveBeenCalled();
+  });
+
+  it("wraps authorization hook failures as typed refusals", async () => {
+    const registry = new RepairAiProviderRegistry();
+    const generatePatch = vi.fn(async () => ({ ok: true as const, patchText: "diff" }));
+    registry.register({
+      id: "guarded",
+      displayName: "Guarded Provider",
+      generatePatch
+    });
+    const result = await runRepairAi(
+      registry,
+      makeConfig({
+        "repair.aiProvider": "guarded",
+        "repair.aiAcknowledgedSharing": true
+      }),
+      REQUEST,
+      {
+        authorizeRequest: async () => {
+          throw new Error("review document failed");
+        }
+      }
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/confirmation failed: review document failed/);
+    }
+    expect(generatePatch).not.toHaveBeenCalled();
+  });
+
+  it("invokes the provider only after the authorization hook approves", async () => {
+    const registry = new RepairAiProviderRegistry();
+    const generatePatch = vi.fn(async () => ({ ok: true as const, patchText: "diff" }));
+    registry.register({
+      id: "guarded",
+      displayName: "Guarded Provider",
+      generatePatch
+    });
+    const result = await runRepairAi(
+      registry,
+      makeConfig({
+        "repair.aiProvider": "guarded",
+        "repair.aiAcknowledgedSharing": true
+      }),
+      REQUEST,
+      { authorizeRequest: async () => true }
+    );
+    expect(result).toEqual({ ok: true, patchText: "diff" });
+    expect(generatePatch).toHaveBeenCalledTimes(1);
   });
 
   it("converts a provider rejection into a typed failure", async () => {

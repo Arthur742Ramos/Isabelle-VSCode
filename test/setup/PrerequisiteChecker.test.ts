@@ -593,6 +593,33 @@ describe("PrerequisiteChecker — bundled JRE wiring", () => {
     expect(ui.warning[0].message).toMatch(/Java/);
   });
 
+  it("adds a macOS Gatekeeper hint when a bundled macOS JRE cannot be spawned", async () => {
+    const macBundledPath = "/Users/u/.vscode/extensions/ext/jre/Contents/Home/bin/java";
+    const { checker, ui } = buildChecker({
+      spawnExpectations: [{ matcher: () => true, result: fail }],
+      javaCommand: macBundledPath,
+      autoDetect: {
+        platform: "darwin",
+        env: {},
+        fs: { isDirectory: () => false, isFile: () => false, readDirectoryNames: () => [] },
+        join: (...parts) => parts.join("/")
+      }
+    });
+    const state = await checker.runCheck();
+    expect(state.java).toBe(false);
+    expect(state.javaFailureHint).toContain("macOS Gatekeeper");
+    expect(state.javaFailureHint).toContain(
+      'xattr -dr com.apple.quarantine "/Users/u/.vscode/extensions/ext/jre"'
+    );
+
+    await checker.notifyIfMissing(state);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toContain("macOS Gatekeeper");
+    expect(ui.warning[0].message).toContain(
+      'xattr -dr com.apple.quarantine "/Users/u/.vscode/extensions/ext/jre"'
+    );
+  });
+
   it("does not retry with PATH 'java' when the injected command already equals 'java'", async () => {
     const { checker, calls } = buildChecker({
       spawnExpectations: [{ matcher: () => true, result: fail }],

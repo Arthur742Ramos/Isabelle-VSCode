@@ -1,7 +1,7 @@
 ---
 name: prepare-release
 description: Cut a new versioned release of the Isabelle PIDE VS Code extension.
-when-to-use: When you're about to ship a new release — the Release workflow at .github/workflows/release.yml publishes a .vsix to GitHub Releases and (when VSCE_PAT is set) the VS Code Marketplace on every v* tag push.
+when-to-use: When you're about to ship a new release — the Release workflow at .github/workflows/release.yml publishes .vsix artifacts to GitHub Releases on v* tag pushes; Marketplace publish is additionally gated on a stable non-preview package and VSCE_PAT.
 ---
 
 # Prepare and ship a release
@@ -13,11 +13,17 @@ The Release workflow at `.github/workflows/release.yml` does the heavy lifting �
 - You're on a clean checkout of `main` with no uncommitted changes.
 - `npm run check` is green.
 - `npm run package:validate` is green.
+- `CHANGELOG.md` has an entry for the candidate and
+  `docs/RELEASE_READINESS.md` still matches the intended release posture.
 - The `docs/SMOKE_THEORY_CHECKLIST.md` release-candidate smoke record has real
   VS Code-hosted evidence for the candidate version. Do not treat a headless
   `isabelle build` as a substitute for the Smoke transcript.
 - All PRs targeting this release have been merged.
-- For Marketplace publish: a `VSCE_PAT` repo secret is configured under **Settings → Secrets and variables → Actions**. The publish step is gated and **no-ops cleanly** if the secret is absent — you can still cut a GitHub-Release-only build.
+- For Marketplace publish: the version is stable (no `-alpha`, `-beta`, or
+  `-rc` suffix), `package.json` has `"preview": false`, and a `VSCE_PAT` repo
+  secret is configured under **Settings → Secrets and variables → Actions**.
+  Prerelease or preview packages are GitHub-Release-only even if the secret is
+  present.
 
 ## Steps
 
@@ -81,8 +87,10 @@ Watch the workflow run at `https://github.com/Arthur742Ramos/Isabelle-VSCode/act
 3. Produce `isabelle-pide-vscode-<X.Y.Z>.vsix`.
 4. Assert the bundled `extension.js`, the backend fat jar, and `package.json` are present in the `.vsix`.
 5. Publish a GitHub Release with the `.vsix` attached and end-user install instructions in the body.
-6. **If `VSCE_PAT` is set:** publish to the VS Code Marketplace via `npx @vscode/vsce publish --packagePath … --pat …`.
-7. **If `VSCE_PAT` is not set:** print a `::notice::` explaining how to enable it next time.
+6. **If `VSCE_PAT` is set and the package is stable + non-preview:** publish to
+   the VS Code Marketplace via `npx @vscode/vsce publish --packagePath … --pat …`.
+7. **If `VSCE_PAT` is absent, the version is prerelease, or `preview: true`:**
+   print a `::notice::` explaining why Marketplace publish was skipped.
 
 The `.vsix` will appear under [Releases](https://github.com/Arthur742Ramos/Isabelle-VSCode/releases) within ~3 minutes of the tag push.
 
@@ -104,9 +112,9 @@ A tag is immutable but the workflow run isn't — re-run from the Actions tab if
 
 ### First-time Marketplace publish
 
-Before the **first** Marketplace publish, the publisher (`arthur742ramos`) must exist on https://marketplace.visualstudio.com/manage. The `vsce publish` step will fail with a clear error if it doesn't — create the publisher first, then re-run the workflow.
+Before the **first** Marketplace publish, the publisher (`arthur742ramos`) must exist on https://marketplace.visualstudio.com/manage. The `vsce publish` step will fail with a clear error if it doesn't — create the publisher first, then re-run the workflow. Marketplace publish will still be skipped until the package version is stable and `preview` is `false`.
 
 ## What this skill does NOT cover
 
-- **Pre-release / preview tagging** (`v0.2.0-rc.1`, etc.) — the workflow's tag matcher is `v*` which accepts these, but the `npm version` syntax is different (`npm version prerelease --preid=rc`) and Marketplace handling of pre-release tags has its own ceremony. Open an issue if you want this codified.
+- **Pre-release / preview Marketplace publish** (`v0.2.0-rc.1`, etc.) — the workflow's tag matcher is `v*` and GitHub Releases still work for these tags, but Marketplace publish is deliberately skipped for prerelease versions and `preview: true` packages.
 - **Rolling back a bad release** — once published to the Marketplace, you generally [unpublish a specific version](https://github.com/microsoft/vscode-vsce#unpublishing-extensions) rather than amend it. Coordinate via an issue.

@@ -17,12 +17,16 @@ lazy val backend = (project in file("."))
       case PathList("META-INF", xs @ _*) =>
         xs.map(_.toLowerCase) match {
           case "manifest.mf" :: Nil => MergeStrategy.discard
+          case "index.list" :: Nil => MergeStrategy.discard
+          case "dependencies" :: Nil => MergeStrategy.discard
           case ps if ps.lastOption.exists(p => p.endsWith(".sf") || p.endsWith(".dsa") || p.endsWith(".rsa")) =>
             MergeStrategy.discard
-          case _ => MergeStrategy.first
+          case "services" :: _ => MergeStrategy.concat
+          case _ => MergeStrategy.discard
         }
       case "module-info.class" => MergeStrategy.discard
-      case _ => MergeStrategy.first
+      case "reference.conf" => MergeStrategy.concat
+      case _ => MergeStrategy.deduplicate
     },
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "ujson" % "3.3.1",
