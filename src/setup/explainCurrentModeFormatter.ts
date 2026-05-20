@@ -90,7 +90,7 @@ function formatNextSteps(nextSteps: readonly ExplainModeNextStep[]): string[] {
 }
 
 function quoteArg(value: string): string {
-  return /\s/.test(value) ? JSON.stringify(value) : value;
+  return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
 function formatJavaSection(java: ExplainModeJavaReport): string[] {

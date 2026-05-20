@@ -24,7 +24,12 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => "HOL",
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
-      getLanguageServerExtraArgs: () => ["-L", "./isabelle.log", "-A", "with space"],
+      getLanguageServerExtraArgs: () => [
+        "-L",
+        "C:\\Tools\\Isabelle Logs\\server.log",
+        "-A",
+        'with "quote"'
+      ],
       getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.ok" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
@@ -37,7 +42,9 @@ describe("formatExplainModeReport", () => {
     expect(text).toContain("Backend:");
     expect(text).toContain("State: running");
     expect(text).toContain("Language server:");
-    expect(text).toContain('Extra args: -L ./isabelle.log -A "with space"');
+    expect(text).toContain(
+      'Extra args: -L "C:\\Tools\\Isabelle Logs\\server.log" -A "with \\"quote\\""'
+    );
     expect(text).toContain("Auto-start failure remembered: no");
     expect(text).toContain("Isabelle version (per LSP): Isabelle2025-2");
     expect(text).toContain("Active session: HOL");

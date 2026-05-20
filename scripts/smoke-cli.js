@@ -45,13 +45,6 @@ function resolveIsabelleCommand(args) {
     };
   }
 
-  if (/\.(cmd|bat)$/i.test(launcher)) {
-    return {
-      command: "cmd.exe",
-      args: ["/d", "/s", "/c", [quoteCmdArg(launcher), ...args.map(quoteCmdArg)].join(" ")]
-    };
-  }
-
   return { command: launcher, args };
 }
 
@@ -78,6 +71,3 @@ function isFile(candidate) {
   }
 }
 
-function quoteCmdArg(value) {
-  return `"${String(value).replace(/"/g, '\\"')}"`;
-}
