@@ -42,8 +42,8 @@ jobs:
             runner: ubuntu-latest
           - name: Windows x64
             runner: windows-latest
-          - name: macOS arm64
-            runner: macos-latest
+          - name: macOS 14 arm64
+            runner: macos-14
 
     env:
       ISABELLE_VERSION: ${{ inputs.isabelle_version }}

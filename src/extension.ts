@@ -1527,25 +1527,38 @@ async function runTier2SmokePreview(uri: string): Promise<Tier2SmokePreviewResul
     return previewSmokeResult(true, existing);
   }
 
+  let timer: NodeJS.Timeout | undefined;
+  let subscription: { dispose(): void } | undefined;
+  const cleanup = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+    subscription?.dispose();
+    subscription = undefined;
+  };
+
   const received = new Promise<Tier2SmokePreviewResult>((resolve) => {
-    let timer: NodeJS.Timeout;
-    const subscription = subscriber.onSnapshot((snapshot) => {
+    const complete = (result: Tier2SmokePreviewResult): void => {
+      cleanup();
+      resolve(result);
+    };
+
+    subscription = subscriber.onSnapshot((snapshot) => {
       if (snapshot.uri !== uri || isEmptyPreviewSnapshot(snapshot)) {
         return;
       }
-      clearTimeout(timer);
-      subscription.dispose();
-      resolve(previewSmokeResult(true, snapshot));
+      complete(previewSmokeResult(true, snapshot));
     });
     timer = setTimeout(() => {
-      subscription.dispose();
-      resolve({ sent: true, received: false });
+      complete({ sent: true, received: false });
     }, TIER2_SMOKE_PREVIEW_TIMEOUT_MS);
     timer.unref();
   });
 
   const sent = subscriber.requestPreview(uri, vscode.ViewColumn.Beside);
   if (!sent) {
+    cleanup();
     return { sent: false, received: false };
   }
   return received;
