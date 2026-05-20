@@ -24,6 +24,13 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => "HOL",
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [
+        "-L",
+        "C:\\Tools\\Isabelle Logs\\server.log",
+        "-A",
+        'with "quote"'
+      ],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.ok" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
       getJavaIsBundled: () => true
@@ -35,6 +42,10 @@ describe("formatExplainModeReport", () => {
     expect(text).toContain("Backend:");
     expect(text).toContain("State: running");
     expect(text).toContain("Language server:");
+    expect(text).toContain(
+      'Extra args: -L "C:\\Tools\\Isabelle Logs\\server.log" -A "with \\"quote\\""'
+    );
+    expect(text).toContain("Auto-start failure remembered: no");
     expect(text).toContain("Isabelle version (per LSP): Isabelle2025-2");
     expect(text).toContain("Active session: HOL");
     expect(text).toContain("Java:");
@@ -51,6 +62,8 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => undefined,
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.cold" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
       getJavaIsBundled: () => undefined
@@ -82,6 +95,8 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => undefined,
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.java" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
       getJavaIsBundled: () => false
@@ -114,6 +129,8 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => undefined,
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.failed" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
       getJavaIsBundled: () => false
@@ -124,6 +141,42 @@ describe("formatExplainModeReport", () => {
     expect(text).toContain("Last error: reach-check failed: spawn ENOENT");
     expect(text).toContain("Last stopped: 2026-05-18T21:55:00Z");
     expect(text).toContain("failed to start");
+    expect(text).toContain("Next steps:");
+    expect(text).toContain("Isabelle: Show Language Server Status");
+  });
+
+  it("renders remembered auto-start failure diagnostics and retry advice", () => {
+    const report = buildExplainModeReport({
+      getLanguageServerStatus: () => ({ state: "disabled" }),
+      getPrerequisiteState: () => ({
+        java: true,
+        javaCommand: "java",
+        javaVersionMajor: 21,
+        javaVersion: 'openjdk version "21.0.1"',
+        isabelle: true,
+        isabellePath: "isabelle",
+        isabelleVersion: "Isabelle2025-2"
+      }),
+      getBackendRunning: () => true,
+      getActiveSessionName: () => undefined,
+      getLanguageServerEnabledSetting: () => "default",
+      getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({
+        remembered: true,
+        key: "isabelle.lsp.autoStartFailed.deadbeef"
+      }),
+      getIsabelleExecutablePathSetting: () => "isabelle",
+      getBackendCommandSetting: () => undefined,
+      getJavaIsBundled: () => false
+    });
+
+    const text = formatExplainModeReport(report);
+    expect(text).toContain("Auto-start failure remembered: yes");
+    expect(text).toContain("Auto-start failure key: isabelle.lsp.autoStartFailed.deadbeef");
+    expect(text).toContain("auto-start is paused");
+    expect(text).toContain("Isabelle: Start Language Server");
+    expect(text).toContain("successful manual start clears the remembered failure");
   });
 
   it("renders the configured-backend-command override", () => {
@@ -134,6 +187,8 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => undefined,
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.backend" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => "sbt",
       getJavaIsBundled: () => undefined
@@ -161,6 +216,8 @@ describe("formatExplainModeReport", () => {
       getActiveSessionName: () => undefined,
       getLanguageServerEnabledSetting: () => "default",
       getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({ remembered: false, key: "isabelle.lsp.autoStartFailed.isabelle" }),
       getIsabelleExecutablePathSetting: () => "isabelle",
       getBackendCommandSetting: () => undefined,
       getJavaIsBundled: () => false
@@ -168,5 +225,8 @@ describe("formatExplainModeReport", () => {
 
     const text = formatExplainModeReport(report);
     expect(text).toContain("Detected fallback: /Applications/Isabelle2025-2.app/Isabelle/bin/isabelle");
+    expect(text).toContain(
+      "Set `isabelle.executablePath` to the detected launcher: /Applications/Isabelle2025-2.app/Isabelle/bin/isabelle"
+    );
   });
 });

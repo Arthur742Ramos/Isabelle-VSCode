@@ -717,6 +717,7 @@
     "watch": "tsc -watch -p .",
     "test": "vitest run",
     "check": "npm run compile && npm test",
+    "smoke:cli": "node ./scripts/smoke-cli.js",
     "test:integration:compile": "tsc -p test/integration/tsconfig.json",
     "test:integration": "npm run bundle && npm run test:integration:compile && node ./out/test/integration/runTest.js",
     "test:all": "npm run check && npm run test:integration",
