@@ -1,6 +1,6 @@
 # Isabelle PIDE for VS Code
 
-This repository is a preview-stage Isabelle/PIDE frontend for VS Code. The current `0.1.0-alpha.5` line is installable from GitHub Releases, but it is still intentionally marked `preview` / `private` until the live smoke evidence and Marketplace polish catch up.
+This repository is a preview-stage Isabelle/PIDE frontend for VS Code. The current `0.1.0-alpha.6` line is installable from GitHub Releases, but it is still intentionally marked `preview` / `private` until the live smoke evidence and Marketplace polish catch up.
 
 The architecture is deliberately more than a syntax-highlighting or build-on-save extension:
 
@@ -98,7 +98,7 @@ Not yet. Marketplace publication is tracked in [#97](https://github.com/Arthur74
 
 ## Alpha status and limitations
 
-`0.1.0-alpha.5` is a credible alpha, not a stable Marketplace release. It has the hybrid PIDE/LSP/Headless architecture, bundled per-platform JRE assets, proof state, Sledgehammer search/insertion/minimization, theory tooling, and the checked repair seam; the remaining work is mostly confidence and presentation.
+`0.1.0-alpha.6` is a credible alpha, not a stable Marketplace release. It has the hybrid PIDE/LSP/Headless architecture, bundled per-platform JRE assets, proof state, Sledgehammer search/insertion/minimization, theory tooling, and the checked repair seam; the remaining work is mostly confidence and presentation.
 
 Known alpha limitations:
 

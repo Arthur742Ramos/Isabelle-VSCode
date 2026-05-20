@@ -61,7 +61,7 @@ This automation reduces the manual surface, but it does **not** replace human
 verification of visual UX, screenshots/GIFs, or "does this feel right in the
 editor" checks.
 
-`v0.1.0-alpha.5` has already been published; use the table below to record post-release dogfood for those assets and to avoid repeating that gap on the next release. The intended minimum rule remains:
+`v0.1.0-alpha.6` has already been published; use the table below to record post-release dogfood for those assets and to avoid repeating that gap on the next release. The intended minimum rule remains:
 
 - Windows x64: quick dogfood transcript passed.
 - Linux x64: quick dogfood transcript passed.
@@ -69,13 +69,13 @@ editor" checks.
 
 | Platform | Candidate asset | Result | Evidence / issue |
 | --- | --- | --- | --- |
-| Windows x64 | `isabelle-pide-vscode-0.1.0-alpha.5-win32-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
-| Linux x64 | `isabelle-pide-vscode-0.1.0-alpha.5-linux-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
-| macOS arm64 | `isabelle-pide-vscode-0.1.0-alpha.5-darwin-arm64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+| Windows x64 | `isabelle-pide-vscode-0.1.0-alpha.6-win32-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+| Linux x64 | `isabelle-pide-vscode-0.1.0-alpha.6-linux-x64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
+| macOS arm64 | `isabelle-pide-vscode-0.1.0-alpha.6-darwin-arm64.vsix` | Pending | Tracked by [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90) |
 
 Known issues for the candidate:
 
-- Pending: no platform has recorded the VS Code-hosted smoke transcript for `v0.1.0-alpha.5` yet.
+- Pending: no platform has recorded the VS Code-hosted smoke transcript for `v0.1.0-alpha.6` yet.
 - Pending: walkthrough screenshots are tracked separately in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93).
 
 Optional local sanity check:
