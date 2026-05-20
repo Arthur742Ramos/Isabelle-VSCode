@@ -127,8 +127,9 @@ export class RepairService {
     const reviewAction = "Review Request";
     const sendAction = "Send Request";
     const cancelAction = "Cancel";
+    const requestBytes = Buffer.byteLength(request.requestMarkdown, "utf8");
     const firstChoice = await vscode.window.showWarningMessage(
-      `AI repair provider "${providerDisplayName}" will receive the full checked-repair request (${request.requestMarkdown.length} bytes). Review it before sending.`,
+      `AI repair provider "${providerDisplayName}" will receive the full checked-repair request (${requestBytes} bytes). Review it before sending.`,
       { modal: true },
       reviewAction,
       cancelAction
