@@ -13,7 +13,11 @@ import {
   DynamicOutputUpdate,
   PideDynamicOutputSession
 } from "./PideDynamicOutputSession";
-import { PideProofStateView, renderProofStateHtml } from "./proofStateRenderer";
+import {
+  DEFAULT_PROOF_STATE_STALE_AFTER_MS,
+  PideProofStateView,
+  renderProofStateHtml
+} from "./proofStateRenderer";
 import {
   DEFAULT_PROOF_STATE_SETTINGS,
   ProofStateSettings,
@@ -22,11 +26,11 @@ import {
 } from "./proofStateSettings";
 
 const PROOF_STATE_FRESHNESS_RENDER_INTERVAL_MS = 5_000;
-const PROOF_STATE_STALE_AFTER_MS = 10_000;
 
 export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private view: vscode.WebviewView | undefined;
+  private viewVisibilityDisposable: vscode.Disposable | undefined;
   private refreshTimer: NodeJS.Timeout | undefined;
   private freshnessTimer: NodeJS.Timeout | undefined;
   private lastState: ProofStateResult | undefined;
@@ -87,8 +91,13 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.viewVisibilityDisposable?.dispose();
     this.view = webviewView;
+    this.viewVisibilityDisposable = webviewView.onDidChangeVisibility(() =>
+      this.updateFreshnessTicker()
+    );
     webviewView.webview.options = { enableScripts: false };
+    this.updateFreshnessTicker();
     this.render();
     if (this.shouldUseLspMode()) {
       this.requestLspRefresh();
@@ -154,6 +163,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       this.refreshTimer = undefined;
     }
     this.stopFreshnessTicker();
+    this.viewVisibilityDisposable?.dispose();
+    this.viewVisibilityDisposable = undefined;
     this.dynamicSession?.dispose();
     this.dynamicSession = undefined;
     this.lspSession?.dispose();
@@ -210,7 +221,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       (update) => this.handleDynamicUpdate(update)
     );
     this.output.appendLine("Proof state: LSP-mode session starting");
-    this.startFreshnessTicker();
+    this.updateFreshnessTicker();
     this.render();
     // Apply the configured settings as soon as the upstream session is
     // active. Margin pushes are tolerant of being sent before the
@@ -270,7 +281,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
         lastOutputReceivedAtMs: this.lspLastOutputReceivedAtMs,
         refreshRequestedAtMs: this.lspRefreshRequestedAtMs,
         nowMs: Date.now(),
-        staleAfterMs: PROOF_STATE_STALE_AFTER_MS
+        staleAfterMs: DEFAULT_PROOF_STATE_STALE_AFTER_MS
       };
       this.view.webview.html = renderProofStateHtml(this.lastState, pideView);
       return;
@@ -337,6 +348,14 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       this.render();
     }, PROOF_STATE_FRESHNESS_RENDER_INTERVAL_MS);
     this.freshnessTimer.unref?.();
+  }
+
+  private updateFreshnessTicker(): void {
+    if (this.view?.visible === true && this.lspSession !== undefined) {
+      this.startFreshnessTicker();
+    } else {
+      this.stopFreshnessTicker();
+    }
   }
 
   private stopFreshnessTicker(): void {

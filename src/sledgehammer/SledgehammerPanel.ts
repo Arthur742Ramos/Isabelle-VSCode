@@ -591,22 +591,7 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     const reason = status.lastError
       ? `Isabelle language server left running state (${status.state}): ${status.lastError}`
       : `Isabelle language server left running state (${status.state}).`;
-    this.activeLspSession.dispose();
-    this.activeLspSession = undefined;
-    this.activeLspRequestId = undefined;
-    if (this.lastResult && this.lastResult.requestId === requestId) {
-      this.lastResult = {
-        ...this.lastResult,
-        status: "failed",
-        message: reason,
-        raw: reason
-      };
-    }
-    this.history.recordFailure(requestId, reason, new Date().toISOString());
-    this.output.appendLine(`Sledgehammer (LSP) aborted: ${reason}`);
-    vscode.window.showWarningMessage(reason);
-    this.render();
-    this.updateContexts();
+    this.failActiveLspRun(requestId, reason);
   }
 
   private failActiveLspRun(requestId: string, reason: string): void {
