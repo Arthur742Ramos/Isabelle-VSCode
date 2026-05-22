@@ -284,6 +284,35 @@ describe("LspProofStateSession", () => {
       session.dispose();
     });
 
+    it("timestamps accepted output snapshots and preserves that timestamp across later emits", async () => {
+      const client = new FakeClient();
+      const { updates, handler } = record();
+      let clock = 10_000;
+      const session = new LspProofStateSession(
+        client,
+        new CollectingLogger(),
+        handler,
+        () => clock
+      );
+      await flushMicrotasks();
+      expect(updates[updates.length - 1].lastOutputReceivedAtMs).toBeUndefined();
+
+      client.emit(PIDE_STATE_OUTPUT_METHOD, {
+        id: 42,
+        content: "<information_message>fresh</information_message>",
+        auto_update: true
+      });
+      expect(updates[updates.length - 1].lastOutputReceivedAtMs).toBe(10_000);
+
+      clock = 12_000;
+      session.setAutoUpdate(false);
+      expect(updates[updates.length - 1].autoUpdate).toBe(false);
+      expect(updates[updates.length - 1].lastOutputReceivedAtMs).toBe(10_000);
+
+      session.dispose();
+      expect(updates[updates.length - 1].lastOutputReceivedAtMs).toBe(10_000);
+    });
+
     it("ignores malformed output payloads and logs once", async () => {
       const client = new FakeClient();
       const logger = new CollectingLogger();

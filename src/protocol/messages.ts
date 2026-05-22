@@ -244,6 +244,8 @@ export interface SledgehammerRunResult {
   requestId: string;
   uri: string;
   version?: number;
+  /** Cursor position captured when the request was dispatched. */
+  position?: ProtocolPosition;
   status: SledgehammerStatus;
   command?: CommandSpan;
   suggestions: SledgehammerSuggestion[];

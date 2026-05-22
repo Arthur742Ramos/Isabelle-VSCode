@@ -10,7 +10,8 @@ import {
 const OPTS = {
   requestId: "sledgehammer-lsp-1",
   uri: "file:///workspace/Demo.thy",
-  documentVersion: 42
+  documentVersion: 42,
+  position: { line: 5, character: 4 }
 };
 
 function makeUpdate(overrides: Partial<SessionUpdate> = {}): SessionUpdate {
@@ -73,11 +74,12 @@ describe("sendbacksToSuggestions", () => {
 });
 
 describe("convertSessionUpdateToRunResult", () => {
-  it("carries through the supplied requestId, uri, and document version", () => {
+  it("carries through the supplied requestId, uri, document version, and position", () => {
     const result = convertSessionUpdateToRunResult(makeUpdate(), OPTS);
     expect(result.requestId).toBe("sledgehammer-lsp-1");
     expect(result.uri).toBe("file:///workspace/Demo.thy");
     expect(result.version).toBe(42);
+    expect(result.position).toEqual({ line: 5, character: 4 });
   });
 
   it("maps the dispatching status with the canonical dispatched message", () => {
@@ -191,5 +193,6 @@ describe("convertSessionUpdateToRunResult", () => {
       { requestId: "sledgehammer-lsp-2", uri: "file:///A.thy" }
     );
     expect(result.version).toBeUndefined();
+    expect(result.position).toBeUndefined();
   });
 });

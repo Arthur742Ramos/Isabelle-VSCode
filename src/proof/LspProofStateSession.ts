@@ -73,6 +73,8 @@ export interface ProofStateUpdate {
   readonly outputNodes: readonly PideOutputNode[];
   /** Most recent value of `auto_update` from the server, defaults to true. */
   readonly autoUpdate: boolean;
+  /** Wall-clock timestamp for the last accepted PIDE/state_output payload. */
+  readonly lastOutputReceivedAtMs?: number;
   /** Last error message if `status === 'errored'`, undefined otherwise. */
   readonly errorMessage?: string;
 }
@@ -103,6 +105,7 @@ export class LspProofStateSession implements ProofStateDisposable {
   private accumulatedOutputNodes: readonly PideOutputNode[] = [];
   private currentAutoUpdate = true;
   private errorMessage: string | undefined;
+  private lastOutputReceivedAtMs: number | undefined;
   private outputSubscription: ProofStateDisposable | undefined;
   private stateId: number | undefined;
   private disposed = false;
@@ -110,7 +113,8 @@ export class LspProofStateSession implements ProofStateDisposable {
   public constructor(
     private readonly client: ProofStateLspClient,
     private readonly logger: ProofStateLogger,
-    private readonly onUpdate: ProofStateUpdateHandler
+    private readonly onUpdate: ProofStateUpdateHandler,
+    private readonly now: () => number = Date.now
   ) {
     // Subscribe early; the server can start pushing output as soon as
     // it processes the init request, and the underlying registry
@@ -255,6 +259,7 @@ export class LspProofStateSession implements ProofStateDisposable {
     // Same snapshot-replacement semantics as PIDE/sledgehammer_output.
     this.accumulatedOutputNodes = parsePideSledgehammerOutput(params.content);
     this.currentAutoUpdate = params.auto_update;
+    this.lastOutputReceivedAtMs = this.now();
     this.emit();
   }
 
@@ -278,6 +283,7 @@ export class LspProofStateSession implements ProofStateDisposable {
         status: this.currentStatus,
         outputNodes: this.accumulatedOutputNodes,
         autoUpdate: this.currentAutoUpdate,
+        lastOutputReceivedAtMs: this.lastOutputReceivedAtMs,
         errorMessage: this.errorMessage
       });
     } catch (error) {

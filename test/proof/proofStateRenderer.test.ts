@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { renderProofStateHtml } from "../../src/proof/proofStateRenderer";
+import {
+  formatProofStateFreshness,
+  renderProofStateHtml
+} from "../../src/proof/proofStateRenderer";
 
 describe("renderProofStateHtml", () => {
   it("renders an empty proof-state prompt", () => {
@@ -56,11 +59,14 @@ describe("renderProofStateHtml", () => {
           ]
         }
       ],
-      autoUpdate: true
+      autoUpdate: true,
+      lastOutputReceivedAtMs: 1_000,
+      nowMs: 1_000
     });
 
     expect(html).toContain("Live proof state from <code>isabelle vscode_server</code>");
     expect(html).toContain("auto-update on");
+    expect(html).toContain("Latest PIDE state received just now.");
     expect(html).not.toContain("auto-update off");
     expect(html).toContain('class="pide-sledgehammer-message pide-sledgehammer-information"');
     expect(html).toContain('data-pide-sendback="by auto"');
@@ -71,7 +77,8 @@ describe("renderProofStateHtml", () => {
   it("flips the auto-update banner when the server reports auto_update=false", () => {
     const html = renderProofStateHtml(undefined, {
       outputNodes: [],
-      autoUpdate: false
+      autoUpdate: false,
+      nowMs: 1_000
     });
     expect(html).toContain("auto-update off");
     expect(html).not.toContain("auto-update on");
@@ -80,15 +87,18 @@ describe("renderProofStateHtml", () => {
   it("shows a 'waiting' placeholder when the PIDE view has no output yet", () => {
     const html = renderProofStateHtml(undefined, {
       outputNodes: [],
-      autoUpdate: true
+      autoUpdate: true,
+      nowMs: 1_000
     });
     expect(html).toContain("Waiting for isabelle vscode_server");
+    expect(html).toContain("No PIDE proof-state snapshot has arrived yet.");
   });
 
   it("surfaces the PIDE status caption and error sections when supplied", () => {
     const html = renderProofStateHtml(undefined, {
       outputNodes: [],
       autoUpdate: true,
+      nowMs: 1_000,
       status: "Initialising PIDE state panel...",
       errorMessage: "PIDE/state_init failed: boom"
     });
@@ -101,6 +111,7 @@ describe("renderProofStateHtml", () => {
     const html = renderProofStateHtml(undefined, {
       outputNodes: [],
       autoUpdate: false,
+      nowMs: 1_000,
       status: "broken <state>",
       errorMessage: "<script>alert(1)</script>"
     });
@@ -124,7 +135,9 @@ describe("renderProofStateHtml", () => {
       },
       {
         outputNodes: [{ kind: "text", text: "live" }],
-        autoUpdate: true
+        autoUpdate: true,
+        lastOutputReceivedAtMs: 1_000,
+        nowMs: 1_000
       }
     );
     expect(html).not.toContain("leftover raw");
@@ -137,6 +150,8 @@ describe("renderProofStateHtml", () => {
     const html = renderProofStateHtml(undefined, {
       outputNodes: [{ kind: "text", text: "main" }],
       autoUpdate: true,
+      lastOutputReceivedAtMs: 1_000,
+      nowMs: 1_000,
       dynamicOutputNodes: [
         {
           kind: "warning",
@@ -152,15 +167,41 @@ describe("renderProofStateHtml", () => {
   it("omits the Dynamic output section when the snapshot is empty or undefined", () => {
     const noSnapshot = renderProofStateHtml(undefined, {
       outputNodes: [],
-      autoUpdate: true
+      autoUpdate: true,
+      nowMs: 1_000
     });
     expect(noSnapshot).not.toContain("Dynamic output (caret-driven)");
 
     const emptySnapshot = renderProofStateHtml(undefined, {
       outputNodes: [],
       autoUpdate: true,
+      nowMs: 1_000,
       dynamicOutputNodes: []
     });
     expect(emptySnapshot).not.toContain("Dynamic output (caret-driven)");
+  });
+
+  it("marks the PIDE view as refresh-pending when the latest request is newer than the output", () => {
+    const freshness = formatProofStateFreshness({
+      lastOutputReceivedAtMs: 1_000,
+      refreshRequestedAtMs: 5_000,
+      nowMs: 6_500,
+      staleAfterMs: 10_000
+    });
+    expect(freshness.tone).toBe("warning");
+    expect(freshness.message).toContain("Refresh pending for 1s");
+    expect(freshness.message).toContain("5s ago");
+  });
+
+  it("marks old PIDE snapshots as warning-level freshness", () => {
+    const freshness = formatProofStateFreshness({
+      lastOutputReceivedAtMs: 1_000,
+      nowMs: 12_000,
+      staleAfterMs: 10_000
+    });
+    expect(freshness).toEqual({
+      tone: "warning",
+      message: "Latest PIDE state received 11s ago; re-anchor if this no longer matches the cursor."
+    });
   });
 });

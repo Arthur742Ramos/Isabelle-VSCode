@@ -55,9 +55,24 @@ function renderResult(
     <p><span class="status ${escapeHtml(result.status)}">${escapeHtml(result.status)}</span></p>
     ${result.message ? `<p class="muted">${escapeHtml(result.message)}</p>` : ""}
     <p><strong>Request:</strong> <code>${escapeHtml(result.requestId || "not started")}</code></p>
+    ${renderRunProvenance(result)}
     ${command}
     ${renderSuggestions(result.suggestions)}
     ${renderBackendBoundary(result, outputNodes)}`;
+}
+
+function renderRunProvenance(result: SledgehammerRunResult): string {
+  const parts: string[] = [];
+  if (result.position) {
+    parts.push(`cursor line ${result.position.line + 1}, column ${result.position.character + 1}`);
+  }
+  if (result.version !== undefined) {
+    parts.push(`document version ${result.version}`);
+  }
+  if (parts.length === 0) {
+    return "";
+  }
+  return `<p class="muted"><strong>Provenance:</strong> ${escapeHtml(parts.join("; "))}.</p>`;
 }
 
 function renderBackendBoundary(
