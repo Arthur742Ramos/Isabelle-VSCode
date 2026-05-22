@@ -27,6 +27,7 @@
 //     consistently across both modes.
 
 import {
+  ProtocolPosition,
   SledgehammerRunResult,
   SledgehammerStatus,
   SledgehammerSuggestion
@@ -40,6 +41,8 @@ export interface ConvertSessionUpdateOptions {
   readonly uri: string;
   /** TextDocument.version captured at dispatch time. */
   readonly documentVersion?: number;
+  /** Cursor position captured at dispatch time. */
+  readonly position?: ProtocolPosition;
 }
 
 /**
@@ -57,6 +60,7 @@ export function convertSessionUpdateToRunResult(
     requestId: options.requestId,
     uri: options.uri,
     version: options.documentVersion,
+    position: options.position,
     status,
     suggestions,
     raw: update.statusMessage ?? "",

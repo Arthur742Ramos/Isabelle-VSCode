@@ -59,6 +59,22 @@ describe("renderSledgehammerHtml", () => {
     expect(html).toContain("by &lt;metis&gt;");
   });
 
+  it("renders one-based Sledgehammer request provenance", () => {
+    const html = renderSledgehammerHtml({
+      requestId: "sledgehammer-lsp-1",
+      uri: "file:///A.thy",
+      version: 42,
+      position: { line: 5, character: 4 },
+      status: "running",
+      suggestions: [],
+      raw: "running"
+    });
+
+    expect(html).toContain("Provenance:");
+    expect(html).toContain("cursor line 6, column 5");
+    expect(html).toContain("document version 42");
+  });
+
   it("omits the Recent runs section when history is empty", () => {
     const html = renderSledgehammerHtml(
       {

@@ -6,6 +6,14 @@ export interface PideProofStateView {
   readonly outputNodes: readonly PideOutputNode[];
   /** Whether the upstream State_Panel's auto-update is currently enabled. */
   readonly autoUpdate: boolean;
+  /** Wall-clock timestamp for the last accepted PIDE/state_output payload. */
+  readonly lastOutputReceivedAtMs?: number;
+  /** Wall-clock timestamp for the latest client-requested refresh. */
+  readonly refreshRequestedAtMs?: number;
+  /** Testable current wall-clock timestamp used for freshness rendering. */
+  readonly nowMs?: number;
+  /** Age after which a received snapshot is called out as old. */
+  readonly staleAfterMs?: number;
   /** Optional human-readable status caption. */
   readonly status?: string;
   /** Optional error message; rendered as a warning section. */
@@ -16,6 +24,22 @@ export interface PideProofStateView {
    * the main proof state. Empty / undefined hides the section.
    */
   readonly dynamicOutputNodes?: readonly PideOutputNode[];
+}
+
+export const DEFAULT_PROOF_STATE_STALE_AFTER_MS = 10_000;
+
+export type ProofStateFreshnessTone = "info" | "warning";
+
+export interface ProofStateFreshnessSnapshot {
+  readonly lastOutputReceivedAtMs?: number;
+  readonly refreshRequestedAtMs?: number;
+  readonly nowMs: number;
+  readonly staleAfterMs?: number;
+}
+
+export interface ProofStateFreshness {
+  readonly tone: ProofStateFreshnessTone;
+  readonly message: string;
 }
 
 export function renderProofStateHtml(
@@ -46,6 +70,9 @@ export function renderProofStateHtml(
     .pide-sledgehammer-sendback { background: var(--vscode-textCodeBlock-background); padding: 1px 4px; border-radius: 2px; }
     .pide-sledgehammer-text { white-space: pre-wrap; }
     .lsp-banner { background: var(--vscode-editorInfo-background); border-left: 3px solid var(--vscode-editorInfo-foreground); padding: 6px 8px; margin-bottom: 10px; }
+    .freshness { border-left: 3px solid var(--vscode-editorInfo-foreground); padding: 4px 8px; margin: 8px 0; }
+    .freshness-warning { border-left-color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground); }
+    .freshness-info { background: var(--vscode-textBlockQuote-background); }
     .auto-update-on { color: var(--vscode-testing-iconPassed); }
     .auto-update-off { color: var(--vscode-testing-iconQueued); }
   </style>
@@ -58,6 +85,7 @@ function renderPideState(view: PideProofStateView, state: ProofStateResult | und
   const autoClass = view.autoUpdate ? "auto-update-on" : "auto-update-off";
   const autoLabel = view.autoUpdate ? "auto-update on" : "auto-update off";
   const banner = `<div class="lsp-banner">Live proof state from <code>isabelle vscode_server</code> (PIDE state panel) — <span class="${autoClass}">${autoLabel}</span>.</div>`;
+  const freshness = renderFreshness(view);
 
   const command = state?.command
     ? `<p><strong>Current command:</strong> <code>${escapeHtml(state.command.kind)}${state.command.name ? ` ${escapeHtml(state.command.name)}` : ""}</code></p>`
@@ -80,7 +108,58 @@ function renderPideState(view: PideProofStateView, state: ProofStateResult | und
       ? `<div class="section"><h3>Dynamic output (caret-driven)</h3>${renderPideOutputHtml(view.dynamicOutputNodes)}</div>`
       : "";
 
-  return `<h2>Proof State</h2>${banner}${status}${command}${pideBody}${dynamicBody}${error}`;
+  return `<h2>Proof State</h2>${banner}${freshness}${status}${command}${pideBody}${dynamicBody}${error}`;
+}
+
+export function formatProofStateFreshness(
+  snapshot: ProofStateFreshnessSnapshot
+): ProofStateFreshness {
+  const staleAfterMs = snapshot.staleAfterMs ?? DEFAULT_PROOF_STATE_STALE_AFTER_MS;
+  const lastOutput = snapshot.lastOutputReceivedAtMs;
+  const refreshRequested = snapshot.refreshRequestedAtMs;
+  if (lastOutput === undefined) {
+    if (refreshRequested !== undefined) {
+      return {
+        tone: "warning",
+        message: `No PIDE proof-state snapshot has arrived yet; refresh requested ${formatElapsed(snapshot.nowMs - refreshRequested)}.`
+      };
+    }
+    return {
+      tone: "warning",
+      message: "No PIDE proof-state snapshot has arrived yet."
+    };
+  }
+
+  const outputAgeMs = Math.max(0, snapshot.nowMs - lastOutput);
+  if (refreshRequested !== undefined && refreshRequested > lastOutput) {
+    const refreshAgeMs = Math.max(0, snapshot.nowMs - refreshRequested);
+    return {
+      tone: "warning",
+      message: `Refresh pending for ${formatDuration(refreshAgeMs)}: showing previous PIDE state from ${formatElapsed(outputAgeMs)} until isabelle vscode_server publishes the current caret state.`
+    };
+  }
+
+  if (outputAgeMs >= staleAfterMs) {
+    return {
+      tone: "warning",
+      message: `Latest PIDE state received ${formatElapsed(outputAgeMs)}; re-anchor if this no longer matches the cursor.`
+    };
+  }
+
+  return {
+    tone: "info",
+    message: `Latest PIDE state received ${formatElapsed(outputAgeMs)}.`
+  };
+}
+
+function renderFreshness(view: PideProofStateView): string {
+  const freshness = formatProofStateFreshness({
+    lastOutputReceivedAtMs: view.lastOutputReceivedAtMs,
+    refreshRequestedAtMs: view.refreshRequestedAtMs,
+    nowMs: view.nowMs ?? Date.now(),
+    staleAfterMs: view.staleAfterMs
+  });
+  return `<p class="freshness freshness-${freshness.tone}">${escapeHtml(freshness.message)}</p>`;
 }
 
 function renderState(state: ProofStateResult): string {
@@ -132,4 +211,32 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function formatElapsed(elapsedMs: number): string {
+  const safeMs = Math.max(0, elapsedMs);
+  if (safeMs < 1_000) {
+    return "just now";
+  }
+  if (safeMs < 60_000) {
+    return `${Math.floor(safeMs / 1_000)}s ago`;
+  }
+  if (safeMs < 3_600_000) {
+    return `${Math.floor(safeMs / 60_000)}m ago`;
+  }
+  return `${Math.floor(safeMs / 3_600_000)}h ago`;
+}
+
+function formatDuration(elapsedMs: number): string {
+  const safeMs = Math.max(0, elapsedMs);
+  if (safeMs < 1_000) {
+    return "less than 1s";
+  }
+  if (safeMs < 60_000) {
+    return `${Math.floor(safeMs / 1_000)}s`;
+  }
+  if (safeMs < 3_600_000) {
+    return `${Math.floor(safeMs / 60_000)}m`;
+  }
+  return `${Math.floor(safeMs / 3_600_000)}h`;
 }

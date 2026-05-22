@@ -13,7 +13,11 @@ import {
   DynamicOutputUpdate,
   PideDynamicOutputSession
 } from "./PideDynamicOutputSession";
-import { PideProofStateView, renderProofStateHtml } from "./proofStateRenderer";
+import {
+  DEFAULT_PROOF_STATE_STALE_AFTER_MS,
+  PideProofStateView,
+  renderProofStateHtml
+} from "./proofStateRenderer";
 import {
   DEFAULT_PROOF_STATE_SETTINGS,
   ProofStateSettings,
@@ -21,10 +25,14 @@ import {
   readProofStateSettings
 } from "./proofStateSettings";
 
+const PROOF_STATE_FRESHNESS_RENDER_INTERVAL_MS = 5_000;
+
 export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private view: vscode.WebviewView | undefined;
+  private viewVisibilityDisposable: vscode.Disposable | undefined;
   private refreshTimer: NodeJS.Timeout | undefined;
+  private freshnessTimer: NodeJS.Timeout | undefined;
   private lastState: ProofStateResult | undefined;
 
   private lspSession: LspProofStateSession | undefined;
@@ -32,6 +40,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private lspAutoUpdate = true;
   private lspStatus: ProofStateSessionStatus | undefined;
   private lspError: string | undefined;
+  private lspLastOutputReceivedAtMs: number | undefined;
+  private lspRefreshRequestedAtMs: number | undefined;
 
   private dynamicSession: PideDynamicOutputSession | undefined;
   private dynamicOutputNodes: readonly PideOutputNode[] = [];
@@ -81,11 +91,16 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.viewVisibilityDisposable?.dispose();
     this.view = webviewView;
+    this.viewVisibilityDisposable = webviewView.onDidChangeVisibility(() =>
+      this.updateFreshnessTicker()
+    );
     webviewView.webview.options = { enableScripts: false };
+    this.updateFreshnessTicker();
     this.render();
     if (this.shouldUseLspMode()) {
-      this.lspSession?.requestUpdate();
+      this.requestLspRefresh();
     } else {
       void this.refresh();
     }
@@ -100,7 +115,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       // In LSP mode, refresh is push-driven by PIDE/state_output. We
       // can ask for an immediate recompute via PIDE/state_update;
       // the new payload will arrive asynchronously.
-      this.lspSession.requestUpdate();
+      this.requestLspRefresh();
       this.render();
       return;
     }
@@ -147,6 +162,9 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       clearTimeout(this.refreshTimer);
       this.refreshTimer = undefined;
     }
+    this.stopFreshnessTicker();
+    this.viewVisibilityDisposable?.dispose();
+    this.viewVisibilityDisposable = undefined;
     this.dynamicSession?.dispose();
     this.dynamicSession = undefined;
     this.lspSession?.dispose();
@@ -189,6 +207,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     this.lspAutoUpdate = this.appliedSettings.autoUpdate;
     this.lspStatus = "initializing";
     this.lspError = undefined;
+    this.lspLastOutputReceivedAtMs = undefined;
+    this.lspRefreshRequestedAtMs = undefined;
     this.lspSession = new LspProofStateSession(
       this.languageClient,
       this.output,
@@ -201,6 +221,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       (update) => this.handleDynamicUpdate(update)
     );
     this.output.appendLine("Proof state: LSP-mode session starting");
+    this.updateFreshnessTicker();
     this.render();
     // Apply the configured settings as soon as the upstream session is
     // active. Margin pushes are tolerant of being sent before the
@@ -212,6 +233,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private stopLspSession(): void {
     if (!this.lspSession) return;
     this.output.appendLine("Proof state: LSP-mode session stopping");
+    this.stopFreshnessTicker();
     this.dynamicSession?.dispose();
     this.dynamicSession = undefined;
     this.dynamicOutputNodes = [];
@@ -220,6 +242,8 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     this.lspOutputNodes = [];
     this.lspStatus = undefined;
     this.lspError = undefined;
+    this.lspLastOutputReceivedAtMs = undefined;
+    this.lspRefreshRequestedAtMs = undefined;
     this.render();
     // Fall back to the backend path so the user sees something useful
     // instead of an empty panel.
@@ -231,6 +255,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     this.lspAutoUpdate = update.autoUpdate;
     this.lspStatus = update.status;
     this.lspError = update.errorMessage;
+    this.lspLastOutputReceivedAtMs = update.lastOutputReceivedAtMs;
     if (update.status === "errored") {
       this.output.appendLine(
         `Proof state LSP session errored: ${update.errorMessage ?? "unknown error"}`
@@ -252,7 +277,11 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
         autoUpdate: this.lspAutoUpdate,
         status: pideStatusCaption(this.lspStatus),
         errorMessage: this.lspError,
-        dynamicOutputNodes: this.dynamicOutputNodes
+        dynamicOutputNodes: this.dynamicOutputNodes,
+        lastOutputReceivedAtMs: this.lspLastOutputReceivedAtMs,
+        refreshRequestedAtMs: this.lspRefreshRequestedAtMs,
+        nowMs: Date.now(),
+        staleAfterMs: DEFAULT_PROOF_STATE_STALE_AFTER_MS
       };
       this.view.webview.html = renderProofStateHtml(this.lastState, pideView);
       return;
@@ -306,6 +335,33 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
     return readProofStateSettings({
       get: <T>(section: string) => config.get<T>(section)
     });
+  }
+
+  private requestLspRefresh(): void {
+    this.lspRefreshRequestedAtMs = Date.now();
+    this.lspSession?.requestUpdate();
+  }
+
+  private startFreshnessTicker(): void {
+    if (this.freshnessTimer) return;
+    this.freshnessTimer = setInterval(() => {
+      this.render();
+    }, PROOF_STATE_FRESHNESS_RENDER_INTERVAL_MS);
+    this.freshnessTimer.unref?.();
+  }
+
+  private updateFreshnessTicker(): void {
+    if (this.view?.visible === true && this.lspSession !== undefined) {
+      this.startFreshnessTicker();
+    } else {
+      this.stopFreshnessTicker();
+    }
+  }
+
+  private stopFreshnessTicker(): void {
+    if (!this.freshnessTimer) return;
+    clearInterval(this.freshnessTimer);
+    this.freshnessTimer = undefined;
   }
 }
 
