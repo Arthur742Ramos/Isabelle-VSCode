@@ -56,7 +56,8 @@ describe("readSledgehammerSettings", () => {
       provers: "",
       isar: false,
       try0: true,
-      quiescenceDelayMs: 1500
+      quiescenceDelayMs: 1500,
+      validateInsertedProof: true
     });
   });
 
@@ -65,13 +66,15 @@ describe("readSledgehammerSettings", () => {
       "sledgehammer.provers": " cvc5 verit ",
       "sledgehammer.isar": true,
       "sledgehammer.try0": false,
-      "sledgehammer.quiescenceDelayMs": 3000
+      "sledgehammer.quiescenceDelayMs": 3000,
+      "sledgehammer.validateInsertedProof": false
     });
     expect(readSledgehammerSettings(config)).toEqual({
       provers: "cvc5 verit",
       isar: true,
       try0: false,
-      quiescenceDelayMs: 3000
+      quiescenceDelayMs: 3000,
+      validateInsertedProof: false
     });
   });
 
@@ -117,6 +120,27 @@ describe("readSledgehammerSettings", () => {
     expect(
       readSledgehammerSettings(makeConfig({ "sledgehammer.quiescenceDelayMs": NaN })).quiescenceDelayMs
     ).toBe(1500);
+  });
+
+  it("coerces non-boolean validateInsertedProof values to the default (true)", () => {
+    expect(
+      readSledgehammerSettings(
+        makeConfig({ "sledgehammer.validateInsertedProof": "false" as unknown as boolean })
+      ).validateInsertedProof
+    ).toBe(true);
+    expect(
+      readSledgehammerSettings(
+        makeConfig({ "sledgehammer.validateInsertedProof": 0 as unknown as boolean })
+      ).validateInsertedProof
+    ).toBe(true);
+  });
+
+  it("honors an explicit validateInsertedProof=false override", () => {
+    expect(
+      readSledgehammerSettings(
+        makeConfig({ "sledgehammer.validateInsertedProof": false })
+      ).validateInsertedProof
+    ).toBe(false);
   });
 });
 
@@ -179,7 +203,7 @@ describe("resolveSledgehammerProvers", () => {
 describe("buildPideSledgehammerRequestParams", () => {
   it("forwards isar and try0 from the settings verbatim", () => {
     const params = buildPideSledgehammerRequestParams(
-      { provers: "cvc5", isar: true, try0: false },
+      { provers: "cvc5", isar: true, try0: false, quiescenceDelayMs: 0, validateInsertedProof: true },
       "verit"
     );
     expect(params).toEqual({ provers: "cvc5", isar: true, try0: false });
@@ -187,7 +211,7 @@ describe("buildPideSledgehammerRequestParams", () => {
 
   it("uses the fallback prover list when settings.provers is empty", () => {
     const params = buildPideSledgehammerRequestParams(
-      { provers: "", isar: false, try0: true },
+      { provers: "", isar: false, try0: true, quiescenceDelayMs: 0, validateInsertedProof: true },
       "cvc5 verit z3 e spass vampire zipperposition"
     );
     expect(params.provers).toBe("cvc5 verit z3 e spass vampire zipperposition");
@@ -198,7 +222,7 @@ describe("buildPideSledgehammerRequestParams", () => {
     // server pick its own defaults". The builder must NOT invent a
     // prover list of its own.
     const params = buildPideSledgehammerRequestParams(
-      { provers: "", isar: false, try0: true },
+      { provers: "", isar: false, try0: true, quiescenceDelayMs: 0, validateInsertedProof: true },
       ""
     );
     expect(params.provers).toBe("");
@@ -206,7 +230,7 @@ describe("buildPideSledgehammerRequestParams", () => {
 
   it("accepts undefined fallback as 'no cached list available'", () => {
     const params = buildPideSledgehammerRequestParams(
-      { provers: "cvc5", isar: false, try0: true },
+      { provers: "cvc5", isar: false, try0: true, quiescenceDelayMs: 0, validateInsertedProof: true },
       undefined
     );
     expect(params.provers).toBe("cvc5");

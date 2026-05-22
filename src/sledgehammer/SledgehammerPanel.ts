@@ -31,7 +31,22 @@ import {
   SledgehammerQuickPickItem
 } from "./sledgehammerQuickPick";
 import { renderSledgehammerHtml } from "./sledgehammerRenderer";
-import { readSledgehammerSettings } from "./sledgehammerSettings";
+import {
+  readSledgehammerSettings,
+  SledgehammerSettings
+} from "./sledgehammerSettings";
+import {
+  computeInsertedRange,
+  countInsertedLines,
+  createVscodeDiagnosticsSource,
+  getValidationDiagnostics
+} from "./insertionValidationAdapter";
+import { InsertionValidationWatcher } from "./insertionValidationWatcher";
+import { ValidationOutcome } from "./proofInsertValidation";
+
+const INSERT_VALIDATION_SETTLE_MS = 750;
+const INSERT_VALIDATION_MAX_WAIT_MS = 8_000;
+const UNDO_INSERTION_ACTION = "Undo Insertion";
 
 interface ExecuteRunOverrides {
   sessionName?: string;
@@ -251,11 +266,33 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       return;
     }
 
+    const insertPosition = editor.selection.active;
+    const settings = readSledgehammerSettings(vscode.workspace.getConfiguration("isabelle"));
+    const validation = this.beginInsertValidation(editor.document.uri.toString(), insertPosition.line, settings);
+
     const inserted = await editor.edit((edit) => {
-      edit.insert(editor.selection.active, proofText);
+      edit.insert(insertPosition, proofText);
     });
-    if (inserted) {
-      vscode.window.showInformationMessage("Inserted Sledgehammer proof suggestion.");
+    if (!inserted) {
+      validation?.watcher.dispose();
+      return;
+    }
+
+    const insertedRange = computeInsertedRange(insertPosition, proofText);
+    const postVersion = editor.document.version;
+    vscode.window.showInformationMessage("Inserted Sledgehammer proof suggestion.");
+    if (validation) {
+      void this.finishInsertValidation(
+        validation,
+        editor.document.uri,
+        insertPosition.line,
+        countInsertedLines(proofText),
+        insertedRange,
+        postVersion
+      ).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.output.appendLine(`Sledgehammer insert validation crashed: ${message}`);
+      });
     }
   }
 
@@ -345,6 +382,139 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     return this.languageClient?.getStatus().state === "running";
   }
 
+  /**
+   * Capture diagnostics for `uri` and build a watcher that subscribes
+   * BEFORE the edit is applied. Returns the watcher + baseline, or
+   * `undefined` when the user has opted out via
+   * `isabelle.sledgehammer.validateInsertedProof`.
+   *
+   * Production callers MUST either pass the returned `watcher` to
+   * `finishInsertValidation`, or call `watcher.dispose()` directly if
+   * the edit never lands — otherwise the diagnostic subscription
+   * leaks until the watcher's max-wait timer fires.
+   */
+  private beginInsertValidation(
+    uri: string,
+    insertionLine: number,
+    settings: SledgehammerSettings
+  ): { watcher: InsertionValidationWatcher; baseline: ReturnType<typeof getValidationDiagnostics> } | undefined {
+    if (!settings.validateInsertedProof) {
+      return undefined;
+    }
+    void insertionLine; // captured by finishInsertValidation; passed through here for symmetry
+    const baseline = getValidationDiagnostics(uri);
+    const watcher = new InsertionValidationWatcher(
+      createVscodeDiagnosticsSource(),
+      this.output
+    );
+    return { watcher, baseline };
+  }
+
+  /**
+   * After a successful edit, drive the watcher to completion and act
+   * on its outcome. On a detected regression, surface a warning toast
+   * with an `Undo Insertion` action that deletes the exact inserted
+   * range — but only if the document version still matches
+   * `postVersion`, so we never undo edits the user made on top of the
+   * inserted proof.
+   */
+  private async finishInsertValidation(
+    state: { watcher: InsertionValidationWatcher; baseline: ReturnType<typeof getValidationDiagnostics> },
+    uri: vscode.Uri,
+    insertionLine: number,
+    insertedLineCount: number,
+    insertedRange: vscode.Range,
+    postVersion: number
+  ): Promise<void> {
+    let outcome: ValidationOutcome;
+    try {
+      outcome = await state.watcher.start({
+        uri: uri.toString(),
+        baseline: state.baseline,
+        insertionLine,
+        insertedLineCount,
+        settleMs: INSERT_VALIDATION_SETTLE_MS,
+        maxWaitMs: INSERT_VALIDATION_MAX_WAIT_MS
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`Sledgehammer insert validation: ${message}`);
+      return;
+    }
+
+    if (outcome.kind === "no-regression") {
+      this.output.appendLine(
+        "Sledgehammer insert validation: no new errors detected at or after the insertion."
+      );
+      return;
+    }
+    if (outcome.kind === "still-processing") {
+      this.output.appendLine(
+        "Sledgehammer insert validation: still processing after the wait window; no decision."
+      );
+      return;
+    }
+
+    const errorCount = outcome.newErrors.length;
+    const summary = errorCount === 1
+      ? "Sledgehammer insertion introduced 1 new error after the insertion."
+      : `Sledgehammer insertion introduced ${errorCount} new errors after the insertion.`;
+    this.output.appendLine(`${summary} New errors:`);
+    for (const error of outcome.newErrors) {
+      this.output.appendLine(
+        `  line ${error.range.start.line + 1}: ${error.message}`
+      );
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      summary,
+      { modal: false },
+      UNDO_INSERTION_ACTION
+    );
+    if (choice !== UNDO_INSERTION_ACTION) {
+      return;
+    }
+    await this.undoInsertion(uri, insertedRange, postVersion);
+  }
+
+  /**
+   * Undo a previously-validated insertion by deleting the exact
+   * inserted range, but only if the live document version is still
+   * `expectedVersion`. If the user has edited the document since
+   * insertion, refuse the undo to avoid clobbering their changes.
+   */
+  private async undoInsertion(
+    uri: vscode.Uri,
+    insertedRange: vscode.Range,
+    expectedVersion: number
+  ): Promise<void> {
+    let document: vscode.TextDocument;
+    try {
+      document = await vscode.workspace.openTextDocument(uri);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`Sledgehammer undo failed: unable to open ${uri.toString()}: ${message}`);
+      vscode.window.showWarningMessage("Sledgehammer undo failed: theory could not be opened.");
+      return;
+    }
+    if (document.version !== expectedVersion) {
+      vscode.window.showWarningMessage(
+        "Sledgehammer undo: theory changed since insertion; refusing to undo to avoid clobbering your edits."
+      );
+      return;
+    }
+    const edit = new vscode.WorkspaceEdit();
+    edit.delete(uri, insertedRange);
+    const applied = await vscode.workspace.applyEdit(edit);
+    if (applied) {
+      vscode.window.showInformationMessage("Undid Sledgehammer proof insertion.");
+    } else {
+      vscode.window.showWarningMessage(
+        "Sledgehammer undo: VS Code rejected the workspace edit."
+      );
+    }
+  }
+
   private async insertSuggestionViaLspSendback(
     expectedUri: string,
     expectedVersion: number | undefined,
@@ -395,18 +565,37 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
 
     const editor = await vscode.window.showTextDocument(document);
     const position = new vscode.Position(payload.line, payload.character);
+    const settings = readSledgehammerSettings(vscode.workspace.getConfiguration("isabelle"));
+    const validation = this.beginInsertValidation(payload.uri, payload.line, settings);
 
     const inserted = await editor.edit((edit) => {
       edit.insert(position, payload.text);
     });
-    if (inserted) {
-      vscode.window.showInformationMessage(
-        "Inserted Sledgehammer proof suggestion at the position computed by isabelle vscode_server."
-      );
-    } else {
+    if (!inserted) {
+      validation?.watcher.dispose();
       vscode.window.showWarningMessage(
         "Sledgehammer insert: VS Code rejected the workspace edit."
       );
+      return;
+    }
+
+    const insertedRange = computeInsertedRange(position, payload.text);
+    const postVersion = editor.document.version;
+    vscode.window.showInformationMessage(
+      "Inserted Sledgehammer proof suggestion at the position computed by isabelle vscode_server."
+    );
+    if (validation) {
+      void this.finishInsertValidation(
+        validation,
+        editor.document.uri,
+        payload.line,
+        countInsertedLines(payload.text),
+        insertedRange,
+        postVersion
+      ).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.output.appendLine(`Sledgehammer insert validation crashed: ${message}`);
+      });
     }
   }
 

@@ -71,7 +71,9 @@ class CollectingLogger implements SessionLogger {
 const DEFAULT_SETTINGS: SledgehammerSettings = {
   provers: "",
   isar: false,
-  try0: true
+  try0: true,
+  quiescenceDelayMs: 0,
+  validateInsertedProof: true
 };
 
 function makeInputs(overrides: Partial<SessionInputs> = {}): SessionInputs {
@@ -162,7 +164,7 @@ describe("LspSledgehammerSession", () => {
         client,
         new CollectingLogger(),
         makeInputs({
-          settings: { provers: " cvc5  verit ", isar: true, try0: false },
+          settings: { provers: " cvc5  verit ", isar: true, try0: false, quiescenceDelayMs: 0, validateInsertedProof: true },
           fallbackProvers: "z3 e"
         }),
         () => {}

@@ -41,6 +41,14 @@ export interface SledgehammerSettings {
    * bad workspace setting cannot hang the panel.
    */
   readonly quiescenceDelayMs: number;
+  /**
+   * When true (the default), the panel watches diagnostics after
+   * inserting a Sledgehammer-suggested proof and surfaces a warning +
+   * "Undo Insertion" action if new errors appear at or after the
+   * insertion line. Users who want fire-and-forget can disable this
+   * gate.
+   */
+  readonly validateInsertedProof: boolean;
 }
 
 /**
@@ -58,17 +66,19 @@ const SETTING_PROVERS = "sledgehammer.provers";
 const SETTING_ISAR = "sledgehammer.isar";
 const SETTING_TRY0 = "sledgehammer.try0";
 const SETTING_QUIESCENCE_DELAY_MS = "sledgehammer.quiescenceDelayMs";
+const SETTING_VALIDATE_INSERTED_PROOF = "sledgehammer.validateInsertedProof";
 
 const DEFAULT_QUIESCENCE_DELAY_MS = 1500;
 const MAX_QUIESCENCE_DELAY_MS = 30_000;
+const DEFAULT_VALIDATE_INSERTED_PROOF = true;
 
 /**
  * Read the `isabelle.sledgehammer.*` settings from a VS Code-like
  * configuration source. Hostile or unexpected types are coerced to
  * safe defaults: a non-string `provers` value becomes an empty string,
- * non-boolean isar/try0 values fall back to their schema defaults
- * (false and true respectively), and a non-finite, negative, or
- * out-of-range `quiescenceDelayMs` clamps to `[0, 30000]`.
+ * non-boolean isar/try0/validateInsertedProof values fall back to
+ * their schema defaults, and a non-finite, negative, or out-of-range
+ * `quiescenceDelayMs` clamps to `[0, 30000]`.
  */
 export function readSledgehammerSettings(
   config: SledgehammerSettingsConfig
@@ -77,12 +87,15 @@ export function readSledgehammerSettings(
   const isarRaw = config.get<unknown>(SETTING_ISAR, false);
   const try0Raw = config.get<unknown>(SETTING_TRY0, true);
   const quiescenceRaw = config.get<unknown>(SETTING_QUIESCENCE_DELAY_MS, DEFAULT_QUIESCENCE_DELAY_MS);
+  const validateRaw = config.get<unknown>(SETTING_VALIDATE_INSERTED_PROOF, DEFAULT_VALIDATE_INSERTED_PROOF);
 
   return {
     provers: normalizeProversString(typeof proversRaw === "string" ? proversRaw : ""),
     isar: typeof isarRaw === "boolean" ? isarRaw : false,
     try0: typeof try0Raw === "boolean" ? try0Raw : true,
-    quiescenceDelayMs: normalizeQuiescenceDelayMs(quiescenceRaw)
+    quiescenceDelayMs: normalizeQuiescenceDelayMs(quiescenceRaw),
+    validateInsertedProof:
+      typeof validateRaw === "boolean" ? validateRaw : DEFAULT_VALIDATE_INSERTED_PROOF
   };
 }
 
