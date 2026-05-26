@@ -28,6 +28,12 @@ const ACTIONS: Record<
     command: "isabelle.restartLanguageServer",
     args: []
   },
+  "retry-language-server-auto-start": {
+    id: "retry-language-server-auto-start",
+    label: "Retry language server auto-start",
+    command: "isabelle.retryLanguageServerAutoStart",
+    args: []
+  },
   "enable-language-server": {
     id: "enable-language-server",
     label: "Open language server setting",
