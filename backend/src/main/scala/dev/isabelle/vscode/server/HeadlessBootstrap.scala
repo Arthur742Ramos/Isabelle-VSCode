@@ -236,6 +236,10 @@ object HeadlessBootstrap {
       args(0) = options
       args(1) = sessionName
       if (sessionDirs.nonEmpty) {
+        val sessionDirsList = isabellePathList(loader, sessionDirs) match {
+          case Left(err) => return Left(err)
+          case Right(value) => value
+        }
         makeMethod.getParameterTypes.zipWithIndex
           .drop(2)
           .find { case (paramType, _) =>
@@ -243,13 +247,33 @@ object HeadlessBootstrap {
               paramType.getName.startsWith("scala.collection.immutable.List")
           }
           .foreach { case (_, idx) =>
-            args(idx) = HeadlessFacade.scalaListOfValues(loader, sessionDirs.map(_.asInstanceOf[AnyRef]))
+            args(idx) = sessionDirsList
           }
       }
 
       Right(makeMethod.invoke(module, args*))
     } catch {
       case t: Throwable => Left(describe(t))
+    }
+  }
+
+  private def isabellePathList(loader: ClassLoader, sessionDirs: Seq[Path]): Either[String, AnyRef] = {
+    try {
+      val cls = Class.forName("isabelle.Path$", true, loader)
+      val module = cls.getField("MODULE$").get(null)
+      val explode = cls.getMethods.find(m =>
+        m.getName == "explode" &&
+          m.getParameterCount == 1 &&
+          m.getParameterTypes()(0) == classOf[String]
+      ).getOrElse(return Left("isabelle.Path$.explode(String) not found"))
+      val values = sessionDirs.distinct.map { dir =>
+        val native = dir.toString
+        val standard = HeadlessFacade.toIsabellePath(loader, native).getOrElse(native)
+        explode.invoke(module, standard).asInstanceOf[AnyRef]
+      }
+      Right(HeadlessFacade.scalaListOfValues(loader, values))
+    } catch {
+      case t: Throwable => Left(s"session-dirs: ${describe(t)}")
     }
   }
 
