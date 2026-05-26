@@ -366,6 +366,32 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "isabelle.sessions",
+        "contents": "No Isabelle sessions have been discovered yet.\n[Discover sessions](command:isabelle.discoverSessions) or [check setup](command:isabelle.checkPrerequisites)."
+      },
+      {
+        "view": "isabelle.proofOutline",
+        "contents": "Open an Isabelle theory file to populate the proof outline.\n[Open a theory](command:isabelle.openTheory)"
+      },
+      {
+        "view": "isabelle.proofState",
+        "contents": "Open an Isabelle theory and place the cursor in a proof to inspect the current proof state.\n[Show proof state at cursor](command:isabelle.showPideProofState)"
+      },
+      {
+        "view": "isabelle.sledgehammer",
+        "contents": "Open an Isabelle theory and place the cursor in a proof goal to run Sledgehammer.\n[Run Sledgehammer](command:isabelle.runSledgehammer)"
+      },
+      {
+        "view": "isabelle.theoryGraph",
+        "contents": "Discover sessions to build a theory dependency graph for the workspace.\n[Discover sessions](command:isabelle.discoverSessions)"
+      },
+      {
+        "view": "isabelle.theoryOutline",
+        "contents": "Open an Isabelle theory file to populate the theory outline.\n[Open a theory](command:isabelle.openTheory)"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -427,6 +453,88 @@
           "command": "isabelle.refreshTheoryOutline",
           "when": "view == isabelle.theoryOutline",
           "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "isabelle.showPideProofState",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.minimizeSledgehammerProof",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.showDocumentStatus",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.nextCommand",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.previousCommand",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.revealCurrentCommand",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.showProofActions",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.runSledgehammer",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.cancelSledgehammer",
+          "when": "isabelle.sledgehammerRunning"
+        },
+        {
+          "command": "isabelle.insertSledgehammerProof",
+          "when": "editorLangId == isabelle && isabelle.sledgehammerHasSuggestion"
+        },
+        {
+          "command": "isabelle.pickSledgehammerSuggestion",
+          "when": "editorLangId == isabelle && isabelle.sledgehammerHasSuggestion"
+        },
+        {
+          "command": "isabelle.createRepairRequest",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.previewTheory",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.previewTheoryInSplit",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.includeWord",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.includeWordPermanently",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.excludeWord",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.excludeWordPermanently",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.resetWords",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.relocateProofState",
+          "when": "editorLangId == isabelle"
         }
       ],
       "editor/context": [
