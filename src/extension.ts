@@ -1331,6 +1331,8 @@ async function runTier2Smoke(
   const theoryName = theoryNameFromDocument(document);
   const workspaceUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.toString() ?? "default";
 
+  logTier2SmokeProgress(output, "start", `theory=${theoryName} session=${sessionName}`);
+  logTier2SmokeProgress(output, "prerequisites:start");
   const prerequisite = await runPrerequisiteCheck({ force: true });
   addTier2SmokePhase(
     phases,
@@ -1340,7 +1342,9 @@ async function runTier2Smoke(
       ? `java=${prerequisite.java ? "ok" : "missing"} isabelle=${prerequisite.isabelle ? "ok" : "missing"}`
       : "prerequisite checker did not return a state"
   );
+  logTier2SmokeProgress(output, "prerequisites:ok");
 
+  logTier2SmokeProgress(output, "session-discovery:start");
   const discovery = await requireSessionService().refresh();
   const session = discovery.sessions.find((candidate) => candidate.name === sessionName);
   if (!session) {
@@ -1354,8 +1358,10 @@ async function runTier2Smoke(
     true,
     `found ${discovery.sessions.length} session(s); wanted ${sessionName}`
   );
+  logTier2SmokeProgress(output, "session-discovery:ok", `found=${discovery.sessions.length}`);
 
   const client = requireBackendManager().getClient();
+  logTier2SmokeProgress(output, "backend-health:start");
   const backendHealth = await client.request<HealthResult, HealthParams>("server/health", {
     isabelleExecutablePath
   });
@@ -1365,7 +1371,9 @@ async function runTier2Smoke(
     backendHealth.backend.status === "ok" && backendHealth.isabelle.status === "ok",
     formatIsabelleHealth(backendHealth)
   );
+  logTier2SmokeProgress(output, "backend-health:ok");
 
+  logTier2SmokeProgress(output, "pide-backend:start");
   const pideBackend = await client.request<PideVersionResult, PideVersionParams>(
     "isabelle/pideVersion",
     { isabelleExecutablePath }
@@ -1376,10 +1384,12 @@ async function runTier2Smoke(
     pideBackend.bridge === "pide-enabled" && pideBackend.classloaderReady,
     pideBackend.message
   );
+  logTier2SmokeProgress(output, "pide-backend:ok", pideBackend.bridge);
 
   if (!languageClient) {
     throw new Error("Tier-2 smoke requires the Isabelle language client to be activated.");
   }
+  logTier2SmokeProgress(output, "language-server:start");
   await languageClient.start();
   const languageServer = languageClient.getStatus();
   addTier2SmokePhase(
@@ -1388,7 +1398,9 @@ async function runTier2Smoke(
     languageServer.state === "running",
     languageServer.lastError ?? languageServer.commandLine ?? languageServer.state
   );
+  logTier2SmokeProgress(output, "language-server:ok", languageServer.state);
 
+  logTier2SmokeProgress(output, "pide-document:start");
   const pideDocument = await client.request<CheckWithPideResult, CheckWithPideParams>(
     "document/checkWithPide",
     {
@@ -1408,12 +1420,14 @@ async function runTier2Smoke(
       (pideDocument.status === "pide-ok" || pideDocument.status === "pide-errors"),
     `${pideDocument.status}: ${pideDocument.message}`
   );
+  logTier2SmokeProgress(output, "pide-document:ok", pideDocument.status);
 
   editor.selection = new vscode.Selection(
     findTier2SmokePosition(document, "by simp"),
     findTier2SmokePosition(document, "by simp")
   );
   const cursor = editor.selection.active;
+  logTier2SmokeProgress(output, "pide-proof-state:start");
   const pideProofState = await client.request<ProofStateWithPideResult, ProofStateWithPideParams>(
     "proofState/getWithPide",
     {
@@ -1433,8 +1447,10 @@ async function runTier2Smoke(
     pideProofState.bridge === "pide-enabled" && pideProofState.status === "ready",
     pideProofState.message ?? pideProofState.raw
   );
+  logTier2SmokeProgress(output, "pide-proof-state:ok", pideProofState.status);
 
   const config = vscode.workspace.getConfiguration("isabelle");
+  logTier2SmokeProgress(output, "isabelle-build:start");
   const buildExitCode = await requireBuildService().runBuild(session, {
     isabelleExecutablePath,
     extraArgs: config.get<string[]>("build.extraArgs", [])
@@ -1445,7 +1461,9 @@ async function runTier2Smoke(
     buildExitCode === 0,
     `exitCode=${buildExitCode}`
   );
+  logTier2SmokeProgress(output, "isabelle-build:ok", `exitCode=${buildExitCode}`);
 
+  logTier2SmokeProgress(output, "pide-preview:start");
   const preview = await runTier2SmokePreview(document.uri.toString());
   addTier2SmokePhase(
     phases,
@@ -1455,7 +1473,11 @@ async function runTier2Smoke(
       ? `received ${preview.contentLength ?? 0} byte(s)`
       : `sent=${preview.sent} received=${preview.received}`
   );
+  logTier2SmokeProgress(output, "pide-preview:ok", `received=${preview.received}`);
 
+  if (options?.runSledgehammer) {
+    logTier2SmokeProgress(output, "sledgehammer:start");
+  }
   const sledgehammer = options?.runSledgehammer
     ? await runTier2SmokeSledgehammer(client, document, sessionName, theoryName, workspaceUri, isabelleExecutablePath)
     : undefined;
@@ -1466,10 +1488,13 @@ async function runTier2Smoke(
       sledgehammer.status === "completed" && sledgehammer.suggestions.length > 0,
       sledgehammer.message ?? sledgehammer.raw
     );
+    logTier2SmokeProgress(output, "sledgehammer:ok", `suggestions=${sledgehammer.suggestions.length}`);
   }
 
-  output.appendLine(
-    `Tier-2 smoke completed for ${theoryName}: ${phases.map((phase) => `${phase.name}=ok`).join(", ")}`
+  logTier2SmokeProgress(
+    output,
+    "complete",
+    `${theoryName}: ${phases.map((phase) => `${phase.name}=ok`).join(", ")}`
   );
 
   return {
@@ -1530,6 +1555,16 @@ function addTier2SmokePhase(
   if (!ok) {
     throw new Error(`Tier-2 smoke phase failed: ${name}${detail ? ` (${detail})` : ""}`);
   }
+}
+
+function logTier2SmokeProgress(
+  output: vscode.OutputChannel,
+  phase: string,
+  detail?: string
+): void {
+  const message = `[tier2-smoke] ${new Date().toISOString()} ${phase}${detail ? ` ${detail}` : ""}`;
+  output.appendLine(message);
+  console.log(message);
 }
 
 async function runTier2SmokePreview(uri: string): Promise<Tier2SmokePreviewResult> {

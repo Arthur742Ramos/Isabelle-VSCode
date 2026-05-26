@@ -248,7 +248,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          & $env:ISABELLE_EXECUTABLE build -o quick_and_dirty -D (Join-Path $env:GITHUB_WORKSPACE "examples")
+          $examples = Join-Path $env:GITHUB_WORKSPACE "examples"
+          if ($examples -match "^([A-Za-z]):\\(.*)$") {
+            $drive = $Matches[1].ToLowerInvariant()
+            $rest = $Matches[2] -replace "\\", "/"
+            $examples = "/cygdrive/$drive/$rest"
+          }
+          & $env:ISABELLE_EXECUTABLE build -o quick_and_dirty -D $examples
 
       - name: Run hosted Tier-2 smoke on Linux
         if: runner.os == 'Linux'
