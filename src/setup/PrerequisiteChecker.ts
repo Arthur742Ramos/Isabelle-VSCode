@@ -126,6 +126,8 @@ export interface PrerequisiteState {
   readonly isabelle: boolean;
   readonly isabellePath?: string;
   readonly isabelleVersion?: string;
+  /** Extra actionable detail for a failed Isabelle launcher probe. */
+  readonly isabelleFailureHint?: string;
   readonly detectedIsabelle?: DetectedIsabelle;
 }
 
@@ -166,16 +168,15 @@ export class PrerequisiteChecker {
     const isabelleExecutable = this.deps.ui.getConfig<string>(EXECUTABLE_PATH_SETTING, "isabelle");
     const primaryJavaCommand = this.deps.javaCommand ?? "java";
 
+    const isabelleProbe = spawnIsabelleVersion(
+      isabelleExecutable,
+      this.deps.autoDetect.platform,
+      timeoutMs,
+      this.deps.isabellePathLookup
+    );
     const [primaryJavaResult, isabelleResult] = await Promise.all([
       this.safeSpawn({ command: primaryJavaCommand, args: ["-version"], timeoutMs }),
-      this.safeSpawn(
-        spawnIsabelleVersion(
-          isabelleExecutable,
-          this.deps.autoDetect.platform,
-          timeoutMs,
-          this.deps.isabellePathLookup
-        )
-      )
+      this.safeSpawn(isabelleProbe)
     ]);
 
     // If a bundled JRE was injected but its probe is not a usable Java 21+
@@ -238,6 +239,13 @@ export class PrerequisiteChecker {
           );
 
     const isabelleOk = !isabelleResult.spawnFailed && isabelleResult.exitCode === 0;
+    const isabelleFailureHint = isabelleOk
+      ? undefined
+      : windowsPowerShellIsabelleFailureHint(
+          isabelleProbe,
+          isabelleResult,
+          this.deps.autoDetect.platform
+        );
 
     const detectedIsabelle = isabelleOk ? undefined : detectIsabelleInstallPath(this.deps.autoDetect);
 
@@ -251,6 +259,7 @@ export class PrerequisiteChecker {
       isabelle: isabelleOk,
       isabellePath: isabelleOk ? isabelleExecutable : undefined,
       isabelleVersion: isabelleOk ? extractFirstLine(isabelleResult.stdout) : undefined,
+      isabelleFailureHint,
       detectedIsabelle
     };
 
@@ -263,6 +272,8 @@ export class PrerequisiteChecker {
             : "missing"
       } isabelle=${isabelleOk ? "ok" : "missing"}${
         detectedIsabelle ? ` autodetect=${detectedIsabelle.path}` : ""
+      }${
+        isabelleFailureHint ? ` hint=${isabelleFailureHint}` : ""
       }`
     );
 
@@ -302,10 +313,13 @@ export class PrerequisiteChecker {
     if (!state.java) {
       return this.promptInstallJava(state);
     }
+    if (state.isabelleFailureHint) {
+      return this.promptInstallIsabelle(state);
+    }
     if (state.detectedIsabelle) {
       return this.promptUseDetectedIsabelle(state.detectedIsabelle);
     }
-    return this.promptInstallIsabelle();
+    return this.promptInstallIsabelle(state);
   }
 
   public dispose(): void {
@@ -323,11 +337,14 @@ export class PrerequisiteChecker {
     return this.handleSetupChoice(choice, openWalkthrough, dontShow);
   }
 
-  private async promptInstallIsabelle(): Promise<PromptResult> {
+  private async promptInstallIsabelle(state: PrerequisiteState): Promise<PromptResult> {
     const openWalkthrough = "Open Setup Walkthrough";
     const dontShow = "Don't show again";
+    const message = state.isabelleFailureHint
+      ? `Isabelle PIDE: Isabelle was found, but the Windows PowerShell launcher failed. ${state.isabelleFailureHint}`
+      : "Isabelle PIDE: `isabelle` is not on PATH. Most features stay inert until you install Isabelle 2019 or newer.";
     const choice = await this.deps.ui.showWarning(
-      "Isabelle PIDE: `isabelle` is not on PATH. Most features stay inert until you install Isabelle 2019 or newer.",
+      message,
       openWalkthrough,
       dontShow
     );
@@ -420,6 +437,41 @@ function extractFirstLine(value: string): string | undefined {
   }
   const trimmed = value.split(/\r?\n/, 1)[0]?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+const POWERSHELL_POLICY_PATTERNS = [
+  /running scripts is disabled/i,
+  /execution of scripts is disabled/i,
+  /PSSecurityException/i,
+  /AuthorizationManager check failed/i,
+  /cannot be loaded\.[\s\S]*not digitally signed/i,
+  /File .* cannot be loaded because .* not digitally signed/i
+] as const;
+
+/**
+ * Recognize the common failure modes users see when a Windows Isabelle
+ * `isabelle.ps1` launcher reaches PowerShell but is blocked by local policy.
+ *
+ * Pure helper: no activation-time probing, no `vscode`, no `child_process`.
+ */
+export function windowsPowerShellIsabelleFailureHint(
+  request: SpawnRequest,
+  result: SpawnResult,
+  platform: NodeJS.Platform
+): string | undefined {
+  if (platform !== "win32" || request.command.toLowerCase() !== "powershell.exe") {
+    return undefined;
+  }
+  const fileIndex = request.args.findIndex((arg) => arg.toLowerCase() === "-file");
+  const scriptPath = fileIndex >= 0 ? request.args[fileIndex + 1] : undefined;
+  if (!scriptPath || !/\.psm?1$/i.test(scriptPath)) {
+    return undefined;
+  }
+  const output = `${result.stderr}\n${result.stdout}`;
+  if (!POWERSHELL_POLICY_PATTERNS.some((pattern) => pattern.test(output))) {
+    return undefined;
+  }
+  return `PowerShell blocked ${scriptPath}. The extension already launches it with \`-ExecutionPolicy Bypass\`; if your organization enforces a stricter policy, ask your administrator to allow the Isabelle launcher or point \`isabelle.executablePath\` at an approved \`.cmd\`/\`.exe\` shim.`;
 }
 
 /**

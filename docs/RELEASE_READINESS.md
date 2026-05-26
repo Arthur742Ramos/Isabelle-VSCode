@@ -43,7 +43,8 @@ specific user harm:
 - Surface `Isabelle: Explain Current Mode` directly from more mode-gated command
   failures.
 - Record screenshots and GIFs for the walkthrough/Marketplace listing.
-- Add a Windows PowerShell ExecutionPolicy probe if real users hit locked-down
-  corporate machines.
+- Extend Windows PowerShell setup diagnostics if real users hit locked-down
+  corporate machines beyond the known `.ps1` policy failures already surfaced
+  by the prerequisite check.
 - Add a one-click retry affordance when LSP auto-start is suppressed by a sticky
   failure key.

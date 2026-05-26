@@ -39,7 +39,7 @@ If you need to install Java yourself, any vendor's Java 21 works:
 | **Fedora / RHEL** | `sudo dnf install java-21-openjdk` | Tarball from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
 | **Arch** | `sudo pacman -S jdk21-openjdk` | AUR (`isabelle`) or tarball from [isabelle.in.tum.de](https://isabelle.in.tum.de/installation.html) |
 
-After installing Isabelle, either put `isabelle` on `PATH` or set the `isabelle.executablePath` setting. On Windows the launcher is `isabelle.ps1`; the extension wraps it via `powershell.exe -File` automatically.
+After installing Isabelle, either put `isabelle` on `PATH` or set the `isabelle.executablePath` setting. On Windows the launcher is `isabelle.ps1`; the extension wraps it via `powershell.exe -File` automatically. If a locked-down PowerShell policy still blocks that launcher, the setup prerequisite check reports an administrator-friendly hint instead of treating Isabelle as simply missing.
 
 The extension activates without either prerequisite (basic syntax features still work), but the **`Isabelle: Check Setup Prerequisites`** command and the **Get started with Isabelle PIDE** walkthrough will guide you through any missing piece, and standard install paths are auto-detected.
 
@@ -222,7 +222,7 @@ The extension can run Isabelle's bundled `isabelle vscode_server` as a child lan
 Prerequisites:
 
 - Isabelle 2019 or newer installed, with `isabelle` on `PATH` or set via `isabelle.executablePath`. The language server entry point is part of every supported Isabelle distribution (Linux, macOS, Windows via the bundled Cygwin layer).
-- On Windows, the official Isabelle distribution ships its launcher as `isabelle.ps1`. The extension detects `.ps1`/`.psm1` paths and automatically invokes them via `powershell.exe -File <path>` so Node's `child_process.spawn` (which does not resolve `.ps1` via PATHEXT) does not ENOENT. No user configuration is required for this; simply pointing `isabelle.executablePath` at `isabelle.ps1` (or leaving the default if it resolves on `PATH`) works.
+- On Windows, the official Isabelle distribution ships its launcher as `isabelle.ps1`. The extension detects `.ps1`/`.psm1` paths and automatically invokes them via `powershell.exe -File <path>` so Node's `child_process.spawn` (which does not resolve `.ps1` via PATHEXT) does not ENOENT. No user configuration is required for this; simply pointing `isabelle.executablePath` at `isabelle.ps1` (or leaving the default if it resolves on `PATH`) works. If enterprise policy blocks script execution even with the extension's `-ExecutionPolicy Bypass` wrapper, run **Isabelle: Check Setup Prerequisites** to see the exact remediation hint.
 - A workspace that contains `.thy` files with `language: isabelle` (the default for this extension).
 
 Lifecycle:
