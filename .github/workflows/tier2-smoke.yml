@@ -268,7 +268,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$ISABELLE_EXECUTABLE" build -o quick_and_dirty -D "$GITHUB_WORKSPACE/examples"
+          "$ISABELLE_EXECUTABLE" build -b -o quick_and_dirty -D "$GITHUB_WORKSPACE/examples"
 
       - name: Sanity-check bundled Smoke session on Windows
         if: runner.os == 'Windows'
@@ -281,7 +281,7 @@ jobs:
             $rest = $Matches[2] -replace "\\", "/"
             $examples = "/cygdrive/$drive/$rest"
           }
-          & $env:ISABELLE_EXECUTABLE build -o quick_and_dirty -D $examples
+          & $env:ISABELLE_EXECUTABLE build -b -o quick_and_dirty -D $examples
 
       - name: Run hosted Tier-2 smoke on Linux
         if: runner.os == 'Linux'
