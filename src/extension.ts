@@ -2288,7 +2288,10 @@ interface ExplainModeActionQuickPickItem extends vscode.QuickPickItem {
 }
 
 async function promptExplainModeAction(report: ExplainModeReport): Promise<void> {
-  const actions = explainModeActionsForReport(report);
+  const setupWalkthroughId = extensionContextRef
+    ? `${extensionContextRef.extension.id}#isabelle.getStarted`
+    : undefined;
+  const actions = explainModeActionsForReport(report, { setupWalkthroughId });
   if (actions.length === 0) {
     return;
   }

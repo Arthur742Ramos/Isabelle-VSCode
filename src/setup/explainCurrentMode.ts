@@ -26,6 +26,7 @@ export type ExplainModeNextStepId =
   | "show-language-server-status"
   | "restart-language-server"
   | "enable-language-server"
+  | "enable-language-server-auto-start"
   | "check-prerequisites"
   | "install-java"
   | "set-isabelle-executable"
@@ -345,7 +346,7 @@ export function derivePideFeaturesReport(
       reason: "Auto-start is disabled via `isabelle.languageServer.autoStart`; run `Isabelle: Start Language Server` to start it manually.",
       nextSteps: [
         step("start-language-server", "Run `Isabelle: Start Language Server` for this workspace."),
-        step("enable-language-server", "Set `isabelle.languageServer.autoStart` to `true` to resume automatic startup.")
+        step("enable-language-server-auto-start", "Set `isabelle.languageServer.autoStart` to `true` to resume automatic startup.")
       ]
     };
   }
