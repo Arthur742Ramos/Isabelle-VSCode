@@ -260,6 +260,9 @@ jobs:
           if (Test-Path $cygwinRoot) {
             "CYGWIN_ROOT=$cygwinRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
+          $javaTmp = Join-Path $env:RUNNER_TEMP "isabelle-java-tmp"
+          New-Item -ItemType Directory -Force -Path $javaTmp | Out-Null
+          "JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Split-Path -Parent $wrapper | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & $wrapper version
 
