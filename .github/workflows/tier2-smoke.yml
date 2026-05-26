@@ -168,7 +168,17 @@ jobs:
           fi
 
           chmod +x "$isabelle_bin"
+          isabelle_home="$(cd "$(dirname "$isabelle_bin")" && pwd)"
+          while [ "$isabelle_home" != "/" ] && [ ! -f "$isabelle_home/etc/ISABELLE_IDENTIFIER" ]; do
+            isabelle_home="$(dirname "$isabelle_home")"
+          done
+          if [ ! -f "$isabelle_home/etc/ISABELLE_IDENTIFIER" ]; then
+            echo "::error::Could not resolve ISABELLE_HOME from $isabelle_bin"
+            exit 1
+          fi
           echo "ISABELLE_EXECUTABLE=$isabelle_bin" >> "$GITHUB_ENV"
+          echo "ISABELLE_HOME=$isabelle_home" >> "$GITHUB_ENV"
+          echo "ISABELLE_ROOT=$isabelle_home" >> "$GITHUB_ENV"
           echo "$(dirname "$isabelle_bin")" >> "$GITHUB_PATH"
           "$isabelle_bin" version
 
@@ -215,6 +225,17 @@ jobs:
               Format-Table -AutoSize | Out-Host
             Write-Error "Could not find isabelle.bat, isabelle.exe, isabelle.ps1, or extensionless isabelle under $installDir"
           }
+          $isabelleHome = $launcher.Directory.FullName
+          while ($isabelleHome -and -not (Test-Path (Join-Path $isabelleHome "etc\ISABELLE_IDENTIFIER"))) {
+            $parent = Split-Path -Parent $isabelleHome
+            if ($parent -eq $isabelleHome) {
+              break
+            }
+            $isabelleHome = $parent
+          }
+          if (-not $isabelleHome -or -not (Test-Path (Join-Path $isabelleHome "etc\ISABELLE_IDENTIFIER"))) {
+            Write-Error "Could not resolve ISABELLE_HOME from $($launcher.FullName)"
+          }
 
           $wrapper = Join-Path $env:RUNNER_TEMP "isabelle.cmd"
           if ($launcher.Name -eq "isabelle.ps1") {
@@ -233,6 +254,12 @@ jobs:
           }
 
           "ISABELLE_EXECUTABLE=$wrapper" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ISABELLE_HOME=$isabelleHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ISABELLE_ROOT=$isabelleHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $cygwinRoot = Join-Path $isabelleHome "contrib\cygwin"
+          if (Test-Path $cygwinRoot) {
+            "CYGWIN_ROOT=$cygwinRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
           Split-Path -Parent $wrapper | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & $wrapper version
 

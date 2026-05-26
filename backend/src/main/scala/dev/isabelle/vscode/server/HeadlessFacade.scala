@@ -251,12 +251,13 @@ object HeadlessFacade {
     home: Path,
     cygwinRoot: String,
     sessionName: String,
+    sessionDirs: Seq[Path],
     symbolTranslator: SymbolTranslator,
     cancelFlag: AtomicBoolean
   ): Either[BuildError, HeadlessFacade] = {
     if (cancelFlag.get()) return Left(CancelledBuild(Seq("cancelled before Environment.init")))
 
-    HeadlessBootstrap.bootstrap(loader, home, cygwinRoot, sessionName) match {
+    HeadlessBootstrap.bootstrap(loader, home, cygwinRoot, sessionName, sessionDirs) match {
       case HeadlessBootstrap.BootstrapFailure(step, reason, notes) =>
         try loader.close() catch { case _: Throwable => () }
         Left(BootstrapError(step, reason, notes))
@@ -307,6 +308,10 @@ object HeadlessFacade {
     * compiled varargs signature, which differs across Scala patch
     * releases and is awkward to match by reflection. */
   private[server] def scalaListOf(loader: ClassLoader, value: String): AnyRef = {
+    scalaListOfValues(loader, Seq(value))
+  }
+
+  private[server] def scalaListOfValues(loader: ClassLoader, values: Seq[AnyRef]): AnyRef = {
     val nilModule = Class.forName("scala.collection.immutable.Nil$", true, loader)
       .getField("MODULE$").get(null)
     val consClass = Class.forName("scala.collection.immutable.$colon$colon", true, loader)
@@ -315,7 +320,9 @@ object HeadlessFacade {
     val ctor = ctors.find(_.getParameterCount == 2).getOrElse(
       throw new NoSuchMethodException("scala.collection.immutable.$colon$colon constructor not found")
     )
-    ctor.newInstance(value, nilModule).asInstanceOf[AnyRef]
+    values.reverse.foldLeft(nilModule.asInstanceOf[AnyRef]) { (tail, value) =>
+      ctor.newInstance(value, tail).asInstanceOf[AnyRef]
+    }
   }
 
   /**

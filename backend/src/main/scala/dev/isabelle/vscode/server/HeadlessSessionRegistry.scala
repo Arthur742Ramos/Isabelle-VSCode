@@ -47,9 +47,10 @@ final class HeadlessSessionRegistry(
     classpath: IsabellePideClasspath.Resolved,
     home: Path,
     cygwinRoot: String,
-    sessionName: String
+    sessionName: String,
+    sessionDirs: Seq[Path] = Seq.empty
   ): Either[HeadlessFacade.BuildError, HeadlessFacade] = {
-    val fp = HeadlessSessionRegistry.Fingerprint.compute(home, sessionName, classpath.isabelleJar)
+    val fp = HeadlessSessionRegistry.Fingerprint.compute(home, sessionName, classpath.isabelleJar, sessionDirs)
 
     cached match {
       case Some((existingFp, facade)) if existingFp == fp =>
@@ -57,9 +58,9 @@ final class HeadlessSessionRegistry(
       case Some((_, stale)) =>
         try stale.shutdown() catch { case NonFatal(_) => () }
         cached = None
-        buildFresh(classpath, home, cygwinRoot, sessionName, fp)
+        buildFresh(classpath, home, cygwinRoot, sessionName, sessionDirs, fp)
       case None =>
-        buildFresh(classpath, home, cygwinRoot, sessionName, fp)
+        buildFresh(classpath, home, cygwinRoot, sessionName, sessionDirs, fp)
     }
   }
 
@@ -182,13 +183,14 @@ final class HeadlessSessionRegistry(
     home: Path,
     cygwinRoot: String,
     sessionName: String,
+    sessionDirs: Seq[Path],
     fp: HeadlessSessionRegistry.Fingerprint
   ): Either[HeadlessFacade.BuildError, HeadlessFacade] = {
     cancelFlag.set(false)
     val loader = loaderFactory.newLoader(classpath.toUrls, getClass.getClassLoader)
     val translator = symbolTranslatorLoader(loader).getOrElse(SymbolTranslator.Identity)
 
-    HeadlessFacade.build(loader, home, cygwinRoot, sessionName, translator, cancelFlag) match {
+    HeadlessFacade.build(loader, home, cygwinRoot, sessionName, sessionDirs, translator, cancelFlag) match {
       case Right(facade) =>
         cached = Some((fp, facade))
         Right(facade)
@@ -221,6 +223,7 @@ object HeadlessSessionRegistry {
   final case class Fingerprint(
     canonicalHome: String,
     sessionName: String,
+    sessionDirs: Seq[String],
     isabelleJarSize: Long,
     isabelleJarMtimeMillis: Long
   ) {
@@ -228,6 +231,7 @@ object HeadlessSessionRegistry {
     def toJson: ujson.Value = ujson.Obj(
       "canonicalHome" -> canonicalHome,
       "sessionName" -> sessionName,
+      "sessionDirs" -> ujson.Arr(sessionDirs.map(ujson.Str(_))*),
       "isabelleJarSize" -> isabelleJarSize,
       "isabelleJarMtimeMillis" -> isabelleJarMtimeMillis
     )
@@ -254,8 +258,16 @@ object HeadlessSessionRegistry {
   }
 
   object Fingerprint {
-    def compute(home: Path, sessionName: String, isabelleJar: Path): Fingerprint = {
+    def compute(
+      home: Path,
+      sessionName: String,
+      isabelleJar: Path,
+      sessionDirs: Seq[Path] = Seq.empty
+    ): Fingerprint = {
       val canonical = try home.toRealPath().toString catch { case _: Throwable => home.toAbsolutePath.normalize().toString }
+      val canonicalDirs = sessionDirs.distinct.map { dir =>
+        try dir.toRealPath().toString catch { case _: Throwable => dir.toAbsolutePath.normalize().toString }
+      }
       val (size, mtime) =
         try {
           val attrs = Files.readAttributes(isabelleJar, classOf[java.nio.file.attribute.BasicFileAttributes])
@@ -263,7 +275,7 @@ object HeadlessSessionRegistry {
         } catch {
           case _: Throwable => (0L, 0L)
         }
-      Fingerprint(canonical, sessionName, size, mtime)
+      Fingerprint(canonical, sessionName, canonicalDirs, size, mtime)
     }
   }
 }

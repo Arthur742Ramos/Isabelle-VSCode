@@ -221,6 +221,8 @@ export interface SledgehammerRunParams {
   theoryName?: string;
   /** Phase 5 — optional workspace folder uri for scratch root keying. */
   workspaceUri?: string;
+  /** Optional directories containing ROOT files for workspace sessions. */
+  sessionDirectories?: string[];
   /** Phase 5 — raw `[k=v]` Sledgehammer parameters
    * (e.g. `{ minimize: "true", max_facts: "8", preplay_timeout: "10" }`). */
   sledgehammerOptions?: Record<string, string>;
@@ -297,6 +299,8 @@ export interface CheckWithPideParams {
   theoryName?: string;
   workspaceUri?: string;
   isabelleExecutablePath?: string;
+  /** Optional directories containing ROOT files for workspace sessions. */
+  sessionDirectories?: string[];
   /** Optional inline text. If absent, the backend uses the most
     * recent text synchronized via `document/openTheory`/`update`. */
   text?: string;
@@ -371,6 +375,8 @@ export interface CancelWarmupResult {
 export interface WarmupParams {
   session?: string;
   isabelleExecutablePath?: string;
+  /** Optional directories containing ROOT files for workspace sessions. */
+  sessionDirectories?: string[];
 }
 
 export type WarmupStatus = "ready" | "skipped" | "cancelled" | "failed";
@@ -391,6 +397,7 @@ export interface WarmupResult {
 export interface PideCacheFingerprint {
   canonicalHome: string;
   sessionName: string;
+  sessionDirs?: string[];
   isabelleJarSize: number;
   isabelleJarMtimeMillis: number;
 }
@@ -430,6 +437,8 @@ export interface ProofStateWithPideParams {
   theoryName?: string;
   workspaceUri?: string;
   isabelleExecutablePath?: string;
+  /** Optional directories containing ROOT files for workspace sessions. */
+  sessionDirectories?: string[];
   text?: string;
 }
 

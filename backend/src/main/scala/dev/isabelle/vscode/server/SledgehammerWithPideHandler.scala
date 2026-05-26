@@ -1,5 +1,7 @@
 package dev.isabelle.vscode.server
 
+import java.nio.file.{Path, Paths}
+
 /**
  * Phase 4 JSON-RPC handler for `sledgehammer/run` over the PIDE
  * (Headless) backend. Strategy:
@@ -54,6 +56,7 @@ object SledgehammerWithPideHandler {
     val session = obj.get("session").flatMap(_.strOpt).filter(_.nonEmpty)
     val executablePath = obj.get("isabelleExecutablePath").flatMap(_.strOpt).filter(_.nonEmpty)
     val workspaceUri = obj.get("workspaceUri").flatMap(_.strOpt).filter(_.nonEmpty).getOrElse("default")
+    val sessionDirs = parseSessionDirectories(obj)
     val text = obj.get("text").flatMap(_.strOpt).orElse(documents.peekText(uri))
 
     text match {
@@ -69,7 +72,7 @@ object SledgehammerWithPideHandler {
         val options = parseOptions(obj)
         runInjectedSubmission(
           requestId, uri, version, sessionName, theoryText, line, character, theoryName, workspaceUri,
-          executablePath, env, platform, fs, registry, snapshotCache, options
+          executablePath, env, platform, fs, registry, snapshotCache, options, sessionDirs
         )
     }
   }
@@ -115,7 +118,8 @@ object SledgehammerWithPideHandler {
     fs: IsabelleHomeFs,
     registry: HeadlessSessionRegistry,
     snapshotCache: SnapshotCache,
-    options: SledgehammerSourceInjector.Options
+    options: SledgehammerSourceInjector.Options,
+    sessionDirs: Seq[Path]
   ): ujson.Value = {
     IsabelleHome.resolve(env, executablePath, platform, fs) match {
       case None =>
@@ -132,7 +136,7 @@ object SledgehammerWithPideHandler {
             unavailable(requestId, uri, Some(version), reason, error.message, Some(session))
 
           case Right(classpath) =>
-            registry.acquireOrBuild(classpath, home, HeadlessBootstrap.deriveCygwinRoot(home, platform), session) match {
+            registry.acquireOrBuild(classpath, home, HeadlessBootstrap.deriveCygwinRoot(home, platform), session, sessionDirs) match {
               case Left(HeadlessFacade.CancelledBuild(_)) =>
                 cancelled(requestId, uri, Some(version), Some(session),
                   "Sledgehammer cancelled before the PIDE session was ready.")
@@ -199,6 +203,12 @@ object SledgehammerWithPideHandler {
         }
     }
   }
+
+  private def parseSessionDirectories(obj: scala.collection.mutable.Map[String, ujson.Value]): Seq[Path] =
+    obj.get("sessionDirectories")
+      .flatMap(_.arrOpt)
+      .map(_.flatMap(_.strOpt).filter(_.nonEmpty).map(Paths.get(_)).toSeq)
+      .getOrElse(Seq.empty)
 
   private def renderResult(
     requestId: String,

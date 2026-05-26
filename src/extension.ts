@@ -962,6 +962,7 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   // Derive a friendly theory name from the document basename.
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
@@ -975,6 +976,7 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
     theoryName,
     workspaceUri,
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText()
   };
 
@@ -1079,6 +1081,7 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1093,6 +1096,7 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     workspaceUri,
     position: { line: cursor.line, character: cursor.character },
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText()
   };
 
@@ -1200,6 +1204,7 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1216,6 +1221,7 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
     workspaceUri,
     position: { line: cursor.line, character: cursor.character },
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText(),
     sledgehammerOptions: { minimize: "true", preplay_timeout: "10" },
     onlyFacts: allFacts
@@ -1361,6 +1367,7 @@ async function runTier2Smoke(
     `found ${discovery.sessions.length} session(s); wanted ${sessionName}`
   );
   logTier2SmokeProgress(output, "session-discovery:ok", `found=${discovery.sessions.length}`);
+  const sessionDirectories = pideSessionDirectories(sessionName);
 
   const client = requireBackendManager().getClient();
   logTier2SmokeProgress(output, "backend-health:start");
@@ -1412,6 +1419,7 @@ async function runTier2Smoke(
       theoryName,
       workspaceUri,
       isabelleExecutablePath,
+      sessionDirectories,
       text: document.getText()
     }
   );
@@ -1440,6 +1448,7 @@ async function runTier2Smoke(
       theoryName,
       workspaceUri,
       isabelleExecutablePath,
+      sessionDirectories,
       text: document.getText()
     }
   );
@@ -1481,7 +1490,15 @@ async function runTier2Smoke(
     logTier2SmokeProgress(output, "sledgehammer:start");
   }
   const sledgehammer = options?.runSledgehammer
-    ? await runTier2SmokeSledgehammer(client, document, sessionName, theoryName, workspaceUri, isabelleExecutablePath)
+    ? await runTier2SmokeSledgehammer(
+        client,
+        document,
+        sessionName,
+        theoryName,
+        workspaceUri,
+        isabelleExecutablePath,
+        sessionDirectories
+      )
     : undefined;
   if (sledgehammer) {
     addTier2SmokePhase(
@@ -1635,7 +1652,8 @@ async function runTier2SmokeSledgehammer(
   sessionName: string,
   theoryName: string,
   workspaceUri: string,
-  isabelleExecutablePath: string
+  isabelleExecutablePath: string,
+  sessionDirectories: readonly string[]
 ): Promise<SledgehammerRunResult> {
   const position = findTier2SmokePosition(document, "sorry");
   const params: SledgehammerRunParams = {
@@ -1645,11 +1663,24 @@ async function runTier2SmokeSledgehammer(
     position: { line: position.line, character: position.character },
     session: sessionName,
     isabelleExecutablePath,
+    sessionDirectories: sessionDirectories.slice(),
     text: document.getText(),
     theoryName,
     workspaceUri
   };
   return client.request<SledgehammerRunResult, SledgehammerRunParams>("sledgehammer/run", params);
+}
+
+function pideSessionDirectories(sessionName: string): string[] {
+  const session = sessionService?.getSessions().find((candidate) => candidate.name === sessionName);
+  if (!session) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      [session.sessionDirectory, session.rootDirectory].filter((entry) => entry.trim().length > 0)
+    )
+  );
 }
 
 async function discoverSessions(output: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<void> {

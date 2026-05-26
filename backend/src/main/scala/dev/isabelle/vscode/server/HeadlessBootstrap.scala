@@ -81,7 +81,8 @@ object HeadlessBootstrap {
     loader: ClassLoader,
     home: Path,
     cygwinRoot: String,
-    sessionName: String
+    sessionName: String,
+    sessionDirs: Seq[Path] = Seq.empty
   ): BootstrapResult = {
     val notes = scala.collection.mutable.Buffer.empty[String]
     val startedAt = System.currentTimeMillis()
@@ -108,7 +109,7 @@ object HeadlessBootstrap {
     }
 
     // Step 4: construct Headless.Resources via the `make` factory
-    val resources = invokeResourcesMake(loader, options, sessionName) match {
+    val resources = invokeResourcesMake(loader, options, sessionName, sessionDirs) match {
       case Left(err) => return BootstrapFailure("resources-make", err, notes.toSeq)
       case Right(value) =>
         notes += "Headless.Resources.make succeeded"
@@ -213,7 +214,8 @@ object HeadlessBootstrap {
   private def invokeResourcesMake(
     loader: ClassLoader,
     options: AnyRef,
-    sessionName: String
+    sessionName: String,
+    sessionDirs: Seq[Path]
   ): Either[String, AnyRef] = {
     try {
       val cls = Class.forName("isabelle.Headless$Resources$", true, loader)
@@ -233,6 +235,17 @@ object HeadlessBootstrap {
       // Positions 0 (options) and 1 (session name) are required.
       args(0) = options
       args(1) = sessionName
+      if (sessionDirs.nonEmpty) {
+        makeMethod.getParameterTypes.zipWithIndex
+          .drop(2)
+          .find { case (paramType, _) =>
+            paramType.getName == "scala.collection.immutable.List" ||
+              paramType.getName.startsWith("scala.collection.immutable.List")
+          }
+          .foreach { case (_, idx) =>
+            args(idx) = HeadlessFacade.scalaListOfValues(loader, sessionDirs.map(_.asInstanceOf[AnyRef]))
+          }
+      }
 
       Right(makeMethod.invoke(module, args*))
     } catch {
