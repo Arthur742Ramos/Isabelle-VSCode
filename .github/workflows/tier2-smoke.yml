@@ -140,7 +140,7 @@ jobs:
           url="https://isabelle.in.tum.de/dist/${archive}"
           dest="$RUNNER_TEMP/${archive}"
           echo "Downloading $url"
-          curl --fail --location --silent --show-error --retry 5 --retry-delay 10 \
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors \
             --output "$dest" "$url"
 
           install_dir="$RUNNER_TEMP/isabelle"
@@ -168,7 +168,7 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP "$env:ISABELLE_VERSION.exe"
           $url = "https://isabelle.in.tum.de/dist/$env:ISABELLE_VERSION.exe"
           Write-Host "Downloading $url"
-          curl.exe --fail --location --retry 5 --retry-delay 10 --output $archive $url
+          curl.exe --fail --location --retry 5 --retry-delay 10 --retry-all-errors --output $archive $url
 
           $installDir = Join-Path $env:RUNNER_TEMP "isabelle"
           if (Test-Path $installDir) {
