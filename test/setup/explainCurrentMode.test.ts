@@ -144,7 +144,8 @@ describe("derivePideFeaturesReport", () => {
     });
     expect(r.available).toBe(false);
     expect(r.reason).toMatch(/auto-start is paused/i);
-    expect(r.nextSteps.map((s) => s.id)).toContain("start-language-server");
+    expect(r.nextSteps.map((s) => s.id)).toContain("retry-language-server-auto-start");
+    expect(r.nextSteps[0]?.label).toContain("Isabelle: Retry Language Server Auto-Start");
   });
 
   it("reports auto-start opt-out when autoStart is false with prereqs ok", () => {
@@ -274,7 +275,9 @@ describe("buildExplainModeReport", () => {
       "isabelle.lsp.autoStartFailed.deadbeef"
     );
     expect(report.pideFeatures.reason).toMatch(/auto-start is paused/i);
-    expect(report.pideFeatures.nextSteps.map((s) => s.id)).toContain("start-language-server");
+    expect(report.pideFeatures.nextSteps.map((s) => s.id)).toContain(
+      "retry-language-server-auto-start"
+    );
   });
 
   it("captures the LSP-failed case with the last error", () => {

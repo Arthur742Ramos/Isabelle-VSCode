@@ -91,6 +91,37 @@ describe("explainCurrentModeActions", () => {
     ]);
   });
 
+  it("maps remembered auto-start failures to the focused retry command", () => {
+    const report = buildExplainModeReport({
+      getLanguageServerStatus: () => ({ state: "disabled" }),
+      getPrerequisiteState: () => ({
+        java: true,
+        javaCommand: "java",
+        javaVersionMajor: 21,
+        isabelle: true,
+        isabellePath: "isabelle",
+        isabelleVersion: "Isabelle2025-2"
+      }),
+      getBackendRunning: () => false,
+      getActiveSessionName: () => undefined,
+      getLanguageServerEnabledSetting: () => "default",
+      getLanguageServerAutoStart: () => true,
+      getLanguageServerExtraArgs: () => [],
+      getAutoStartFailure: () => ({
+        remembered: true,
+        key: "isabelle.lsp.autoStartFailed.deadbeef"
+      }),
+      getIsabelleExecutablePathSetting: () => "isabelle",
+      getBackendCommandSetting: () => undefined,
+      getJavaIsBundled: () => false
+    });
+
+    expect(explainModeActionsForReport(report).map((action) => action.command)).toEqual([
+      "isabelle.retryLanguageServerAutoStart",
+      "isabelle.checkPrerequisites"
+    ]);
+  });
+
   it("omits wait-only steps and de-duplicates identical command actions", () => {
     const report = buildExplainModeReport({
       getLanguageServerStatus: () => ({ state: "starting" }),

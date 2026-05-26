@@ -150,6 +150,7 @@ Implemented foundation:
   - `Isabelle: Toggle Theory Graph Direction`
   - `Isabelle: Refresh Theory Outline`
   - `Isabelle: Start Language Server`
+  - `Isabelle: Retry Language Server Auto-Start`
   - `Isabelle: Stop Language Server`
   - `Isabelle: Restart Language Server`
   - `Isabelle: Show Language Server Status`
@@ -229,7 +230,7 @@ Lifecycle:
 1. On activation the extension runs a non-blocking prerequisite probe (`java -version`, `isabelle version`) with short timeouts.
 2. If both succeed and `isabelle.languageServer.enabled` has not been explicitly set, the LSP auto-starts and writes a one-line note to the `Isabelle PIDE` output channel.
 3. The LSP's connection state appears as a status-bar item (`Isabelle LSP: starting / running / stopping / failed`). Click it for the latest snapshot, including the command line, Isabelle version line, and last error.
-4. If an auto-start fails, the failure is remembered **per resolved Isabelle runtime** (executable path + extra args) so the extension does not retry the same broken configuration on every activation. Change `isabelle.executablePath` or `isabelle.languageServer.extraArgs` to clear the failure flag, or run `Isabelle: Start Language Server` to retry.
+4. If an auto-start fails, the failure is remembered **per resolved Isabelle runtime** (executable path + extra args) so the extension does not retry the same broken configuration on every activation. Change `isabelle.executablePath` or `isabelle.languageServer.extraArgs` to clear the failure flag, or run `Isabelle: Retry Language Server Auto-Start` to clear the remembered failure and retry immediately.
 5. Run `Isabelle: Stop Language Server` to stop a running LSP, or `Isabelle: Restart Language Server` to perform a clean stop/start cycle.
 6. When both the CLI-build runner and the LSP publish diagnostics for the same file, VS Code aggregates them in the Problems panel. CLI-build diagnostics appear with the `Source` column set to `isabelle build`; LSP diagnostics carry whatever `source` label `isabelle vscode_server` includes.
 
