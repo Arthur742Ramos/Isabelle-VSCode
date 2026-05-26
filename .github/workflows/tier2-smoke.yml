@@ -140,8 +140,20 @@ jobs:
           url="https://isabelle.in.tum.de/dist/${archive}"
           dest="$RUNNER_TEMP/${archive}"
           echo "Downloading $url"
-          curl --fail --location --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors \
-            --output "$dest" "$url"
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if curl --fail --location --silent --show-error --http1.1 \
+              --retry 3 --retry-delay 10 --retry-all-errors --continue-at - \
+              --connect-timeout 30 --output "$dest" "$url"; then
+              break
+            fi
+            if [ "$attempt" = "12" ]; then
+              echo "::error::Failed to download $url after $attempt attempts."
+              exit 1
+            fi
+            sleep_seconds=$((attempt * 15))
+            echo "Download failed; retrying in ${sleep_seconds}s (attempt $attempt/12)."
+            sleep "$sleep_seconds"
+          done
 
           install_dir="$RUNNER_TEMP/isabelle"
           rm -rf "$install_dir"
@@ -168,7 +180,18 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP "$env:ISABELLE_VERSION.exe"
           $url = "https://isabelle.in.tum.de/dist/$env:ISABELLE_VERSION.exe"
           Write-Host "Downloading $url"
-          curl.exe --fail --location --retry 5 --retry-delay 10 --retry-all-errors --output $archive $url
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            curl.exe --fail --location --http1.1 --retry 3 --retry-delay 10 --retry-all-errors --continue-at - --connect-timeout 30 --output $archive $url
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($attempt -eq 12) {
+              Write-Error "Failed to download $url after $attempt attempts."
+            }
+            $sleepSeconds = $attempt * 15
+            Write-Host "Download failed; retrying in ${sleepSeconds}s (attempt $attempt/12)."
+            Start-Sleep -Seconds $sleepSeconds
+          }
 
           $installDir = Join-Path $env:RUNNER_TEMP "isabelle"
           if (Test-Path $installDir) {
@@ -178,16 +201,33 @@ jobs:
           7z x $archive "-o$installDir" -y | Out-Host
 
           $launchers = Get-ChildItem -Path $installDir -Recurse -File |
-            Where-Object { $_.Name -in @("isabelle.bat", "isabelle.exe", "isabelle.ps1") } |
-            Sort-Object @{ Expression = { if ($_.Name -eq "isabelle.bat") { 0 } elseif ($_.Name -eq "isabelle.exe") { 1 } else { 2 } } }, FullName
+            Where-Object { $_.Name -in @("isabelle.bat", "isabelle.exe", "isabelle.ps1", "isabelle") } |
+            Sort-Object @{ Expression = {
+              if ($_.Name -eq "isabelle.bat") { 0 }
+              elseif ($_.Name -eq "isabelle.exe") { 1 }
+              elseif ($_.Name -eq "isabelle.ps1") { 2 }
+              else { 3 }
+            } }, FullName
           $launcher = $launchers | Select-Object -First 1
           if (-not $launcher) {
-            Write-Error "Could not find isabelle.bat, isabelle.exe, or isabelle.ps1 under $installDir"
+            Get-ChildItem -Path $installDir -Recurse -File -Filter "*isabelle*" |
+              Select-Object -First 100 FullName |
+              Format-Table -AutoSize | Out-Host
+            Write-Error "Could not find isabelle.bat, isabelle.exe, isabelle.ps1, or extensionless isabelle under $installDir"
           }
 
           $wrapper = Join-Path $env:RUNNER_TEMP "isabelle.cmd"
           if ($launcher.Name -eq "isabelle.ps1") {
             Set-Content -Path $wrapper -Encoding ASCII -Value "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$($launcher.FullName)`" %*`r`n"
+          } elseif ($launcher.Name -eq "isabelle") {
+            $bash = Get-ChildItem -Path $installDir -Recurse -File -Filter "bash.exe" |
+              Where-Object { $_.FullName -match "\\contrib\\cygwin\\bin\\bash\.exe$" } |
+              Select-Object -First 1
+            if (-not $bash) {
+              Write-Error "Found extensionless Isabelle launcher at $($launcher.FullName), but no bundled Cygwin bash.exe was found."
+            }
+            $isabelleForBash = $launcher.FullName -replace "\\", "/"
+            Set-Content -Path $wrapper -Encoding ASCII -Value "@echo off`r`n`"$($bash.FullName)`" -l `"$isabelleForBash`" %*`r`n"
           } else {
             Set-Content -Path $wrapper -Encoding ASCII -Value "@echo off`r`n`"$($launcher.FullName)`" %*`r`n"
           }

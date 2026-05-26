@@ -6,6 +6,8 @@ const EXTENSION_ID = "arthur742ramos.isabelle-pide-vscode";
 const TIER2_SMOKE_COMMAND_ID = "isabelle.internal.runTier2Smoke";
 const TIER2_SMOKE_SESSION = "Isabelle_VSCode_Smoke";
 const TIER2_SMOKE_ENABLED = process.env.ISABELLE_VSCODE_TIER2_SMOKE === "1";
+const TIER2_SMOKE_RUNS_SLEDGEHAMMER =
+  process.env.ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER === "1";
 
 interface Tier2SmokePhase {
   readonly name: string;
@@ -49,7 +51,9 @@ interface Tier2SmokeResult {
 }
 
 suite("Tier-2 Isabelle smoke", function () {
-  this.timeout(TIER2_SMOKE_ENABLED ? 15 * 60_000 : 60_000);
+  this.timeout(
+    TIER2_SMOKE_ENABLED ? (TIER2_SMOKE_RUNS_SLEDGEHAMMER ? 30 : 15) * 60_000 : 60_000
+  );
 
   test("runs deterministic real-Isabelle smoke checks when explicitly enabled", async function () {
     if (!TIER2_SMOKE_ENABLED) {
@@ -60,8 +64,8 @@ suite("Tier-2 Isabelle smoke", function () {
     assert.ok(ext, `Expected ${EXTENSION_ID} to be installed in the test host`);
 
     const isabelleExecutablePath = process.env.ISABELLE_VSCODE_ISABELLE?.trim() || "isabelle";
-    const runSledgehammer = process.env.ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER === "1";
-    const backendTimeoutMs = runSledgehammer ? 10 * 60_000 : 5 * 60_000;
+    const runSledgehammer = TIER2_SMOKE_RUNS_SLEDGEHAMMER;
+    const backendTimeoutMs = runSledgehammer ? 20 * 60_000 : 5 * 60_000;
     const heapMb = readHeapMb();
 
     await configureSmokeHost(isabelleExecutablePath, backendTimeoutMs, heapMb);
