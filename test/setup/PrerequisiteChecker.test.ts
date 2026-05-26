@@ -13,7 +13,8 @@ import {
   SpawnFn,
   SpawnRequest,
   SpawnResult,
-  parseJavaMajorVersion
+  parseJavaMajorVersion,
+  windowsPowerShellIsabelleFailureHint
 } from "../../src/setup/PrerequisiteChecker";
 
 interface SpawnExpectation {
@@ -420,6 +421,51 @@ describe("PrerequisiteChecker.notifyIfMissing — priority and suppression", () 
     expect(ui.warning).toHaveLength(1);
     expect(ui.warning[0].message).toMatch(/not on PATH/);
   });
+
+  it("surfaces PowerShell policy failures before offering a detected Isabelle path", async () => {
+    const policyFailure: SpawnResult = {
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "C:\\Tools\\bin\\isabelle.ps1 cannot be loaded because running scripts is disabled on this system. For more information, see about_Execution_Policies.",
+      spawnFailed: false,
+      timedOut: false
+    };
+    const { checker, ui, logs } = buildChecker({
+      spawnExpectations: [
+        { matcher: (r) => r.command === "java", result: ok },
+        { matcher: (r) => r.command === "powershell.exe", result: policyFailure }
+      ],
+      ui: (() => {
+        const ui = makeUi();
+        ui.setExecutablePath("C:\\Tools\\bin\\isabelle.ps1");
+        return ui;
+      })(),
+      autoDetect: {
+        platform: "win32",
+        env: { PATH: "C:\\Tools\\bin" },
+        fs: {
+          isDirectory: (p) => p === "C:\\Tools",
+          isFile: (p) => p === "C:\\Tools\\bin\\isabelle.ps1",
+          readDirectoryNames: () => ["Isabelle2025"]
+        },
+        join: (...p) => p.join("\\"),
+        pathDelimiter: ";",
+        dirname: (p) => p.slice(0, p.lastIndexOf("\\"))
+      }
+    });
+    const state = await checker.runCheck();
+    expect(state.isabelle).toBe(false);
+    expect(state.detectedIsabelle).toBeDefined();
+    expect(state.isabelleFailureHint).toContain("PowerShell blocked C:\\Tools\\bin\\isabelle.ps1");
+    expect(logs.some((m) => m.includes("PowerShell blocked C:\\Tools\\bin\\isabelle.ps1"))).toBe(true);
+
+    await checker.notifyIfMissing(state);
+    expect(ui.info).toHaveLength(0);
+    expect(ui.warning).toHaveLength(1);
+    expect(ui.warning[0].message).toContain("Windows PowerShell launcher failed");
+    expect(ui.warning[0].message).toContain("ask your administrator");
+  });
 });
 
 describe("PrerequisiteChecker.notifyIfMissing — user action handling", () => {
@@ -514,6 +560,89 @@ describe("PrerequisiteChecker.dispose", () => {
 describe("parseJavaMajorVersion", () => {
   it("parses modern openjdk output (21)", () => {
     expect(parseJavaMajorVersion('openjdk version "21.0.1" 2023-10-17 LTS')).toBe(21);
+  });
+
+  describe("windowsPowerShellIsabelleFailureHint", () => {
+    const ps1Request: SpawnRequest = {
+      command: "powershell.exe",
+      args: [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:\\Tools\\bin\\isabelle.ps1",
+        "version"
+      ],
+      timeoutMs: 5000
+    };
+
+    it("recognizes execution-policy stderr from the Isabelle .ps1 launcher", () => {
+      const hint = windowsPowerShellIsabelleFailureHint(
+        ps1Request,
+        {
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            "File C:\\Tools\\bin\\isabelle.ps1 cannot be loaded because running scripts is disabled on this system.\nAt line:1 char:1\n+ CategoryInfo : SecurityError: (:) [], PSSecurityException",
+          spawnFailed: false,
+          timedOut: false
+        },
+        "win32"
+      );
+      expect(hint).toContain("PowerShell blocked C:\\Tools\\bin\\isabelle.ps1");
+      expect(hint).toContain("-ExecutionPolicy Bypass");
+      expect(hint).toContain("isabelle.executablePath");
+    });
+
+    it("recognizes unsigned-script policy output", () => {
+      const hint = windowsPowerShellIsabelleFailureHint(
+        ps1Request,
+        {
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            "File C:\\Tools\\bin\\isabelle.ps1 cannot be loaded. The file C:\\Tools\\bin\\isabelle.ps1 is not digitally signed.",
+          spawnFailed: false,
+          timedOut: false
+        },
+        "win32"
+      );
+      expect(hint).toContain("PowerShell blocked C:\\Tools\\bin\\isabelle.ps1");
+    });
+
+    it("ignores non-policy PowerShell failures", () => {
+      const hint = windowsPowerShellIsabelleFailureHint(
+        ps1Request,
+        {
+          exitCode: 1,
+          stdout: "",
+          stderr: "The term 'cygwin' is not recognized as the name of a cmdlet.",
+          spawnFailed: false,
+          timedOut: false
+        },
+        "win32"
+      );
+      expect(hint).toBeUndefined();
+    });
+
+    it("ignores non-Windows and non-PowerShell probes", () => {
+      const result: SpawnResult = {
+        exitCode: 1,
+        stdout: "",
+        stderr: "running scripts is disabled",
+        spawnFailed: false,
+        timedOut: false
+      };
+      expect(windowsPowerShellIsabelleFailureHint(ps1Request, result, "linux")).toBeUndefined();
+      expect(
+        windowsPowerShellIsabelleFailureHint(
+          { command: "isabelle", args: ["version"], timeoutMs: 5000 },
+          result,
+          "win32"
+        )
+      ).toBeUndefined();
+    });
   });
 
   it("parses Oracle-style output", () => {
