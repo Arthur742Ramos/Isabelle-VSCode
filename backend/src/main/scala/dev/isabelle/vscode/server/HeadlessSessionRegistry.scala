@@ -265,9 +265,9 @@ object HeadlessSessionRegistry {
       sessionDirs: Seq[Path] = Seq.empty
     ): Fingerprint = {
       val canonical = try home.toRealPath().toString catch { case _: Throwable => home.toAbsolutePath.normalize().toString }
-      val canonicalDirs = sessionDirs.distinct.map { dir =>
+      val canonicalDirs = sessionDirs.map { dir =>
         try dir.toRealPath().toString catch { case _: Throwable => dir.toAbsolutePath.normalize().toString }
-      }
+      }.distinct.sorted
       val (size, mtime) =
         try {
           val attrs = Files.readAttributes(isabelleJar, classOf[java.nio.file.attribute.BasicFileAttributes])

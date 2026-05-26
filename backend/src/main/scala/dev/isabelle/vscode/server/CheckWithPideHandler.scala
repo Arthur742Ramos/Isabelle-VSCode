@@ -1,6 +1,6 @@
 package dev.isabelle.vscode.server
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.MapHasAsScala
 
@@ -47,7 +47,7 @@ object CheckWithPideHandler {
     val session = obj.get("session").flatMap(_.strOpt).filter(_.nonEmpty)
     val executablePath = obj.get("isabelleExecutablePath").flatMap(_.strOpt).filter(_.nonEmpty)
     val workspaceUri = obj.get("workspaceUri").flatMap(_.strOpt).filter(_.nonEmpty).getOrElse("default")
-    val sessionDirs = parseSessionDirectories(obj)
+    val sessionDirs = SessionDirectoryParams.parse(obj)
     val text = obj.get("text").flatMap(_.strOpt)
       .orElse(documents.peekText(uri))
 
@@ -190,12 +190,6 @@ object CheckWithPideHandler {
       if (withoutExt.nonEmpty) Some(withoutExt) else None
     }
   }
-
-  private def parseSessionDirectories(obj: mutable.Map[String, ujson.Value]): Seq[Path] =
-    obj.get("sessionDirectories")
-      .flatMap(_.arrOpt)
-      .map(_.flatMap(_.strOpt).filter(_.nonEmpty).map(Paths.get(_)).toSeq)
-      .getOrElse(Seq.empty)
 
   private def unavailable(
     uri: String,

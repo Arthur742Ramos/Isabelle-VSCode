@@ -1,6 +1,6 @@
 package dev.isabelle.vscode.server
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 
 /**
  * Phase 4 JSON-RPC handler for `sledgehammer/run` over the PIDE
@@ -56,7 +56,7 @@ object SledgehammerWithPideHandler {
     val session = obj.get("session").flatMap(_.strOpt).filter(_.nonEmpty)
     val executablePath = obj.get("isabelleExecutablePath").flatMap(_.strOpt).filter(_.nonEmpty)
     val workspaceUri = obj.get("workspaceUri").flatMap(_.strOpt).filter(_.nonEmpty).getOrElse("default")
-    val sessionDirs = parseSessionDirectories(obj)
+    val sessionDirs = SessionDirectoryParams.parse(obj)
     val text = obj.get("text").flatMap(_.strOpt).orElse(documents.peekText(uri))
 
     text match {
@@ -203,12 +203,6 @@ object SledgehammerWithPideHandler {
         }
     }
   }
-
-  private def parseSessionDirectories(obj: scala.collection.mutable.Map[String, ujson.Value]): Seq[Path] =
-    obj.get("sessionDirectories")
-      .flatMap(_.arrOpt)
-      .map(_.flatMap(_.strOpt).filter(_.nonEmpty).map(Paths.get(_)).toSeq)
-      .getOrElse(Seq.empty)
 
   private def renderResult(
     requestId: String,
