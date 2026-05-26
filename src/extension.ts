@@ -565,7 +565,7 @@ function createPrerequisiteChecker(
 }
 
 async function runPrerequisiteCheck(
-  options: { readonly force?: boolean } = {}
+  options: { readonly force?: boolean; readonly notifyIfMissing?: boolean } = {}
 ): Promise<PrerequisiteState | undefined> {
   if (!prerequisiteChecker) {
     return undefined;
@@ -583,7 +583,9 @@ async function runPrerequisiteCheck(
   // the manual "Isabelle: Check Setup Prerequisites" command.
   backendManager?.setJavaCommand(state.javaCommand);
   lastPrerequisiteState = state;
-  await prerequisiteChecker.notifyIfMissing(state, options);
+  if (options.notifyIfMissing !== false) {
+    await prerequisiteChecker.notifyIfMissing(state, options);
+  }
   return state;
 }
 
@@ -960,6 +962,7 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   // Derive a friendly theory name from the document basename.
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
@@ -973,6 +976,7 @@ async function showPideDocumentStatus(output: vscode.OutputChannel): Promise<voi
     theoryName,
     workspaceUri,
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText()
   };
 
@@ -1077,6 +1081,7 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1091,6 +1096,7 @@ async function showPideProofState(output: vscode.OutputChannel): Promise<void> {
     workspaceUri,
     position: { line: cursor.line, character: cursor.character },
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText()
   };
 
@@ -1198,6 +1204,7 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
     return;
   }
   const session = resolved.session;
+  const sessionDirectories = pideSessionDirectories(session);
 
   const basename = editor.document.fileName.split(/[\\/]/).pop() ?? "Theory.thy";
   const theoryName = basename.endsWith(".thy") ? basename.slice(0, -4) : basename;
@@ -1214,6 +1221,7 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
     workspaceUri,
     position: { line: cursor.line, character: cursor.character },
     isabelleExecutablePath: getIsabelleExecutablePath(),
+    sessionDirectories,
     text: editor.document.getText(),
     sledgehammerOptions: { minimize: "true", preplay_timeout: "10" },
     onlyFacts: allFacts
@@ -1331,7 +1339,9 @@ async function runTier2Smoke(
   const theoryName = theoryNameFromDocument(document);
   const workspaceUri = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.toString() ?? "default";
 
-  const prerequisite = await runPrerequisiteCheck({ force: true });
+  logTier2SmokeProgress(output, "start", `theory=${theoryName} session=${sessionName}`);
+  logTier2SmokeProgress(output, "prerequisites:start");
+  const prerequisite = await runPrerequisiteCheck({ force: true, notifyIfMissing: false });
   addTier2SmokePhase(
     phases,
     "prerequisites",
@@ -1340,7 +1350,9 @@ async function runTier2Smoke(
       ? `java=${prerequisite.java ? "ok" : "missing"} isabelle=${prerequisite.isabelle ? "ok" : "missing"}`
       : "prerequisite checker did not return a state"
   );
+  logTier2SmokeProgress(output, "prerequisites:ok");
 
+  logTier2SmokeProgress(output, "session-discovery:start");
   const discovery = await requireSessionService().refresh();
   const session = discovery.sessions.find((candidate) => candidate.name === sessionName);
   if (!session) {
@@ -1354,8 +1366,11 @@ async function runTier2Smoke(
     true,
     `found ${discovery.sessions.length} session(s); wanted ${sessionName}`
   );
+  logTier2SmokeProgress(output, "session-discovery:ok", `found=${discovery.sessions.length}`);
+  const sessionDirectories = pideSessionDirectories(sessionName);
 
   const client = requireBackendManager().getClient();
+  logTier2SmokeProgress(output, "backend-health:start");
   const backendHealth = await client.request<HealthResult, HealthParams>("server/health", {
     isabelleExecutablePath
   });
@@ -1365,7 +1380,9 @@ async function runTier2Smoke(
     backendHealth.backend.status === "ok" && backendHealth.isabelle.status === "ok",
     formatIsabelleHealth(backendHealth)
   );
+  logTier2SmokeProgress(output, "backend-health:ok");
 
+  logTier2SmokeProgress(output, "pide-backend:start");
   const pideBackend = await client.request<PideVersionResult, PideVersionParams>(
     "isabelle/pideVersion",
     { isabelleExecutablePath }
@@ -1376,10 +1393,12 @@ async function runTier2Smoke(
     pideBackend.bridge === "pide-enabled" && pideBackend.classloaderReady,
     pideBackend.message
   );
+  logTier2SmokeProgress(output, "pide-backend:ok", pideBackend.bridge);
 
   if (!languageClient) {
     throw new Error("Tier-2 smoke requires the Isabelle language client to be activated.");
   }
+  logTier2SmokeProgress(output, "language-server:start");
   await languageClient.start();
   const languageServer = languageClient.getStatus();
   addTier2SmokePhase(
@@ -1388,7 +1407,9 @@ async function runTier2Smoke(
     languageServer.state === "running",
     languageServer.lastError ?? languageServer.commandLine ?? languageServer.state
   );
+  logTier2SmokeProgress(output, "language-server:ok", languageServer.state);
 
+  logTier2SmokeProgress(output, "pide-document:start");
   const pideDocument = await client.request<CheckWithPideResult, CheckWithPideParams>(
     "document/checkWithPide",
     {
@@ -1398,6 +1419,7 @@ async function runTier2Smoke(
       theoryName,
       workspaceUri,
       isabelleExecutablePath,
+      sessionDirectories,
       text: document.getText()
     }
   );
@@ -1408,12 +1430,14 @@ async function runTier2Smoke(
       (pideDocument.status === "pide-ok" || pideDocument.status === "pide-errors"),
     `${pideDocument.status}: ${pideDocument.message}`
   );
+  logTier2SmokeProgress(output, "pide-document:ok", pideDocument.status);
 
   editor.selection = new vscode.Selection(
     findTier2SmokePosition(document, "by simp"),
     findTier2SmokePosition(document, "by simp")
   );
   const cursor = editor.selection.active;
+  logTier2SmokeProgress(output, "pide-proof-state:start");
   const pideProofState = await client.request<ProofStateWithPideResult, ProofStateWithPideParams>(
     "proofState/getWithPide",
     {
@@ -1424,6 +1448,7 @@ async function runTier2Smoke(
       theoryName,
       workspaceUri,
       isabelleExecutablePath,
+      sessionDirectories,
       text: document.getText()
     }
   );
@@ -1433,8 +1458,10 @@ async function runTier2Smoke(
     pideProofState.bridge === "pide-enabled" && pideProofState.status === "ready",
     pideProofState.message ?? pideProofState.raw
   );
+  logTier2SmokeProgress(output, "pide-proof-state:ok", pideProofState.status);
 
   const config = vscode.workspace.getConfiguration("isabelle");
+  logTier2SmokeProgress(output, "isabelle-build:start");
   const buildExitCode = await requireBuildService().runBuild(session, {
     isabelleExecutablePath,
     extraArgs: config.get<string[]>("build.extraArgs", [])
@@ -1445,7 +1472,9 @@ async function runTier2Smoke(
     buildExitCode === 0,
     `exitCode=${buildExitCode}`
   );
+  logTier2SmokeProgress(output, "isabelle-build:ok", `exitCode=${buildExitCode}`);
 
+  logTier2SmokeProgress(output, "pide-preview:start");
   const preview = await runTier2SmokePreview(document.uri.toString());
   addTier2SmokePhase(
     phases,
@@ -1455,9 +1484,21 @@ async function runTier2Smoke(
       ? `received ${preview.contentLength ?? 0} byte(s)`
       : `sent=${preview.sent} received=${preview.received}`
   );
+  logTier2SmokeProgress(output, "pide-preview:ok", `received=${preview.received}`);
 
+  if (options?.runSledgehammer) {
+    logTier2SmokeProgress(output, "sledgehammer:start");
+  }
   const sledgehammer = options?.runSledgehammer
-    ? await runTier2SmokeSledgehammer(client, document, sessionName, theoryName, workspaceUri, isabelleExecutablePath)
+    ? await runTier2SmokeSledgehammer(
+        client,
+        document,
+        sessionName,
+        theoryName,
+        workspaceUri,
+        isabelleExecutablePath,
+        sessionDirectories
+      )
     : undefined;
   if (sledgehammer) {
     addTier2SmokePhase(
@@ -1466,10 +1507,13 @@ async function runTier2Smoke(
       sledgehammer.status === "completed" && sledgehammer.suggestions.length > 0,
       sledgehammer.message ?? sledgehammer.raw
     );
+    logTier2SmokeProgress(output, "sledgehammer:ok", `suggestions=${sledgehammer.suggestions.length}`);
   }
 
-  output.appendLine(
-    `Tier-2 smoke completed for ${theoryName}: ${phases.map((phase) => `${phase.name}=ok`).join(", ")}`
+  logTier2SmokeProgress(
+    output,
+    "complete",
+    `${theoryName}: ${phases.map((phase) => `${phase.name}=ok`).join(", ")}`
   );
 
   return {
@@ -1530,6 +1574,16 @@ function addTier2SmokePhase(
   if (!ok) {
     throw new Error(`Tier-2 smoke phase failed: ${name}${detail ? ` (${detail})` : ""}`);
   }
+}
+
+function logTier2SmokeProgress(
+  output: vscode.OutputChannel,
+  phase: string,
+  detail?: string
+): void {
+  const message = `[tier2-smoke] ${new Date().toISOString()} ${phase}${detail ? ` ${detail}` : ""}`;
+  output.appendLine(message);
+  console.log(message);
 }
 
 async function runTier2SmokePreview(uri: string): Promise<Tier2SmokePreviewResult> {
@@ -1598,7 +1652,8 @@ async function runTier2SmokeSledgehammer(
   sessionName: string,
   theoryName: string,
   workspaceUri: string,
-  isabelleExecutablePath: string
+  isabelleExecutablePath: string,
+  sessionDirectories: readonly string[]
 ): Promise<SledgehammerRunResult> {
   const position = findTier2SmokePosition(document, "sorry");
   const params: SledgehammerRunParams = {
@@ -1608,11 +1663,24 @@ async function runTier2SmokeSledgehammer(
     position: { line: position.line, character: position.character },
     session: sessionName,
     isabelleExecutablePath,
+    sessionDirectories: sessionDirectories.slice(),
     text: document.getText(),
     theoryName,
     workspaceUri
   };
   return client.request<SledgehammerRunResult, SledgehammerRunParams>("sledgehammer/run", params);
+}
+
+function pideSessionDirectories(sessionName: string): string[] {
+  const session = sessionService?.getSessions().find((candidate) => candidate.name === sessionName);
+  if (!session) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      [session.sessionDirectory, session.rootDirectory].filter((entry) => entry.trim().length > 0)
+    )
+  );
 }
 
 async function discoverSessions(output: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<void> {

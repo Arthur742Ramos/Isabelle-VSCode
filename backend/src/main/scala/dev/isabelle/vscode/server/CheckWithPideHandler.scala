@@ -1,6 +1,6 @@
 package dev.isabelle.vscode.server
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.MapHasAsScala
 
@@ -47,6 +47,7 @@ object CheckWithPideHandler {
     val session = obj.get("session").flatMap(_.strOpt).filter(_.nonEmpty)
     val executablePath = obj.get("isabelleExecutablePath").flatMap(_.strOpt).filter(_.nonEmpty)
     val workspaceUri = obj.get("workspaceUri").flatMap(_.strOpt).filter(_.nonEmpty).getOrElse("default")
+    val sessionDirs = SessionDirectoryParams.parse(obj)
     val text = obj.get("text").flatMap(_.strOpt)
       .orElse(documents.peekText(uri))
 
@@ -108,7 +109,8 @@ object CheckWithPideHandler {
                   cygwinRoot = HeadlessBootstrap.deriveCygwinRoot(home, platform),
                   classpath = classpath,
                   registry = registry,
-                  env = env
+                  env = env,
+                  sessionDirs = sessionDirs
                 )
             }
         }
@@ -126,9 +128,10 @@ object CheckWithPideHandler {
     cygwinRoot: String,
     classpath: IsabellePideClasspath.Resolved,
     registry: HeadlessSessionRegistry,
-    env: Map[String, String]
+    env: Map[String, String],
+    sessionDirs: Seq[Path]
   ): ujson.Value = {
-    registry.acquireOrBuild(classpath, home, cygwinRoot, session) match {
+    registry.acquireOrBuild(classpath, home, cygwinRoot, session, sessionDirs) match {
       case Left(HeadlessFacade.CancelledBuild(notes)) =>
         Status.cancelled(uri, version, theoryName, session, notes)
       case Left(HeadlessFacade.BootstrapError(step, reason, notes)) =>

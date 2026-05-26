@@ -60,6 +60,20 @@ final class HeadlessSessionRegistrySpec extends AnyFunSuite {
     } finally Files.deleteIfExists(tmpJar)
   }
 
+  test("Fingerprint.compute canonicalizes, deduplicates, and sorts session dirs") {
+    val tmpRoot = Files.createTempDirectory("registry-fp-dirs-")
+    val tmpJar = Files.createTempFile(tmpRoot, "registry-fp-dirs-", ".jar")
+    val dirA = Files.createDirectory(tmpRoot.resolve("a"))
+    val dirB = Files.createDirectory(tmpRoot.resolve("b"))
+    try {
+      val fp1 = HeadlessSessionRegistry.Fingerprint.compute(tmpRoot, "HOL", tmpJar, Seq(dirB, dirA, dirA))
+      val fp2 = HeadlessSessionRegistry.Fingerprint.compute(tmpRoot, "HOL", tmpJar, Seq(dirA, dirB))
+
+      assert(fp1 == fp2)
+      assert(fp1.sessionDirs == Seq(dirA.toRealPath().toString, dirB.toRealPath().toString).sorted)
+    } finally ScratchTheoryStore.deleteRecursively(tmpRoot)
+  }
+
   test("cancelInflightWarmup does not throw when no warmup is in flight") {
     val registry = new HeadlessSessionRegistry(loaderFactory = emptyLoaderFactory)
     registry.cancelInflightWarmup()

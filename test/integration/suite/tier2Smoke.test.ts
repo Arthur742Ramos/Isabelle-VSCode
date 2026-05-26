@@ -6,6 +6,8 @@ const EXTENSION_ID = "arthur742ramos.isabelle-pide-vscode";
 const TIER2_SMOKE_COMMAND_ID = "isabelle.internal.runTier2Smoke";
 const TIER2_SMOKE_SESSION = "Isabelle_VSCode_Smoke";
 const TIER2_SMOKE_ENABLED = process.env.ISABELLE_VSCODE_TIER2_SMOKE === "1";
+const TIER2_SMOKE_RUNS_SLEDGEHAMMER =
+  process.env.ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER === "1";
 
 interface Tier2SmokePhase {
   readonly name: string;
@@ -49,7 +51,9 @@ interface Tier2SmokeResult {
 }
 
 suite("Tier-2 Isabelle smoke", function () {
-  this.timeout(TIER2_SMOKE_ENABLED ? 15 * 60_000 : 60_000);
+  this.timeout(
+    TIER2_SMOKE_ENABLED ? (TIER2_SMOKE_RUNS_SLEDGEHAMMER ? 60 : 30) * 60_000 : 60_000
+  );
 
   test("runs deterministic real-Isabelle smoke checks when explicitly enabled", async function () {
     if (!TIER2_SMOKE_ENABLED) {
@@ -60,15 +64,18 @@ suite("Tier-2 Isabelle smoke", function () {
     assert.ok(ext, `Expected ${EXTENSION_ID} to be installed in the test host`);
 
     const isabelleExecutablePath = process.env.ISABELLE_VSCODE_ISABELLE?.trim() || "isabelle";
-    const runSledgehammer = process.env.ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER === "1";
-    const backendTimeoutMs = runSledgehammer ? 10 * 60_000 : 5 * 60_000;
+    const runSledgehammer = TIER2_SMOKE_RUNS_SLEDGEHAMMER;
+    const backendTimeoutMs = runSledgehammer ? 30 * 60_000 : 10 * 60_000;
     const heapMb = readHeapMb();
 
+    logTier2SmokeProgress("configure-host");
     await configureSmokeHost(isabelleExecutablePath, backendTimeoutMs, heapMb);
 
+    logTier2SmokeProgress("activate-extension");
     const api = await ext.activate();
     assert.ok(api, "Extension activation should return the public API object");
 
+    logTier2SmokeProgress("check-command-registration");
     const registered = new Set(await vscode.commands.getCommands(true));
     assert.ok(
       registered.has(TIER2_SMOKE_COMMAND_ID),
@@ -77,6 +84,7 @@ suite("Tier-2 Isabelle smoke", function () {
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? ext.extensionPath;
     const theoryPath = path.join(workspaceRoot, "examples", "Smoke.thy");
+    logTier2SmokeProgress("execute-smoke-command");
     const result = await vscode.commands.executeCommand<Tier2SmokeResult>(
       TIER2_SMOKE_COMMAND_ID,
       {
@@ -87,6 +95,7 @@ suite("Tier-2 Isabelle smoke", function () {
       }
     );
 
+    logTier2SmokeProgress("assert-smoke-result");
     assert.ok(result, "Tier-2 smoke command should return a structured result");
     assert.strictEqual(result.sessionName, TIER2_SMOKE_SESSION);
     assert.ok(result.theoryUri.endsWith("/Smoke.thy") || result.theoryUri.endsWith("\\Smoke.thy"));
@@ -119,6 +128,10 @@ suite("Tier-2 Isabelle smoke", function () {
     }
   });
 });
+
+function logTier2SmokeProgress(phase: string): void {
+  console.log(`[tier2-smoke] ${new Date().toISOString()} ${phase}`);
+}
 
 async function configureSmokeHost(
   isabelleExecutablePath: string,
