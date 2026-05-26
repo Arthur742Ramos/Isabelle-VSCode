@@ -485,6 +485,10 @@
           "when": "editorLangId == isabelle"
         },
         {
+          "command": "isabelle.refreshProofState",
+          "when": "editorLangId == isabelle"
+        },
+        {
           "command": "isabelle.runSledgehammer",
           "when": "editorLangId == isabelle"
         },
