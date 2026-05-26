@@ -175,8 +175,8 @@ describe("formatExplainModeReport", () => {
     expect(text).toContain("Auto-start failure remembered: yes");
     expect(text).toContain("Auto-start failure key: isabelle.lsp.autoStartFailed.deadbeef");
     expect(text).toContain("auto-start is paused");
-    expect(text).toContain("Isabelle: Start Language Server");
-    expect(text).toContain("successful manual start clears the remembered failure");
+    expect(text).toContain("Isabelle: Retry Language Server Auto-Start");
+    expect(text).toContain("clear the remembered failure and retry now");
   });
 
   it("renders the configured-backend-command override", () => {

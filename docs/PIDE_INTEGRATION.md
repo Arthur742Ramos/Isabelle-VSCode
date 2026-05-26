@@ -165,6 +165,9 @@ family):
 
 - `Isabelle: Start Language Server` — starts the `isabelle vscode_server`
   child process and connects the LSP client.
+- `Isabelle: Retry Language Server Auto-Start` — clears the remembered
+  auto-start failure for the current resolved Isabelle runtime and starts the
+  LSP client again.
 - `Isabelle: Stop Language Server` — stops the LSP client and the child
   process.
 - `Isabelle: Restart Language Server` — convenience for stop-then-start,

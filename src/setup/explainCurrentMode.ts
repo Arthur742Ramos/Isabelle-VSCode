@@ -25,6 +25,7 @@ export type ExplainModeNextStepId =
   | "wait-for-language-server"
   | "show-language-server-status"
   | "restart-language-server"
+  | "retry-language-server-auto-start"
   | "enable-language-server"
   | "check-prerequisites"
   | "install-java"
@@ -334,7 +335,7 @@ export function derivePideFeaturesReport(
       available: false,
       reason: "A previous language-server auto-start failed for this Isabelle runtime, so auto-start is paused.",
       nextSteps: [
-        step("start-language-server", "Run `Isabelle: Start Language Server` to retry now; a successful manual start clears the remembered failure."),
+        step("retry-language-server-auto-start", "Run `Isabelle: Retry Language Server Auto-Start` to clear the remembered failure and retry now."),
         step("check-prerequisites", "Run `Isabelle: Check Setup Prerequisites` if the retry still fails.")
       ]
     };

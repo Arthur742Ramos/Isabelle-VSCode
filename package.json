@@ -74,6 +74,7 @@
     "onCommand:isabelle.toggleTheoryGraphMode",
     "onCommand:isabelle.refreshTheoryOutline",
     "onCommand:isabelle.startLanguageServer",
+    "onCommand:isabelle.retryLanguageServerAutoStart",
     "onCommand:isabelle.stopLanguageServer",
     "onCommand:isabelle.restartLanguageServer",
     "onCommand:isabelle.showLanguageServerStatus",
@@ -276,6 +277,10 @@
       {
         "command": "isabelle.startLanguageServer",
         "title": "Isabelle: Start Language Server"
+      },
+      {
+        "command": "isabelle.retryLanguageServerAutoStart",
+        "title": "Isabelle: Retry Language Server Auto-Start"
       },
       {
         "command": "isabelle.stopLanguageServer",
