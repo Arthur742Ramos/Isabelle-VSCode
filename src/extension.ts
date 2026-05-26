@@ -112,9 +112,14 @@ import { formatUserVisibleError } from "./ui/errorMessages";
 import { PrerequisiteChecker, PrerequisiteState } from "./setup/PrerequisiteChecker";
 import {
   ExplainModeAccessors,
+  ExplainModeReport,
   LanguageServerEnabledSetting,
   buildExplainModeReport
 } from "./setup/explainCurrentMode";
+import {
+  ExplainModeNextStepAction,
+  explainModeActionsForReport
+} from "./setup/explainCurrentModeActions";
 import { formatExplainModeReport } from "./setup/explainCurrentModeFormatter";
 import { realAutoDetectDependencies, realIsabellePathLookup, realSpawn, resolveActivationJavaCommand } from "./setup/runtime";
 import {
@@ -409,7 +414,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.toggleProofStateAutoUpdate", () => toggleProofStateAutoUpdateCommand()),
     vscode.commands.registerCommand("isabelle.relocateProofState", () => relocateProofStateCommand()),
     vscode.commands.registerCommand("isabelle.checkPrerequisites", () => runPrerequisiteCheck({ force: true })),
-    vscode.commands.registerCommand("isabelle.explainCurrentMode", () => showExplainCurrentMode()),
+    vscode.commands.registerCommand("isabelle.explainCurrentMode", async () => showExplainCurrentMode()),
     ...(process.env[TIER2_SMOKE_ENV] === "1"
       ? [
           vscode.commands.registerCommand(TIER2_SMOKE_COMMAND_ID, (options?: Tier2SmokeCommandOptions) =>
@@ -2265,7 +2270,7 @@ function showLanguageServerStatus(): void {
   );
 }
 
-function showExplainCurrentMode(): void {
+async function showExplainCurrentMode(): Promise<void> {
   const accessors = createExplainModeAccessors();
   const report = buildExplainModeReport(accessors);
   const text = formatExplainModeReport(report);
@@ -2275,6 +2280,38 @@ function showExplainCurrentMode(): void {
   explainCurrentModeOutput.clear();
   explainCurrentModeOutput.appendLine(text);
   explainCurrentModeOutput.show(true);
+  await promptExplainModeAction(report);
+}
+
+interface ExplainModeActionQuickPickItem extends vscode.QuickPickItem {
+  readonly action: ExplainModeNextStepAction;
+}
+
+async function promptExplainModeAction(report: ExplainModeReport): Promise<void> {
+  const setupWalkthroughId = extensionContextRef
+    ? `${extensionContextRef.extension.id}#isabelle.getStarted`
+    : undefined;
+  const actions = explainModeActionsForReport(report, { setupWalkthroughId });
+  if (actions.length === 0) {
+    return;
+  }
+  const picked = await vscode.window.showQuickPick<ExplainModeActionQuickPickItem>(
+    actions.map((action) => ({
+      label: `$(play) ${action.label}`,
+      description: action.command.startsWith("isabelle.") ? "Isabelle command" : "VS Code command",
+      detail: action.detail,
+      action
+    })),
+    {
+      placeHolder: "Run a recommended Isabelle current-mode action",
+      matchOnDescription: true,
+      matchOnDetail: true
+    }
+  );
+  if (!picked) {
+    return;
+  }
+  await vscode.commands.executeCommand(picked.action.command, ...picked.action.args);
 }
 
 function createExplainModeAccessors(): ExplainModeAccessors {
