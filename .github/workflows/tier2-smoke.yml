@@ -263,6 +263,12 @@ jobs:
           $javaTmp = Join-Path $env:RUNNER_TEMP "isabelle-java-tmp"
           New-Item -ItemType Directory -Force -Path $javaTmp | Out-Null
           "JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $isabelleTmpPrefix = Join-Path $env:RUNNER_TEMP "isabelle-tmp"
+          New-Item -ItemType Directory -Force -Path $isabelleTmpPrefix | Out-Null
+          "ISABELLE_TMP_PREFIX=$isabelleTmpPrefix" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TEMP=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TMP=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TMPDIR=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Split-Path -Parent $wrapper | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & $wrapper version
 
