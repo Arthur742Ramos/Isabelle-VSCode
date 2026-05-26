@@ -269,6 +269,12 @@ jobs:
           "TEMP=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "TMP=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "TMPDIR=$javaTmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $defaultIsabelleTmp = Join-Path ([System.IO.Path]::GetTempPath()) "isabelle"
+          if (Test-Path $defaultIsabelleTmp -PathType Leaf) {
+            Remove-Item -Force $defaultIsabelleTmp
+          }
+          New-Item -ItemType Directory -Force -Path $defaultIsabelleTmp | Out-Null
+          icacls.exe $defaultIsabelleTmp /grant "*S-1-1-0:(OI)(CI)F" /T | Out-Host
           Split-Path -Parent $wrapper | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & $wrapper version
 
