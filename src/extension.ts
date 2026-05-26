@@ -702,7 +702,7 @@ async function attemptLanguageServerAutoStart(
     const showOutput = "Show Output";
     const choice = await vscode.window.showWarningMessage(
       `Isabelle PIDE: language server auto-start failed (${errorDetail}). ` +
-        "Auto-start is disabled for this runtime until you change the configuration.",
+        "Auto-start is paused for this runtime until you change the configuration or retry successfully.",
       retryNow,
       openSettings,
       showOutput
@@ -2203,23 +2203,42 @@ function updateSessionStatus(): void {
   statusBar.tooltip = active ? "Active Isabelle session" : "Select an Isabelle session";
 }
 
+type LanguageServerStartResult =
+  | { readonly kind: "not-initialized" }
+  | { readonly kind: "completed"; readonly status: IsabelleLanguageServerStatus }
+  | { readonly kind: "threw"; readonly error: unknown };
+
+async function tryStartLanguageServer(
+  context: vscode.ExtensionContext,
+  options: { readonly persistEnabledSetting: boolean }
+): Promise<LanguageServerStartResult> {
+  if (!languageClient) {
+    return { kind: "not-initialized" };
+  }
+  try {
+    if (options.persistEnabledSetting) {
+      await vscode.workspace
+        .getConfiguration("isabelle")
+        .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
+    }
+    await languageClient.start();
+    const status = languageClient.getStatus();
+    if (status.state === "running") {
+      await clearAutoStartFailureForCurrentRuntime(context);
+    }
+    return { kind: "completed", status };
+  } catch (error) {
+    return { kind: "threw", error };
+  }
+}
+
 async function startLanguageServer(
   output: vscode.OutputChannel,
   context: vscode.ExtensionContext
 ): Promise<void> {
-  if (!languageClient) {
-    return;
-  }
-  try {
-    await vscode.workspace
-      .getConfiguration("isabelle")
-      .update("languageServer.enabled", true, vscode.ConfigurationTarget.Workspace);
-    await languageClient.start();
-    if (languageClient.getStatus().state === "running") {
-      await clearAutoStartFailureForCurrentRuntime(context);
-    }
-  } catch (error) {
-    showBackendError("Unable to start Isabelle language server", error, output);
+  const result = await tryStartLanguageServer(context, { persistEnabledSetting: true });
+  if (result.kind === "threw") {
+    showBackendError("Unable to start Isabelle language server", result.error, output);
   }
 }
 
@@ -2235,22 +2254,26 @@ async function retryLanguageServerAutoStart(
   output.appendLine(
     `Isabelle language server: cleared remembered auto-start failure ${failureKey}; retrying.`
   );
-  await startLanguageServer(output, context);
-  if (languageClient.getStatus().state === "running") {
+  const result = await tryStartLanguageServer(context, { persistEnabledSetting: false });
+  if (result.kind === "threw") {
+    showBackendError("Unable to retry Isabelle language server auto-start", result.error, output);
+    return;
+  }
+  if (result.kind === "completed" && result.status.state === "running") {
     void vscode.window.showInformationMessage(
       "Isabelle language server is running; auto-start will be tried again on future activations."
     );
-  } else {
-    await context.workspaceState.update(failureKey, true);
-    void vscode.window.showWarningMessage(
-      "Isabelle language server did not reach running state; auto-start remains paused for this runtime.",
-      "Show Status"
-    ).then((choice) => {
-      if (choice === "Show Status") {
-        showLanguageServerStatus();
-      }
-    });
+    return;
   }
+  await context.workspaceState.update(failureKey, true);
+  void vscode.window.showWarningMessage(
+    "Isabelle language server did not reach running state; auto-start remains paused for this runtime.",
+    "Show Status"
+  ).then((choice) => {
+    if (choice === "Show Status") {
+      showLanguageServerStatus();
+    }
+  });
 }
 
 async function stopLanguageServer(output: vscode.OutputChannel): Promise<void> {
