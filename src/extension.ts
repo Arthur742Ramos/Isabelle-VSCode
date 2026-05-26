@@ -565,7 +565,7 @@ function createPrerequisiteChecker(
 }
 
 async function runPrerequisiteCheck(
-  options: { readonly force?: boolean } = {}
+  options: { readonly force?: boolean; readonly notifyIfMissing?: boolean } = {}
 ): Promise<PrerequisiteState | undefined> {
   if (!prerequisiteChecker) {
     return undefined;
@@ -583,7 +583,9 @@ async function runPrerequisiteCheck(
   // the manual "Isabelle: Check Setup Prerequisites" command.
   backendManager?.setJavaCommand(state.javaCommand);
   lastPrerequisiteState = state;
-  await prerequisiteChecker.notifyIfMissing(state, options);
+  if (options.notifyIfMissing !== false) {
+    await prerequisiteChecker.notifyIfMissing(state, options);
+  }
   return state;
 }
 
@@ -1333,7 +1335,7 @@ async function runTier2Smoke(
 
   logTier2SmokeProgress(output, "start", `theory=${theoryName} session=${sessionName}`);
   logTier2SmokeProgress(output, "prerequisites:start");
-  const prerequisite = await runPrerequisiteCheck({ force: true });
+  const prerequisite = await runPrerequisiteCheck({ force: true, notifyIfMissing: false });
   addTier2SmokePhase(
     phases,
     "prerequisites",
