@@ -61,7 +61,7 @@ This automation reduces the manual surface, but it does **not** replace human
 verification of visual UX, screenshots/GIFs, or "does this feel right in the
 editor" checks.
 
-`v0.1.0-alpha.6` has already been published; use the table below to record post-release dogfood for those assets and to avoid repeating that gap on the next release. The intended minimum rule remains:
+The table below tracks `v0.1.0-alpha.6` dogfood evidence; use it to record release-candidate or post-release results for those assets and to avoid repeating the evidence gap on the next release. The intended minimum rule remains:
 
 - Windows x64: quick dogfood transcript passed.
 - Linux x64: quick dogfood transcript passed.
