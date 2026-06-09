@@ -66,3 +66,24 @@ GPL-2.0-with-classpath-exception (bundled Temurin in per-platform
 flavors) only. Anything the user pulls in via their Isabelle install
 stays inside that install and inherits Isabelle's BSD-style licensing
 locally.
+
+## Isabelle symbol table (embedded data)
+
+The offline Isabelle symbol completion (and planned symbol conversion/hover
+features) are backed by an embedded data table at
+[`src/semantic/isabelleSymbolData.ts`](src/semantic/isabelleSymbolData.ts). It
+maps each Isabelle symbol token (e.g. `\<forall>`) to its Unicode code point and
+ASCII input abbreviations. This factual interoperability mapping is **derived
+from the `etc/symbols` file** shipped with Isabelle2025-2.
+
+Isabelle is distributed under a **BSD-3-Clause licence**:
+
+> Copyright (c) 1986-2026, University of Cambridge, Technische Universitaet
+> Muenchen, and contributors. All rights reserved. Redistribution and use in
+> source and binary forms, with or without modification, are permitted provided
+> that the conditions of the BSD-3-Clause licence are met. See the `COPYRIGHT`
+> file in any Isabelle distribution for the full notice and disclaimer.
+
+Only the symbol/code-point/abbreviation mapping is embedded — no Isabelle code,
+fonts, or other materials are bundled. To regenerate the table after an Isabelle
+upgrade, re-parse `<ISABELLE_HOME>/etc/symbols`.

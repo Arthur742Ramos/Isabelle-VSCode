@@ -56,6 +56,21 @@ Semantic Versioning while the extension remains in preview.
 - Removed stray `<error_message>…</error_message>` pseudo-tags from the
   `isabelle.sledgehammer.quiescenceDelayMs` setting description.
 
+## Unreleased
+
+### Added
+
+- Offline Isabelle symbol completion. Typing a symbol token (`\`, `\<`,
+  `\<fora`, `\<^bo`, …) now offers the full authoritative Isabelle symbol table
+  — `\<forall>` → ∀, `\<Longrightarrow>` → ⟹, `\<lambda>` → λ, and the rest —
+  with glyph previews, Unicode code points, and the ASCII abbreviations Isabelle
+  accepts (so fuzzy-matching `ALL` or `%` finds the symbol too). It is backed by
+  an embedded table generated from Isabelle's own `etc/symbols`, needs no prover
+  or language server, and works the instant a `.thy` file opens. When the
+  language server is also running, its `PIDE/abbrevs` completions remain
+  available alongside these. See `THIRD_PARTY_NOTICES.md` for the symbol-table
+  attribution.
+
 ## 0.1.0-alpha.6
 
 The first alpha that ships a real Headless PIDE bridge alongside the
