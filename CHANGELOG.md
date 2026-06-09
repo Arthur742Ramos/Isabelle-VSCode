@@ -23,6 +23,9 @@ Semantic Versioning while the extension remains in preview.
   Isabelle-aware `wordPattern` keeps symbol escapes (`\<alpha>`, `\<^sub>`) and
   primed identifiers (`xs'`) selectable as single words, and quotes no longer
   auto-close inside comments.
+- Extension icon and gallery banner. A clean turnstile (`⊢`, “proves”) mark on
+  an indigo gradient now represents the extension in the Marketplace, the
+  Extensions view, and the editor — replacing the generic default icon.
 
 ### Changed
 
