@@ -634,7 +634,32 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     if (overrides?.sessionName !== undefined) {
       sessionName = overrides.sessionName;
     } else if (this.sessionResolver) {
-      const resolved = await this.sessionResolver();
+      let resolved: { kind: "resolved"; session: string } | { kind: "cancelled" };
+      try {
+        resolved = await this.sessionResolver();
+      } catch (error) {
+        // Release the slot claimed above; otherwise a session quick-pick
+        // failure would leave hasActiveRun() permanently true and block every
+        // future run until the window is reloaded.
+        this.activeBackendRequestId = undefined;
+        const message = error instanceof Error ? error.message : String(error);
+        this.lastResult = {
+          requestId,
+          uri,
+          version,
+          status: "failed",
+          suggestions: [],
+          raw: message,
+          message
+        };
+        this.lastOutputNodes = [];
+        this.history.recordFailure(requestId, message, new Date().toISOString());
+        this.output.appendLine(`Sledgehammer session resolution failed: ${message}`);
+        vscode.window.showErrorMessage(`Sledgehammer session resolution failed: ${message}`);
+        this.render();
+        this.updateContexts();
+        return;
+      }
       if (resolved.kind === "cancelled") {
         this.activeBackendRequestId = undefined;
         const cancelMessage = "Sledgehammer cancelled — no Isabelle session selected.";
