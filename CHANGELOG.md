@@ -4,6 +4,20 @@ All notable user-facing changes are tracked here. This project follows the
 spirit of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and uses
 Semantic Versioning while the extension remains in preview.
 
+## Unreleased
+
+### Added
+
+- Structural code folding for Isabelle theory files. A prover-independent,
+  source-only folding-range provider collapses structured Isar proofs
+  (`proof … qed`, nesting-aware), the document-heading hierarchy
+  (`chapter` / `section` / `subsection` / `subsubsection` / `paragraph` /
+  `subparagraph`), multi-line block comments `(* … *)`, and the multi-line
+  theory header (`theory … begin`). Folding works the instant a `.thy` file
+  opens — no language server, Scala backend, or live Isabelle required — and
+  masks comments, cartouches, and string literals (symbol-escape aware) so
+  keywords inside prose or inner syntax never trigger a spurious fold.
+
 ## 0.1.0-alpha.6
 
 The first alpha that ships a real Headless PIDE bridge alongside the

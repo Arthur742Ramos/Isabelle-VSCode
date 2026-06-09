@@ -95,6 +95,7 @@ import { RepairVerificationContext } from "./repair/verificationPlan";
 import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
 import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkProvider";
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
+import { IsabelleFoldingRangeProvider } from "./semantic/IsabelleFoldingRangeProvider";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
 import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
@@ -349,6 +350,10 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.languages.registerDocumentSymbolProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleDocumentSymbolProvider(documentSyncService)
+    ),
+    vscode.languages.registerFoldingRangeProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleFoldingRangeProvider()
     ),
     vscode.languages.registerDefinitionProvider(
       { language: "isabelle", scheme: "file" },
