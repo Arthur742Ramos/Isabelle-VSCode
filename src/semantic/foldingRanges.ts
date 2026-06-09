@@ -84,6 +84,8 @@ interface IsabelleLayout {
   readonly masked: string;
   /** Outermost block-comment spans, as zero-based inclusive line ranges. */
   readonly commentSpans: readonly CommentSpan[];
+  /** Line-start offsets, computed once here and reused by the caller. */
+  readonly lineStarts: readonly number[];
 }
 
 interface CommandToken {
@@ -230,7 +232,7 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
     index += 1;
   }
 
-  return { masked: out.join(""), commentSpans };
+  return { masked: out.join(""), commentSpans, lineStarts };
 }
 
 function collectCommandTokens(masked: string): CommandToken[] {
@@ -255,8 +257,7 @@ function collectCommandTokens(masked: string): CommandToken[] {
  * constructs never produce a fold.
  */
 export function computeIsabelleFoldingRanges(source: string): IsabelleFoldingRange[] {
-  const { masked, commentSpans } = scanIsabelleLayout(source);
-  const lineStarts = computeLineStarts(source);
+  const { masked, commentSpans, lineStarts } = scanIsabelleLayout(source);
   const tokens = collectCommandTokens(masked);
   const ranges: IsabelleFoldingRange[] = [];
 
