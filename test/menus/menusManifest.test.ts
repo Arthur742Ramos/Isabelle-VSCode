@@ -6,15 +6,16 @@ import { describe, expect, it } from "vitest";
 //
 // This test is the dump-prevention boundary for the right-click menu on
 // Isabelle .thy files. The menu is intentionally short — every entry must
-// earn its place. If you find yourself adding a 16th entry, stop and read
+// earn its place. If you find yourself adding an 18th entry, stop and read
 // the rationale in AGENTS.md / the PR that introduced this test.
 //
-// The set covers six daily-driver groups:
+// The set covers seven daily-driver groups:
 //   1_navigation   — caret/command-span jumps
 //   2_proof        — proof actions + proof state controls
 //   3_sledgehammer — run + pick-suggestion (suggestion entry gated)
 //   4_preview      — theory preview (current + split)
 //   5_spellcheck   — include/exclude word (session + permanent)
+//   6_symbols      — convert symbols to Unicode / ASCII
 //   9_repair       — create checked repair request
 //
 // Things deliberately NOT exposed in the right-click menu (palette-only):
@@ -58,6 +59,8 @@ const EXPECTED: ExpectedEntry[] = [
   { command: "isabelle.includeWordPermanently", group: "5_spellcheck@2", when: "editorLangId == isabelle" },
   { command: "isabelle.excludeWord", group: "5_spellcheck@3", when: "editorLangId == isabelle" },
   { command: "isabelle.excludeWordPermanently", group: "5_spellcheck@4", when: "editorLangId == isabelle" },
+  { command: "isabelle.convertSymbolsToUnicode", group: "6_symbols@1", when: "editorLangId == isabelle" },
+  { command: "isabelle.convertSymbolsToAscii", group: "6_symbols@2", when: "editorLangId == isabelle" },
   { command: "isabelle.createRepairRequest", group: "9_repair@1", when: "editorLangId == isabelle" }
 ];
 
@@ -68,10 +71,10 @@ describe("editor/context menu manifest", () => {
     expect(Array.isArray(entries)).toBe(true);
   });
 
-  it("contains exactly the curated 15 entries (no fewer, no extras)", () => {
+  it("contains exactly the curated 17 entries (no fewer, no extras)", () => {
     expect(entries).toBeDefined();
     expect(entries).toHaveLength(EXPECTED.length);
-    expect(EXPECTED).toHaveLength(15);
+    expect(EXPECTED).toHaveLength(17);
   });
 
   it("preserves the curated order, commands, groups, and when-clauses", () => {
@@ -101,7 +104,7 @@ describe("editor/context menu manifest", () => {
     }
   });
 
-  it("groups entries into the six curated sections in numeric order", () => {
+  it("groups entries into the seven curated sections in numeric order", () => {
     expect(entries).toBeDefined();
     const sections = (entries ?? [])
       .map((e) => (e.group ?? "").split("@")[0])
@@ -112,6 +115,7 @@ describe("editor/context menu manifest", () => {
       "3_sledgehammer",
       "4_preview",
       "5_spellcheck",
+      "6_symbols",
       "9_repair"
     ]);
   });
