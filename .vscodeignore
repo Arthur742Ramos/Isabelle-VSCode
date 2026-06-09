@@ -21,3 +21,9 @@ out/test/**
 jre/**
 .vscodeignore.platform
 media/screenshots/README.md
+# Contributor- and agent-facing docs: the Marketplace renders README links
+# against the repository, so these never need to ship to end users.
+AGENTS.md
+docs/**
+skills/**
+scripts/**

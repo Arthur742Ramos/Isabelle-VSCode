@@ -34,6 +34,10 @@ Semantic Versioning while the extension remains in preview.
   was moved from a plain `description` to `markdownDescription`, so backticks
   like `isabelle.executablePath` show as formatted code instead of literal
   back-tick characters. A manifest test pins the convention going forward.
+- The packaged `.vsix` no longer ships contributor- and agent-facing docs
+  (`AGENTS.md`, `docs/`, `skills/`, `scripts/`) to end users — README links
+  resolve against the repository, so these are repo-only. A test pins the
+  exclusions and keeps `.vscodeignore` and `.vscodeignore.platform` in sync.
 
 ### Fixed
 
