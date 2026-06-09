@@ -150,7 +150,10 @@ export class ProofGapAuditService implements vscode.Disposable {
   private scanNow(document: vscode.TextDocument): number {
     try {
       const diagnostics = buildProofGapDiagnostics(scanProofGaps(document.getText()));
-      this.diagnostics.set(document.uri, diagnostics.map((finding) => this.toVscodeDiagnostic(document, finding)));
+      this.diagnostics.set(
+        document.uri,
+        diagnostics.map((diagnostic) => this.toVscodeDiagnostic(document, diagnostic))
+      );
       return diagnostics.length;
     } catch (error) {
       this.output.appendLine(`[proof-gap] Failed to scan ${document.uri.fsPath}: ${describeError(error)}`);
@@ -159,18 +162,18 @@ export class ProofGapAuditService implements vscode.Disposable {
     }
   }
 
-  private toVscodeDiagnostic(document: vscode.TextDocument, finding: ProofGapDiagnostic): vscode.Diagnostic {
-    const start = document.positionAt(finding.offset);
-    const end = document.positionAt(finding.offset + finding.length);
+  private toVscodeDiagnostic(document: vscode.TextDocument, gap: ProofGapDiagnostic): vscode.Diagnostic {
+    const start = document.positionAt(gap.offset);
+    const end = document.positionAt(gap.offset + gap.length);
     const diagnostic = new vscode.Diagnostic(
       new vscode.Range(start, end),
-      finding.message,
-      finding.severity === "warning"
+      gap.message,
+      gap.severity === "warning"
         ? vscode.DiagnosticSeverity.Warning
         : vscode.DiagnosticSeverity.Information
     );
     diagnostic.source = PROOF_GAP_DIAGNOSTIC_SOURCE;
-    diagnostic.code = finding.kind;
+    diagnostic.code = gap.kind;
     return diagnostic;
   }
 
@@ -193,7 +196,7 @@ export class ProofGapAuditService implements vscode.Disposable {
 }
 
 function readEnabledSetting(): boolean {
-  return vscode.workspace.getConfiguration("isabelle.audit.proofGaps").get<boolean>("enabled", true);
+  return vscode.workspace.getConfiguration("isabelle").get<boolean>("audit.proofGaps.enabled", true);
 }
 
 function isTheoryDocument(document: vscode.TextDocument): boolean {
