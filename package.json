@@ -660,12 +660,12 @@
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "Maximum JVM heap (in MB) passed to the Scala backend as `-Xmx<N>m`. Default `0` means do NOT pass `-Xmx`, so the JVM's ergonomic defaults (typically 25% of system RAM, capped) apply. Bump to 4096 for typical PIDE document checks against `HOL`, or 8192+ when working in large AFP entries. Takes effect on the next backend restart (reload the window after changing)."
+          "markdownDescription": "Maximum JVM heap (in MB) passed to the Scala backend as `-Xmx<N>m`. Default `0` means do NOT pass `-Xmx`, so the JVM's ergonomic defaults (typically 25% of system RAM, capped) apply. Bump to 4096 for typical PIDE document checks against `HOL`, or 8192+ when working in large AFP entries. Takes effect on the next backend restart (reload the window after changing)."
         },
         "isabelle.pide.prewarmOnActivation": {
           "type": "boolean",
           "default": false,
-          "description": "When `true`, the extension warms up an Isabelle/PIDE `Headless.Session` for the active session right after activation so the first `Isabelle: Show PIDE Document Status` call returns instantly. Power-user opt-in — the warmup costs 5-30 s of CPU and ~2-4 GB of heap on first activation. Default `false` so users who never touch PIDE features pay nothing."
+          "markdownDescription": "When `true`, the extension warms up an Isabelle/PIDE `Headless.Session` for the active session right after activation so the first `Isabelle: Show PIDE Document Status` call returns instantly. Power-user opt-in — the warmup costs 5-30 s of CPU and ~2-4 GB of heap on first activation. Default `false` so users who never touch PIDE features pay nothing."
         },
         "isabelle.executablePath": {
           "type": "string",
@@ -675,12 +675,12 @@
         "isabelle.languageServer.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Explicit override for whether `isabelle vscode_server` runs as a language server. Leave at the default (unset) and the extension auto-starts the server when Isabelle is detected (see `isabelle.languageServer.autoStart`). Set to `true` to force-start regardless of detection, or `false` to keep the LSP off even when Isabelle is reachable. Requires Isabelle 2019 or newer."
+          "markdownDescription": "Explicit override for whether `isabelle vscode_server` runs as a language server. Leave at the default (unset) and the extension auto-starts the server when Isabelle is detected (see `isabelle.languageServer.autoStart`). Set to `true` to force-start regardless of detection, or `false` to keep the LSP off even when Isabelle is reachable. Requires Isabelle 2019 or newer."
         },
         "isabelle.languageServer.autoStart": {
           "type": "boolean",
           "default": true,
-          "description": "When `isabelle.languageServer.enabled` has not been explicitly set, automatically start the Isabelle language server if the activation-time prerequisite check finds a working Java 21+ runtime and a reachable Isabelle 2019+. A failed auto-start is remembered per resolved Isabelle runtime so the extension does not retry indefinitely; changing `isabelle.executablePath` or `isabelle.languageServer.extraArgs` clears the flag. Set this to `false` to require an explicit `isabelle.languageServer.enabled` toggle for every install."
+          "markdownDescription": "When `isabelle.languageServer.enabled` has not been explicitly set, automatically start the Isabelle language server if the activation-time prerequisite check finds a working Java 21+ runtime and a reachable Isabelle 2019+. A failed auto-start is remembered per resolved Isabelle runtime so the extension does not retry indefinitely; changing `isabelle.executablePath` or `isabelle.languageServer.extraArgs` clears the flag. Set this to `false` to require an explicit `isabelle.languageServer.enabled` toggle for every install."
         },
         "isabelle.languageServer.extraArgs": {
           "type": "array",
@@ -688,7 +688,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Additional command-line arguments passed to `isabelle vscode_server` before the protocol switches (e.g., `[\"-L\", \"./isabelle.log\"]`)."
+          "markdownDescription": "Additional command-line arguments passed to `isabelle vscode_server` before the protocol switches (e.g., `[\"-L\", \"./isabelle.log\"]`)."
         },
         "isabelle.languageServer.logVerbose": {
           "type": "boolean",
@@ -719,68 +719,68 @@
             "type": "string"
           },
           "default": [],
-          "description": "Additional arguments passed to `isabelle build` before the active session name."
+          "markdownDescription": "Additional arguments passed to `isabelle build` before the active session name."
         },
         "isabelle.sledgehammer.provers": {
           "type": "string",
           "default": "",
-          "description": "Optional space-separated list of Sledgehammer provers (e.g. `cvc5 verit z3 e spass vampire zipperposition`). Empty falls back to the prover list reported by `isabelle vscode_server` via `PIDE/sledgehammer_provers_response`, which in turn falls back to Isabelle's own `sledgehammer_provers` defaults. Only consulted when the LSP relay is enabled and a Sledgehammer run is dispatched through `PIDE/sledgehammer_request`. The setting is also exposed for future Scala-backend wiring."
+          "markdownDescription": "Optional space-separated list of Sledgehammer provers (e.g. `cvc5 verit z3 e spass vampire zipperposition`). Empty falls back to the prover list reported by `isabelle vscode_server` via `PIDE/sledgehammer_provers_response`, which in turn falls back to Isabelle's own `sledgehammer_provers` defaults. Only consulted when the LSP relay is enabled and a Sledgehammer run is dispatched through `PIDE/sledgehammer_request`. The setting is also exposed for future Scala-backend wiring."
         },
         "isabelle.sledgehammer.isar": {
           "type": "boolean",
           "default": false,
-          "description": "When true, ask Sledgehammer to return Isar-style structured proofs (`proof ... qed`) instead of one-liners. Mirrors the `isar` flag of `PIDE/sledgehammer_request`. Default `false` matches the upstream `isabelle vscode_server` default."
+          "markdownDescription": "When true, ask Sledgehammer to return Isar-style structured proofs (`proof ... qed`) instead of one-liners. Mirrors the `isar` flag of `PIDE/sledgehammer_request`. Default `false` matches the upstream `isabelle vscode_server` default."
         },
         "isabelle.sledgehammer.try0": {
           "type": "boolean",
           "default": true,
-          "description": "When true, allow Sledgehammer to try the standard `try0` tactics (`auto`, `blast`, `fast`, `force`, ...) before and around the external provers. Mirrors the `try0` flag of `PIDE/sledgehammer_request`. Default `true` matches the upstream `isabelle vscode_server` default."
+          "markdownDescription": "When true, allow Sledgehammer to try the standard `try0` tactics (`auto`, `blast`, `fast`, `force`, ...) before and around the external provers. Mirrors the `try0` flag of `PIDE/sledgehammer_request`. Default `true` matches the upstream `isabelle vscode_server` default."
         },
         "isabelle.sledgehammer.quiescenceDelayMs": {
           "type": "number",
           "default": 1500,
           "minimum": 0,
           "maximum": 30000,
-          "description": "Optional quiescence delay (in milliseconds) the panel enforces before dispatching `PIDE/sledgehammer_request` in LSP mode, applied as `max(0, delay - timeSinceLastEdit)` so the wait only happens when a recent edit means the language server may still be reprocessing the theory. Set higher (for example 3000-5000) if you reproducibly see `<error_message>Unknown proof context</error_message>` from the server; set to 0 to disable and dispatch immediately. The setting has no effect when the LSP relay is not in use."
+          "markdownDescription": "Optional quiescence delay (in milliseconds) the panel enforces before dispatching `PIDE/sledgehammer_request` in LSP mode, applied as `max(0, delay - timeSinceLastEdit)` so the wait only happens when a recent edit means the language server may still be reprocessing the theory. Set higher (for example 3000-5000) if you reproducibly see `Unknown proof context` errors from the server; set to 0 to disable and dispatch immediately. The setting has no effect when the LSP relay is not in use."
         },
         "isabelle.repair.aiProvider": {
           "type": "string",
           "default": "",
-          "description": "Optional id of a registered AI repair provider that the `Isabelle: Request AI Repair Suggestion` command will delegate to. Empty (the default) means no provider is selected; the command refuses to call anything until both this setting and `isabelle.repair.aiAcknowledgedSharing` are set. The bundled `manual-paste-back` provider makes no network calls; third-party providers must be registered through the extension API. See docs/AI_REPAIR.md for the registration contract."
+          "markdownDescription": "Optional id of a registered AI repair provider that the `Isabelle: Request AI Repair Suggestion` command will delegate to. Empty (the default) means no provider is selected; the command refuses to call anything until both this setting and `isabelle.repair.aiAcknowledgedSharing` are set. The bundled `manual-paste-back` provider makes no network calls; third-party providers must be registered through the extension API. See docs/AI_REPAIR.md for the registration contract."
         },
         "isabelle.repair.aiAcknowledgedSharing": {
           "type": "boolean",
           "default": false,
-          "description": "Safety gate for the AI repair seam. When false (the default), the `Isabelle: Request AI Repair Suggestion` command refuses to invoke any registered provider, even if `isabelle.repair.aiProvider` is set. Setting this to true acknowledges that the provider will receive the full checked-repair request, which may include source code, diagnostics, and proof state — read docs/AI_REPAIR.md before enabling."
+          "markdownDescription": "Safety gate for the AI repair seam. When false (the default), the `Isabelle: Request AI Repair Suggestion` command refuses to invoke any registered provider, even if `isabelle.repair.aiProvider` is set. Setting this to true acknowledges that the provider will receive the full checked-repair request, which may include source code, diagnostics, and proof state — read docs/AI_REPAIR.md before enabling."
         },
         "isabelle.proofState.autoUpdate": {
           "type": "boolean",
           "default": true,
-          "description": "When true (the upstream default), the LSP-mode proof state panel re-renders on every `Session.Commands_Changed` or `Session.Caret_Focus` server event. When false, the panel only refreshes when you run `Isabelle: Refresh Proof State` (or use the panel toolbar refresh button). Maps onto the upstream `PIDE/state_auto_update` notification."
+          "markdownDescription": "When true (the upstream default), the LSP-mode proof state panel re-renders on every `Session.Commands_Changed` or `Session.Caret_Focus` server event. When false, the panel only refreshes when you run `Isabelle: Refresh Proof State` (or use the panel toolbar refresh button). Maps onto the upstream `PIDE/state_auto_update` notification."
         },
         "isabelle.proofState.margin": {
           "type": "number",
           "default": 80,
           "minimum": 20,
           "maximum": 400,
-          "description": "Pretty-printer margin (in columns) for the LSP-mode proof state panel. Lower values produce more line breaks; higher values keep formulas on one line. Maps onto the upstream `PIDE/state_set_margin` notification."
+          "markdownDescription": "Pretty-printer margin (in columns) for the LSP-mode proof state panel. Lower values produce more line breaks; higher values keep formulas on one line. Maps onto the upstream `PIDE/state_set_margin` notification."
         },
         "isabelle.dynamicOutput.margin": {
           "type": "number",
           "default": 80,
           "minimum": 20,
           "maximum": 400,
-          "description": "Pretty-printer margin (in columns) for the caret-driven dynamic output sub-panel shown beneath the proof state. Maps onto the upstream `PIDE/output_set_margin` notification."
+          "markdownDescription": "Pretty-printer margin (in columns) for the caret-driven dynamic output sub-panel shown beneath the proof state. Maps onto the upstream `PIDE/output_set_margin` notification."
         },
         "isabelle.setup.suppressNotifications": {
           "type": "boolean",
           "default": false,
-          "description": "When true, the extension stops surfacing the activation-time onboarding toast for missing Java / Isabelle prerequisites. The `Isabelle: Check Setup Prerequisites` command still works on demand. Defaults to workspace scope so dismissing it in one project does not silence it everywhere."
+          "markdownDescription": "When true, the extension stops surfacing the activation-time onboarding toast for missing Java / Isabelle prerequisites. The `Isabelle: Check Setup Prerequisites` command still works on demand. Defaults to workspace scope so dismissing it in one project does not silence it everywhere."
         },
         "isabelle.audit.proofGaps.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "When true, the extension scans open Isabelle theory files for `sorry` and `oops` proof gaps and reports them as diagnostics in the Problems panel. This is an offline, source-only heuristic (it ignores comments, cartouches, and string literals) and does not require a running Isabelle process; the authoritative proof status still comes from Isabelle/PIDE."
+          "markdownDescription": "When true, the extension scans open Isabelle theory files for `sorry` and `oops` proof gaps and reports them as diagnostics in the Problems panel. This is an offline, source-only heuristic (it ignores comments, cartouches, and string literals) and does not require a running Isabelle process; the authoritative proof status still comes from Isabelle/PIDE."
         }
       }
     },

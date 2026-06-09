@@ -18,6 +18,19 @@ Semantic Versioning while the extension remains in preview.
   masks comments, cartouches, and string literals (symbol-escape aware) so
   keywords inside prose or inner syntax never trigger a spurious fold.
 
+### Changed
+
+- Settings now render their inline code, bold, and examples correctly in the
+  VS Code Settings UI. Every configuration setting whose help text uses Markdown
+  was moved from a plain `description` to `markdownDescription`, so backticks
+  like `isabelle.executablePath` show as formatted code instead of literal
+  back-tick characters. A manifest test pins the convention going forward.
+
+### Fixed
+
+- Removed stray `<error_message>…</error_message>` pseudo-tags from the
+  `isabelle.sledgehammer.quiescenceDelayMs` setting description.
+
 ## 0.1.0-alpha.6
 
 The first alpha that ships a real Headless PIDE bridge alongside the
