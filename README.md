@@ -37,6 +37,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 ### ⚡ Works instantly — no Isabelle, Java, or setup required
 
 - **Syntax & semantic highlighting** for Isabelle commands, declarations, and symbols.
+- **Offline symbol entry** — type `\<` and complete the full Isabelle symbol table (`\<forall>` → ∀, `\<Longrightarrow>` → ⟹, …) with glyph previews and ASCII abbreviations, with no prover or language server running.
 - **Structural code folding** — fold `proof … qed` blocks, the `section`/`subsection` hierarchy, multi-line comments, and the `theory … begin` header (comment/cartouche/string aware).
 - **Unicode bracket editing** — auto-close and surround the cartouche `‹ ›` and `⟨ ⟩` / `⟦ ⟧` pairs, with symbol- and prime-aware word selection (`\<alpha>`, `\<^sub>`, `xs'`).
 - **Explorer views** — **Sessions**, **Theory Graph** (forward/reverse dependencies), **Theory Outline**, and **Proof Outline** trees that follow the active theory.

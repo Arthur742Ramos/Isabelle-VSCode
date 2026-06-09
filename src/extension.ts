@@ -99,6 +99,7 @@ import { IsabelleFoldingRangeProvider } from "./semantic/IsabelleFoldingRangePro
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
 import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
+import { registerIsabelleSymbolCompletionProvider } from "./semantic/IsabelleSymbolCompletionProvider";
 import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
   IsabelleSemanticTokensProvider
@@ -360,6 +361,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       new IsabelleDefinitionProvider(documentSyncService, sessions, output)
     ),
     registerPideAbbrevsCompletionProvider(pideAbbrevsCache),
+    registerIsabelleSymbolCompletionProvider(),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryOutline", theoryOutlineTree),
