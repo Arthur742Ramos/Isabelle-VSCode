@@ -139,10 +139,10 @@ export function symbolsToUnicode(text: string): string {
  * `\<zero>`) are matched as a single character.
  */
 export function symbolsToAscii(text: string): string {
-  let out = "";
+  const out: string[] = [];
   for (const char of text) {
     const symbol = BY_GLYPH.get(char);
-    out += symbol ? symbol.name : char;
+    out.push(symbol ? symbol.name : char);
   }
-  return out;
+  return out.join("");
 }

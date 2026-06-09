@@ -33,7 +33,14 @@ export async function convertIsabelleSymbols(direction: SymbolDirection): Promis
     }
   });
 
-  if (!applied || changed === 0) {
+  if (!applied) {
+    vscode.window.showErrorMessage(
+      "Isabelle: could not apply the symbol conversion (the document may be read-only)."
+    );
+    return;
+  }
+
+  if (changed === 0) {
     vscode.window.showInformationMessage(
       direction === "unicode"
         ? "No Isabelle symbol tokens to convert to Unicode."
