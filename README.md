@@ -119,7 +119,10 @@ The extension **activates with no prerequisites** — basic editing features alw
 | You want… | Java 21+ | Isabelle 2019+ |
 | --- | --- | --- |
 | Local editing (highlighting, folding, outlines, audit) | — | — |
-| Build, language server, proof state, Sledgehammer, preview | Bundled in per-platform `.vsix` (else on `PATH`) | Required |
+| `isabelle build` diagnostics, the Isabelle language server, and LSP-mode proof state / Sledgehammer / preview | — | ✅ |
+| Headless PIDE backend (document checks, per-cursor proof state, backend Sledgehammer, proof minimization) and zero-config LSP **auto-start** | ✅ *(bundled in per-platform `.vsix`)* | ✅ |
+
+> The language server itself runs on Isabelle's own bundled JDK, so you can force it on (`"isabelle.languageServer.enabled": true`) without a separate Java. A Java 21+ runtime is what the extension's **Scala/Headless backend** needs and what the convenience **auto-start** probes for — and it's bundled in the per-platform `.vsix`, so most users never install Java.
 
 If you need to install them yourself, any vendor's Java 21 works:
 
