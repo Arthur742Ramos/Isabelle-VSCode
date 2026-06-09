@@ -34,6 +34,7 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
   private refreshTimer: NodeJS.Timeout | undefined;
   private freshnessTimer: NodeJS.Timeout | undefined;
   private lastState: ProofStateResult | undefined;
+  private refreshToken = 0;
 
   private lspSession: LspProofStateSession | undefined;
   private lspOutputNodes: readonly PideOutputNode[] = [];
@@ -111,6 +112,10 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
       return;
     }
 
+    // Each refresh supersedes any in-flight one: an older backend response must
+    // not overwrite newer panel content after a rapid cursor move / edit.
+    const token = ++this.refreshToken;
+
     if (this.shouldUseLspMode() && this.lspSession) {
       // In LSP mode, refresh is push-driven by PIDE/state_output. We
       // can ask for an immediate recompute via PIDE/state_update;
@@ -139,9 +144,15 @@ export class ProofStatePanel implements vscode.WebviewViewProvider, vscode.Dispo
           }
         }
       );
+      if (token !== this.refreshToken) {
+        return;
+      }
       this.lastState = result;
       this.render();
     } catch (error) {
+      if (token !== this.refreshToken) {
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`Proof state refresh failed: ${message}`);
       this.lastState = {
