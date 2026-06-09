@@ -37,6 +37,7 @@ import {
   dispatchResetWords,
   dispatchSpellCheckerWord
 } from "./api/spellCheckerCommands";
+import { ProofGapAuditService } from "./audit/ProofGapAuditService";
 import { BuildService } from "./build/BuildService";
 import { createBuildCommand } from "./build/buildArgs";
 import { CommandSpanDecorationsService } from "./document/CommandSpanDecorations";
@@ -174,6 +175,7 @@ let backendManager: BackendManager | undefined;
 let buildService: BuildService | undefined;
 let commandSpanDecorationsService: CommandSpanDecorationsService | undefined;
 let documentStatusService: DocumentStatusService | undefined;
+let proofGapAuditService: ProofGapAuditService | undefined;
 let documentSyncService: DocumentSyncService | undefined;
 let languageClient: IsabelleLanguageClient | undefined;
 let languageServerStatusBar: LanguageServerStatusBar | undefined;
@@ -236,6 +238,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   sessionService = sessions;
   documentSyncService = new DocumentSyncService(backendManager, output, () => sessions.getActiveSessionName());
   documentStatusService = new DocumentStatusService(documentSyncService, output);
+  proofGapAuditService = new ProofGapAuditService(output);
   languageClient = new IsabelleLanguageClient(
     output,
     () => getIsabelleExecutablePath(),
@@ -313,6 +316,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     buildService,
     commandSpanDecorationsService,
     documentStatusService,
+    proofGapAuditService,
     documentSyncService,
     languageClient,
     languageServerStatusBar,
@@ -373,6 +377,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.cancelBuild", () => cancelBuild()),
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
     vscode.commands.registerCommand("isabelle.showDocumentStatus", () => documentStatusService?.showActiveDocumentStatus()),
+    vscode.commands.registerCommand("isabelle.auditProofGaps", () => proofGapAuditService?.auditOpenDocuments()),
     vscode.commands.registerCommand("isabelle.refreshProofOutline", () => proofOutlineProvider?.refresh()),
     vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
     vscode.commands.registerCommand("isabelle.nextCommand", async () => navigateCommand("next", output)),
@@ -465,6 +470,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
 
   documentSyncService.start();
   documentStatusService.start();
+  proofGapAuditService.start();
   commandSpanDecorationsService.start();
   pideDecorationOverlayService.start();
 
@@ -790,6 +796,8 @@ export async function deactivate(): Promise<void> {
   buildService = undefined;
   documentStatusService?.dispose();
   documentStatusService = undefined;
+  proofGapAuditService?.dispose();
+  proofGapAuditService = undefined;
   commandSpanDecorationsService?.dispose();
   commandSpanDecorationsService = undefined;
   pideDecorationOverlayService?.dispose();

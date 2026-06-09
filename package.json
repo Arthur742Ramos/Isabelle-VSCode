@@ -50,6 +50,7 @@
     "onCommand:isabelle.cancelBuild",
     "onCommand:isabelle.resyncOpenTheories",
     "onCommand:isabelle.showDocumentStatus",
+    "onCommand:isabelle.auditProofGaps",
     "onCommand:isabelle.refreshProofOutline",
     "onCommand:isabelle.refreshProofState",
     "onCommand:isabelle.nextCommand",
@@ -337,6 +338,10 @@
       {
         "command": "isabelle.checkPrerequisites",
         "title": "Isabelle: Check Setup Prerequisites"
+      },
+      {
+        "command": "isabelle.auditProofGaps",
+        "title": "Isabelle: Audit Proof Gaps in Open Theories"
       },
       {
         "command": "isabelle.explainCurrentMode",
@@ -771,6 +776,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, the extension stops surfacing the activation-time onboarding toast for missing Java / Isabelle prerequisites. The `Isabelle: Check Setup Prerequisites` command still works on demand. Defaults to workspace scope so dismissing it in one project does not silence it everywhere."
+        },
+        "isabelle.audit.proofGaps.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, the extension scans open Isabelle theory files for `sorry` and `oops` proof gaps and reports them as diagnostics in the Problems panel. This is an offline, source-only heuristic (it ignores comments, cartouches, and string literals) and does not require a running Isabelle process; the authoritative proof status still comes from Isabelle/PIDE."
         }
       }
     },
