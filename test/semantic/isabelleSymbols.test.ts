@@ -91,6 +91,13 @@ describe("findSymbolCompletionContext", () => {
     expect(ctx("\\fora")).toEqual({ replaceStart: 0, query: "fora" });
   });
 
+  it("does not fire for a bare control caret without the bracket", () => {
+    // Isabelle control symbols are written `\<^...>`, so `\^foo` is not a valid
+    // symbol prefix and must not trigger completion.
+    expect(ctx("\\^foo")).toBeUndefined();
+    expect(ctx("a \\^bo")).toBeUndefined();
+  });
+
   it("does not fire outside an open token", () => {
     expect(ctx("lemma foo")).toBeUndefined();
     expect(ctx("\\<forall> ")).toBeUndefined();

@@ -4,7 +4,7 @@
  * Derived from the `etc/symbols` table shipped with Isabelle2025-2. Each entry
  * pairs an Isabelle symbol token (e.g. `\\<forall>`) with its Unicode code
  * point (when it has a glyph), its ASCII input abbreviations, and its symbol
- * group. Control/markup symbols such as `\\<^bold>` have `code: null` because
+ * group. Markup-only symbols such as `\\<^latex>` have `code: null` because
  * they render no standalone glyph.
  *
  * Isabelle is distributed under a BSD-3-Clause licence (Copyright (c) 1986-2026

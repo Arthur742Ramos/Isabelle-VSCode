@@ -62,8 +62,9 @@ function toCompletionItem(symbol: ResolvedIsabelleSymbol, range: vscode.Range): 
   item.filterText = symbolFilterText(symbol);
   item.detail = symbol.glyph ? `${symbol.glyph}  ${symbol.name}` : symbol.name;
   item.documentation = buildDocumentation(symbol);
-  // Sort after any PIDE/LSP-sourced completions for the same prefix.
-  item.sortText = `~isabelle-symbol~${symbol.name}`;
+  // Sort after this repo's PIDE/abbrev completions (sortText `~~abbrev~…`) so
+  // live LSP-sourced suggestions win ties; `~~~…` > `~~a…` lexicographically.
+  item.sortText = `~~~isabelle-symbol~${symbol.name}`;
   return item;
 }
 

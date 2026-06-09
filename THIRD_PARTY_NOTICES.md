@@ -69,9 +69,8 @@ locally.
 
 ## Isabelle symbol table (embedded data)
 
-The offline Isabelle symbol features (symbol completion, the
-`Isabelle: Convert Symbols …` commands, and symbol hovers) are backed by an
-embedded data table at
+The offline Isabelle symbol completion (and planned symbol conversion/hover
+features) are backed by an embedded data table at
 [`src/semantic/isabelleSymbolData.ts`](src/semantic/isabelleSymbolData.ts). It
 maps each Isabelle symbol token (e.g. `\<forall>`) to its Unicode code point and
 ASCII input abbreviations. This factual interoperability mapping is **derived

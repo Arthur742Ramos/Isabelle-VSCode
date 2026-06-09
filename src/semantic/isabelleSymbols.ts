@@ -75,16 +75,20 @@ export interface SymbolCompletionContext {
   readonly query: string;
 }
 
-// A trailing, not-yet-closed Isabelle symbol token at the cursor: a backslash,
-// an optional `<`, an optional control caret, then the partial name. Anchored to
+// A trailing, not-yet-closed Isabelle symbol token at the cursor. Anchored to
 // the end of the pre-cursor text so it only fires while the token is open.
-const OPEN_TOKEN = /\\(<?)(\^?)([A-Za-z][A-Za-z0-9_]*)?$/;
+// Either the bracketed form `\<`, optionally with a control caret `\<^`, then a
+// partial name — or the no-bracket shorthand `\name`. The control caret is only
+// accepted after `<`, because Isabelle control symbols are written `\<^...>`
+// (so a bare `\^foo` must NOT trigger symbol completion).
+const OPEN_TOKEN = /\\(?:<(?:\^)?([A-Za-z][A-Za-z0-9_]*)?|([A-Za-z][A-Za-z0-9_]*)?)$/;
 
 /**
  * If the cursor sits at the end of a partially typed symbol token, return the
  * replacement range start and the query typed so far; otherwise `undefined`.
  *
  * Fires for `\`, `\<`, `\<fora`, `\<^bo`, and the no-bracket shorthand `\fora`.
+ * Does not fire for `\^foo` (not a valid Isabelle symbol prefix).
  */
 export function findSymbolCompletionContext(
   lineText: string,
@@ -97,7 +101,7 @@ export function findSymbolCompletionContext(
   }
   return {
     replaceStart: character - match[0].length,
-    query: match[3] ?? ""
+    query: match[1] ?? match[2] ?? ""
   };
 }
 
