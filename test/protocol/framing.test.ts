@@ -29,4 +29,15 @@ describe("ContentLengthMessageReader", () => {
       { id: "2", result: 2 }
     ]);
   });
+
+  it("reset() drops a desynchronized buffer so later valid frames still parse", () => {
+    const reader = new ContentLengthMessageReader();
+
+    // A corrupt frame body throws and leaves the bytes buffered.
+    expect(() => reader.push(Buffer.from("Content-Length: 2\r\n\r\n{x", "ascii"))).toThrow();
+    reader.reset();
+
+    // After reset, a fresh valid frame parses cleanly (no leftover corruption).
+    expect(reader.push(encodeMessage({ id: "9", result: "ok" }))).toEqual([{ id: "9", result: "ok" }]);
+  });
 });

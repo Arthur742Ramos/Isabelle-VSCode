@@ -89,10 +89,14 @@ export class BackendClient {
     try {
       messages = this.reader.push(chunk);
     } catch (error) {
-      // A malformed frame (bad Content-Length, non-JSON body) would otherwise
-      // throw out of the transport's data listener as an uncaught extension-host
-      // error and leave every pending request hanging until it times out.
-      // Fail them cleanly instead.
+      // A malformed frame (bad Content-Length, non-JSON body) desynchronizes
+      // the byte stream. Discard the buffered bytes so we don't re-parse the
+      // same corrupt frame on every subsequent chunk (which would also grow the
+      // buffer without bound), and fail the in-flight requests cleanly instead
+      // of letting the parse error escape as an uncaught extension-host
+      // exception. The transport stays alive, so retried requests can still be
+      // served once the stream re-synchronizes.
+      this.reader.reset();
       this.rejectAll(error instanceof Error ? error : new Error(String(error)));
       return;
     }
