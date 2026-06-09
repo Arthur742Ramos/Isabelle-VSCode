@@ -17,6 +17,12 @@ Semantic Versioning while the extension remains in preview.
   opens — no language server, Scala backend, or live Isabelle required — and
   masks comments, cartouches, and string literals (symbol-escape aware) so
   keywords inside prose or inner syntax never trigger a spurious fold.
+- Editor ergonomics for Isabelle's Unicode brackets: typing `‹`, `⟨`, or `⟦`
+  now auto-inserts its matching `›`, `⟩`, or `⟧`, the same pairs surround a
+  selection when typed over it, and they participate in bracket matching. An
+  Isabelle-aware `wordPattern` keeps symbol escapes (`\<alpha>`, `\<^sub>`) and
+  primed identifiers (`xs'`) selectable as single words, and quotes no longer
+  auto-close inside comments.
 
 ### Changed
 
