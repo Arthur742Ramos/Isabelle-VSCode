@@ -126,6 +126,13 @@ export class DocumentSyncService implements vscode.Disposable {
   }
 
   private recordResult(result: TheoryDocumentResult, action: string): void {
+    const current = this.syncedVersions.get(result.uri);
+    if (current !== undefined && current > result.version) {
+      // A newer sync for this URI already landed; ignore this stale,
+      // out-of-order response so we don't overwrite fresh command spans
+      // (and fire a stale change event) with older ones.
+      return;
+    }
     this.syncedVersions.set(result.uri, result.version);
     this.syncedDocuments.set(result.uri, result);
     this.didChangeTheoryDocument.fire(result);

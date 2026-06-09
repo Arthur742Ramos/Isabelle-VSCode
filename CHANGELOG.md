@@ -43,6 +43,12 @@ Semantic Versioning while the extension remains in preview.
 - The optional PIDE prewarm timer scheduled at activation is now cleared on
   deactivation, so it can no longer fire against disposed services when a window
   closes immediately after start-up.
+- Guarded several panels and document sync against stale/out-of-order async
+  results: the proof state panel ignores a backend response that a newer refresh
+  has superseded, document sync ignores an out-of-order theory result older than
+  the version already recorded, and the Sledgehammer panel claims its run slot
+  before the session quick-pick so a second invocation can no longer start a
+  duplicate backend job.
 - Removed stray `<error_message>…</error_message>` pseudo-tags from the
   `isabelle.sledgehammer.quiescenceDelayMs` setting description.
 

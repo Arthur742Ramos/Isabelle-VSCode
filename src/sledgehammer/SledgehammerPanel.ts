@@ -621,6 +621,11 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       line: editor.selection.active.line,
       character: editor.selection.active.character
     };
+    // Claim the active-run slot synchronously, before the (awaited) session
+    // resolution, so a second invocation while the session quick-pick is open
+    // is blocked by hasActiveRun() instead of starting a duplicate backend job.
+    // The finally block (and the cancellation path) release it.
+    this.activeBackendRequestId = requestId;
     // Resolve the session via the shared 4-step PIDE cascade when no
     // override was passed. Replays carry the historical sessionName
     // through `overrides` so a replay re-runs against the same session
@@ -629,8 +634,34 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
     if (overrides?.sessionName !== undefined) {
       sessionName = overrides.sessionName;
     } else if (this.sessionResolver) {
-      const resolved = await this.sessionResolver();
+      let resolved: { kind: "resolved"; session: string } | { kind: "cancelled" };
+      try {
+        resolved = await this.sessionResolver();
+      } catch (error) {
+        // Release the slot claimed above; otherwise a session quick-pick
+        // failure would leave hasActiveRun() permanently true and block every
+        // future run until the window is reloaded.
+        this.activeBackendRequestId = undefined;
+        const message = error instanceof Error ? error.message : String(error);
+        this.lastResult = {
+          requestId,
+          uri,
+          version,
+          status: "failed",
+          suggestions: [],
+          raw: message,
+          message
+        };
+        this.lastOutputNodes = [];
+        this.history.recordFailure(requestId, message, new Date().toISOString());
+        this.output.appendLine(`Sledgehammer session resolution failed: ${message}`);
+        vscode.window.showErrorMessage(`Sledgehammer session resolution failed: ${message}`);
+        this.render();
+        this.updateContexts();
+        return;
+      }
       if (resolved.kind === "cancelled") {
+        this.activeBackendRequestId = undefined;
         const cancelMessage = "Sledgehammer cancelled — no Isabelle session selected.";
         this.lastResult = {
           requestId,
@@ -655,7 +686,6 @@ export class SledgehammerPanel implements vscode.WebviewViewProvider, vscode.Dis
       ?? vscode.workspace.getConfiguration("isabelle").get<string>("executablePath", "isabelle");
     const startedAt = new Date().toISOString();
 
-    this.activeBackendRequestId = requestId;
     this.lastResult = {
       requestId,
       uri,
