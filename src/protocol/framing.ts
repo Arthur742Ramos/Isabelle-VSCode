@@ -17,6 +17,16 @@ export function encodeMessage(message: unknown): Buffer {
 export class ContentLengthMessageReader {
   private buffer = Buffer.alloc(0);
 
+  /**
+   * Discard any buffered bytes. Used after an unrecoverable frame error so the
+   * desynchronized stream prefix is dropped instead of being re-parsed (and
+   * re-thrown) on every subsequent chunk, which would also grow the buffer
+   * without bound.
+   */
+  public reset(): void {
+    this.buffer = Buffer.alloc(0);
+  }
+
   public push(chunk: Buffer): unknown[] {
     this.buffer = Buffer.concat([this.buffer, chunk]);
     const messages: unknown[] = [];
