@@ -37,6 +37,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- The backend client now fails in-flight requests cleanly if the Scala backend
+  ever emits a malformed protocol frame, instead of letting the parse error
+  escape as an uncaught extension-host exception and leaving requests to hang.
+- The optional PIDE prewarm timer scheduled at activation is now cleared on
+  deactivation, so it can no longer fire against disposed services when a window
+  closes immediately after start-up.
 - Removed stray `<error_message>…</error_message>` pseudo-tags from the
   `isabelle.sledgehammer.quiescenceDelayMs` setting description.
 

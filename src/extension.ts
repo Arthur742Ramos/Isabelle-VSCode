@@ -527,7 +527,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
   // power users do not pay the 5-30 s bootstrap on their first
   // user-facing PIDE call. Default `false` so users who never touch
   // PIDE features pay nothing on activation.
-  maybePrewarmPide(output);
+  context.subscriptions.push(maybePrewarmPide(output));
 
   return createIsabellePideExtensionApi(repairAiProviderRegistry, repairAiSecretStore);
 }
@@ -1314,19 +1314,19 @@ async function minimizeSledgehammerProof(output: vscode.OutputChannel): Promise<
  * prewarm is harmless (the next user-facing PIDE call retries from
  * scratch).
  */
-function maybePrewarmPide(output: vscode.OutputChannel): void {
+function maybePrewarmPide(output: vscode.OutputChannel): vscode.Disposable {
   const config = vscode.workspace.getConfiguration("isabelle");
   if (!config.get<boolean>("pide.prewarmOnActivation", false)) {
-    return;
+    return new vscode.Disposable(() => {});
   }
   const session = (config.get<string>("session.active", "") ?? "").trim();
   if (session.length === 0) {
     output.appendLine(
       "PIDE prewarm skipped: `isabelle.pide.prewarmOnActivation` is enabled but `isabelle.session.active` is empty."
     );
-    return;
+    return new vscode.Disposable(() => {});
   }
-  setTimeout(() => {
+  const handle = setTimeout(() => {
     void (async () => {
       try {
         const client = requireBackendManager().getClient();
@@ -1348,6 +1348,7 @@ function maybePrewarmPide(output: vscode.OutputChannel): void {
       }
     })();
   }, 1500);
+  return new vscode.Disposable(() => clearTimeout(handle));
 }
 
 async function runTier2Smoke(

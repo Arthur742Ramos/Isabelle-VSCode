@@ -85,7 +85,19 @@ export class BackendClient {
   }
 
   private handleData(chunk: Buffer): void {
-    for (const message of this.reader.push(chunk)) {
+    let messages: unknown[];
+    try {
+      messages = this.reader.push(chunk);
+    } catch (error) {
+      // A malformed frame (bad Content-Length, non-JSON body) would otherwise
+      // throw out of the transport's data listener as an uncaught extension-host
+      // error and leave every pending request hanging until it times out.
+      // Fail them cleanly instead.
+      this.rejectAll(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+
+    for (const message of messages) {
       if (!isProtocolResponse(message)) {
         this.rejectAll(new Error("Received malformed response from Isabelle backend."));
         return;

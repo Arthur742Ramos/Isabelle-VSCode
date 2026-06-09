@@ -17,6 +17,10 @@ class FakeTransport implements BackendTransport {
     this.events.emit("data", encodeMessage(message));
   }
 
+  public emitRaw(chunk: Buffer): void {
+    this.events.emit("data", chunk);
+  }
+
   public onData(listener: (chunk: Buffer) => void): () => void {
     this.events.on("data", listener);
     return () => this.events.off("data", listener);
@@ -91,5 +95,17 @@ describe("BackendClient", () => {
     });
 
     await expect(result).rejects.toThrow("without result or error");
+  });
+
+  it("fails pending requests cleanly when a malformed frame arrives", async () => {
+    const transport = new FakeTransport();
+    const client = new BackendClient(transport, { requestTimeoutMs: 1000 });
+    const result = client.request("server/health");
+
+    // A frame whose body is not valid JSON must not throw out of the data
+    // listener; it should reject the in-flight request instead of hanging.
+    expect(() => transport.emitRaw(Buffer.from("Content-Length: 2\r\n\r\n{x", "ascii"))).not.toThrow();
+
+    await expect(result).rejects.toThrow();
   });
 });
