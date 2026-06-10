@@ -211,3 +211,39 @@ export function buildSymbolHoverMarkdown(symbol: ResolvedIsabelleSymbol): string
   }
   return lines.join("\n");
 }
+
+export interface SymbolPickItem {
+  /** Primary label: the glyph when present, otherwise the symbol token. */
+  readonly label: string;
+  /** The symbol token, e.g. `\<forall>`. */
+  readonly name: string;
+  /** Group/abbreviation detail line for the picker. */
+  readonly detail: string;
+  /** Text inserted on selection: the glyph when present, else the token. */
+  readonly insertText: string;
+  /** The symbol group, for separators / grouping. */
+  readonly group: string | null;
+}
+
+/**
+ * Build the items for an "insert symbol" quick-pick: every symbol, sorted by
+ * group then token, each searchable by glyph, token, group, and abbreviations.
+ * Inserting a symbol with a glyph inserts the glyph (most readable in VS Code);
+ * markup symbols insert their token.
+ */
+export function buildSymbolPickItems(): SymbolPickItem[] {
+  return ALL.map((symbol) => ({
+    label: symbol.glyph ?? symbol.name,
+    name: symbol.name,
+    detail: [symbol.group, ...symbol.abbrevs, symbol.name].filter(Boolean).join(" · "),
+    insertText: symbol.glyph ?? symbol.name,
+    group: symbol.group
+  })).sort((left, right) => {
+    const leftGroup = left.group ?? "~";
+    const rightGroup = right.group ?? "~";
+    if (leftGroup !== rightGroup) {
+      return leftGroup < rightGroup ? -1 : 1;
+    }
+    return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+  });
+}

@@ -59,6 +59,7 @@
     "onCommand:isabelle.auditProofGaps",
     "onCommand:isabelle.convertSymbolsToUnicode",
     "onCommand:isabelle.convertSymbolsToAscii",
+    "onCommand:isabelle.insertSymbol",
     "onCommand:isabelle.refreshProofOutline",
     "onCommand:isabelle.refreshProofState",
     "onCommand:isabelle.nextCommand",
@@ -370,6 +371,10 @@
         "title": "Isabelle: Convert Symbols to ASCII (\\<forall>)"
       },
       {
+        "command": "isabelle.insertSymbol",
+        "title": "Isabelle: Insert Symbol"
+      },
+      {
         "command": "isabelle.explainCurrentMode",
         "title": "Isabelle: Explain Current Mode"
       }
@@ -492,6 +497,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "isabelle.insertSymbol",
+          "when": "editorLangId == isabelle"
+        },
         {
           "command": "isabelle.convertSymbolsToUnicode",
           "when": "editorLangId == isabelle"

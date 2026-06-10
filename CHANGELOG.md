@@ -8,6 +8,11 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- `Isabelle: Insert Symbol` command. Browse and search the full Isabelle symbol
+  table by glyph, token (`\<forall>`), group (`logic`), or ASCII abbreviation
+  (`ALL`, `!`) in a quick-pick, and insert the chosen symbol at the cursor — for
+  when you want a symbol but don't know its name. Inserts the Unicode glyph when
+  the symbol has one, otherwise the markup token. Works offline.
 - `Isabelle: New Theory File` command. Scaffolds a correctly-named `<Name>.thy`
   (Isabelle requires the theory name to equal the file base name) with a ready
   `theory … imports Main begin … end` header, in the active file's folder (or the

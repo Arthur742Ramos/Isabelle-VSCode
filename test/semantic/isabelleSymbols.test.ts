@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_ISABELLE_SYMBOLS,
   buildSymbolHoverMarkdown,
+  buildSymbolPickItems,
   findGlyphSpanAt,
   findSymbolCompletionContext,
   ISABELLE_SYMBOL_COUNT,
@@ -161,5 +162,41 @@ describe("buildSymbolHoverMarkdown", () => {
     expect(md).toContain("\\<^latex>");
     expect(md.toLowerCase()).toContain("markup");
     expect(md).not.toContain("U+");
+  });
+});
+
+describe("buildSymbolPickItems", () => {
+  const items = buildSymbolPickItems();
+
+  it("includes every symbol", () => {
+    expect(items.length).toBe(ISABELLE_SYMBOL_COUNT);
+  });
+
+  it("labels glyph symbols with the glyph and inserts the glyph", () => {
+    const forall = items.find((item) => item.name === "\\<forall>");
+    expect(forall?.label).toBe("\u2200");
+    expect(forall?.insertText).toBe("\u2200");
+    expect(forall?.detail).toContain("logic");
+    expect(forall?.detail).toContain("ALL");
+    expect(forall?.detail).toContain("\\<forall>");
+  });
+
+  it("falls back to the token for markup symbols with no glyph", () => {
+    const latex = items.find((item) => item.name === "\\<^latex>");
+    expect(latex?.label).toBe("\\<^latex>");
+    expect(latex?.insertText).toBe("\\<^latex>");
+  });
+
+  it("sorts by group then token", () => {
+    for (let i = 1; i < items.length; i++) {
+      const previous = items[i - 1];
+      const current = items[i];
+      const previousGroup = previous.group ?? "~";
+      const currentGroup = current.group ?? "~";
+      const ordered =
+        previousGroup < currentGroup ||
+        (previousGroup === currentGroup && previous.name <= current.name);
+      expect(ordered, `${previous.name} before ${current.name}`).toBe(true);
+    }
   });
 });
