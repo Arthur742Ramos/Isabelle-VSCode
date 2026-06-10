@@ -8,6 +8,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Isabelle snippets. Tab-completable skeletons for the core authoring
+  constructs — `theory`, `lemma` (Isar / one-liner / assumes-shows), `theorem`,
+  `corollary`, `definition`, `abbreviation`, `fun`, `primrec`, `datatype`,
+  `record`, `inductive`, `locale`, `context`, document headings, and Isar proof
+  skeletons (`proof … qed`, induction, cases, obtain, fix/assume/show). The
+  `theory` skeleton defaults its name to the file name, which Isabelle requires.
 - Structural code folding for Isabelle theory files. A prover-independent,
   source-only folding-range provider collapses structured Isar proofs
   (`proof … qed`, nesting-aware), the document-heading hierarchy
