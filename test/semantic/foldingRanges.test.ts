@@ -75,6 +75,50 @@ describe("computeIsabelleFoldingRanges — comments", () => {
   });
 });
 
+describe("computeIsabelleFoldingRanges — cartouche blocks", () => {
+  const open = "‹";
+  const close = "›";
+
+  it("folds a multi-line text cartouche block", () => {
+    const source = [
+      "theory T", // 0
+      "imports Main", // 1
+      "begin", // 2
+      `text ${open}`, // 3
+      "  some prose", // 4
+      "  more prose", // 5
+      close, // 6
+      "end" // 7
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 3, 6, "comment")).toBe(true);
+  });
+
+  it("folds a multi-line ML cartouche block", () => {
+    const source = [`ML ${open}`, "  val x = 1;", "  val y = 2;", close].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 0, 3, "comment")).toBe(true);
+  });
+
+  it("folds an ASCII \\<open>..\\<close> cartouche spanning lines", () => {
+    const source = ["text \\<open>", "  prose", "\\<close>", "end"].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 0, 2, "comment")).toBe(true);
+  });
+
+  it("does not fold a single-line cartouche", () => {
+    const source = [`text ${open}one line${close}`, "lemma foo by simp"].join("\n");
+    expect(kinds(computeIsabelleFoldingRanges(source), "comment")).toHaveLength(0);
+  });
+
+  it("treats a nested cartouche as one outer fold", () => {
+    const source = [`text ${open}outer`, `  ${open}inner`, `  ${close}`, `${close}`, "end"].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(kinds(ranges, "comment")).toHaveLength(1);
+    expect(hasRange(ranges, 0, 3, "comment")).toBe(true);
+  });
+});
+
 describe("computeIsabelleFoldingRanges — proofs", () => {
   it("folds a proof..qed block", () => {
     const source = ["lemma foo", "proof -", "  show ?thesis by auto", "qed", ""].join("\n");

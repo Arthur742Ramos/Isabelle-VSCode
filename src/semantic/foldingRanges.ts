@@ -7,7 +7,8 @@
  * backend is running, and without a live Isabelle install.
  *
  * Five structural elements fold:
- *   1. Multi-line block comments `(* ... *)` (nesting-aware).
+ *   1. Multi-line block comments `(* ... *)` (nesting-aware) and multi-line
+ *      cartouche blocks (`text ‹…›`, `ML ‹…›`, `\<open>…\<close>`).
  *   2. Structured Isar proofs (`proof ... qed`, nesting-aware).
  *   3. `begin ... end` blocks — locale / class / instantiation / context /
  *      notepad bodies (nesting-aware). The outermost pair is the theory body
@@ -88,6 +89,8 @@ interface IsabelleLayout {
   readonly masked: string;
   /** Outermost block-comment spans, as zero-based inclusive line ranges. */
   readonly commentSpans: readonly CommentSpan[];
+  /** Outermost cartouche spans (`‹..›` / `\<open>..\<close>`), zero-based inclusive lines. */
+  readonly cartoucheSpans: readonly CommentSpan[];
   /** Line-start offsets, computed once here and reused by the caller. */
   readonly lineStarts: readonly number[];
 }
@@ -108,11 +111,13 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
   const length = source.length;
   const lineStarts = computeLineStarts(source);
   const commentSpans: CommentSpan[] = [];
+  const cartoucheSpans: CommentSpan[] = [];
 
   let state: MaskState = "code";
   let commentDepth = 0;
   let cartoucheDepth = 0;
   let commentStartOffset = -1;
+  let cartoucheStartOffset = -1;
   let index = 0;
 
   const blank = (from: number, to: number): void => {
@@ -127,6 +132,7 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
   while (index < length) {
     if (state === "code") {
       if (source.startsWith(ASCII_CARTOUCHE_OPEN, index)) {
+        cartoucheStartOffset = index;
         blank(index, index + ASCII_CARTOUCHE_OPEN.length);
         state = "cartouche";
         cartoucheDepth = 1;
@@ -134,6 +140,7 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
         continue;
       }
       if (source[index] === UNICODE_CARTOUCHE_OPEN) {
+        cartoucheStartOffset = index;
         blank(index, index + 1);
         state = "cartouche";
         cartoucheDepth = 1;
@@ -219,6 +226,10 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
       cartoucheDepth -= 1;
       index += ASCII_CARTOUCHE_CLOSE.length;
       if (cartoucheDepth === 0) {
+        cartoucheSpans.push({
+          startLine: offsetToLine(lineStarts, cartoucheStartOffset),
+          endLine: offsetToLine(lineStarts, index - 1)
+        });
         state = "code";
       }
       continue;
@@ -228,6 +239,10 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
       cartoucheDepth -= 1;
       index += 1;
       if (cartoucheDepth === 0) {
+        cartoucheSpans.push({
+          startLine: offsetToLine(lineStarts, cartoucheStartOffset),
+          endLine: offsetToLine(lineStarts, index - 1)
+        });
         state = "code";
       }
       continue;
@@ -236,7 +251,7 @@ function scanIsabelleLayout(source: string): IsabelleLayout {
     index += 1;
   }
 
-  return { masked: out.join(""), commentSpans, lineStarts };
+  return { masked: out.join(""), commentSpans, cartoucheSpans, lineStarts };
 }
 
 function collectCommandTokens(masked: string): CommandToken[] {
@@ -261,12 +276,21 @@ function collectCommandTokens(masked: string): CommandToken[] {
  * constructs never produce a fold.
  */
 export function computeIsabelleFoldingRanges(source: string): IsabelleFoldingRange[] {
-  const { masked, commentSpans, lineStarts } = scanIsabelleLayout(source);
+  const { masked, commentSpans, cartoucheSpans, lineStarts } = scanIsabelleLayout(source);
   const tokens = collectCommandTokens(masked);
   const ranges: IsabelleFoldingRange[] = [];
 
   // 1. Multi-line block comments.
   for (const span of commentSpans) {
+    if (span.endLine > span.startLine) {
+      ranges.push({ start: span.startLine, end: span.endLine, kind: "comment" });
+    }
+  }
+
+  // 1b. Multi-line cartouche blocks — `text ‹…›` / `ML ‹…›` documentation and
+  //     embedded-ML bodies, and any other multi-line `‹…›` / `\<open>…\<close>`.
+  //     Folded as comments (they are prose / embedded source, not structure).
+  for (const span of cartoucheSpans) {
     if (span.endLine > span.startLine) {
       ranges.push({ start: span.startLine, end: span.endLine, kind: "comment" });
     }
