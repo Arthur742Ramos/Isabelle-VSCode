@@ -40,4 +40,61 @@ final class CommandSpanParserSpec extends AnyFunSuite {
     val empty = document.copy(text = "-- just a comment\n", version = 2)
     assert(CommandSpanParser.parse(empty).isEmpty)
   }
+
+  test("recognizes the broader HOL/AFP command vocabulary in parity with the TS table") {
+    val broad = document.copy(
+      text =
+        "theory Broad\n" +
+          "imports Main\n" +
+          "begin\n" +
+          "typedecl ident\n" +
+          "type_synonym name = string\n" +
+          "typedef pos = \"{n. n > 0}\" by auto\n" +
+          "class ordered = fixes le :: bool\n" +
+          "instantiation nat :: ordered\n" +
+          "begin\n" +
+          "end\n" +
+          "interpretation triv: ordered by standard\n" +
+          "lift_definition one :: pos is \"1\" by simp\n" +
+          "lemmas useful = conjI\n" +
+          "value \"2 + 2\"\n" +
+          "find_theorems \"_ + _\"\n" +
+          "ML \\<open>writeln\\<close>\n" +
+          "end\n",
+      version = 3
+    )
+    val kinds = CommandSpanParser.parse(broad).map(_.kind).toSet
+    val expected = Set(
+      "typedecl",
+      "type_synonym",
+      "typedef",
+      "class",
+      "instantiation",
+      "interpretation",
+      "lift_definition",
+      "lemmas",
+      "value",
+      "find_theorems",
+      "ML"
+    )
+    assert(expected.subsetOf(kinds), s"missing: ${expected.diff(kinds)}")
+  }
+
+  test("captures names from the broader name-declaring commands") {
+    val named = document.copy(
+      text =
+        "theory Named\n" +
+          "imports Main\n" +
+          "begin\n" +
+          "typedecl ident\n" +
+          "type_synonym envty = nat\n" +
+          "lemmas useful = conjI\n" +
+          "end\n",
+      version = 4
+    )
+    val spans = CommandSpanParser.parse(named)
+    assert(spans.find(_.kind == "typedecl").flatMap(_.name).contains("ident"))
+    assert(spans.find(_.kind == "type_synonym").flatMap(_.name).contains("envty"))
+    assert(spans.find(_.kind == "lemmas").flatMap(_.name).contains("useful"))
+  }
 }
