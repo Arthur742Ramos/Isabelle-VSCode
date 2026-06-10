@@ -77,6 +77,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- Declaration names that follow type parameters or a locale target are now
+  extracted for the outline, breadcrumbs, and go-to-definition: `datatype 'a
+  list` resolves to `list`, `codatatype ('a, 'b) tree` to `tree`,
+  `type_synonym 'a env` to `env`, and `definition (in monoid) e` / `lemma (in
+  group) foo` to `e` / `foo`. Previously the local span scanner read the first
+  word after the keyword, so these parametric declarations and in-target
+  statements showed up unnamed.
 - The backend client now fails in-flight requests cleanly if the Scala backend
   ever emits a malformed protocol frame, instead of letting the parse error
   escape as an uncaught extension-host exception and leaving requests to hang.

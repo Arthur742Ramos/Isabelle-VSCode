@@ -205,10 +205,69 @@ function commandNameAfter(line: string, offset: number): string | undefined {
     return undefined;
   }
 
-  const rest = line.slice(offset).trimStart();
+  const rest = skipDeclarationPrefix(line.slice(offset).trimStart());
   const match = WORD.exec(rest);
   if (!match || IGNORED_DECLARATION_NAMES.has(match[0])) {
     return undefined;
   }
   return match[0];
+}
+
+const LEADING_TYPE_VARIABLE = /^'[A-Za-z_][A-Za-z0-9_']*(?:\s*::\s*[A-Za-z_][A-Za-z0-9_'.]*)?/;
+
+/**
+ * Strips a leading run of type parameters and/or a locale target that may sit
+ * between a declaration keyword and the name it introduces, so the *name* is
+ * what we report:
+ *
+ *   `datatype 'a list`           → `list`
+ *   `codatatype ('a, 'b) tree`   → `tree`
+ *   `type_synonym 'a myset`      → `myset`
+ *   `definition (in monoid) e`   → `e`
+ *
+ * A prefix element is either a single type variable (`'a`, `'a::ord`) or a
+ * balanced parenthesised group — a type-parameter tuple (`('a, 'b)`) or a
+ * locale target (`(in monoid)`). Names that come first (`definition foo`,
+ * `lemma bar:`) are untouched because the text starts with neither `'` nor `(`.
+ * Single-line only, matching the rest of the local span scanner.
+ */
+function skipDeclarationPrefix(rest: string): string {
+  let remaining = rest;
+  for (;;) {
+    if (remaining.startsWith("'")) {
+      const match = LEADING_TYPE_VARIABLE.exec(remaining);
+      if (!match) {
+        break;
+      }
+      remaining = remaining.slice(match[0].length).trimStart();
+      continue;
+    }
+    if (remaining.startsWith("(")) {
+      const end = matchingParenIndex(remaining);
+      if (end < 0) {
+        break;
+      }
+      remaining = remaining.slice(end + 1).trimStart();
+      continue;
+    }
+    break;
+  }
+  return remaining;
+}
+
+/** Index of the `)` that closes the `(` at position 0, or -1 if unbalanced. */
+function matchingParenIndex(text: string): number {
+  let depth = 0;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (char === "(") {
+      depth++;
+    } else if (char === ")") {
+      depth--;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return -1;
 }

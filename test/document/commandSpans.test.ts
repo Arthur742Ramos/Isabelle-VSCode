@@ -109,9 +109,7 @@ describe("extractCommandSpans", () => {
     expect(byKind).toContainEqual(["typedecl", "point"]);
     expect(byKind).toContainEqual(["type_synonym", "name"]);
     expect(byKind).toContainEqual(["typedef", "pos"]);
-    // `codatatype 'a stream` is recognised; the name follows the type
-    // parameter, which the local name extractor does not yet skip.
-    expect(spans.map((span) => span.kind)).toContain("codatatype");
+    expect(byKind).toContainEqual(["codatatype", "stream"]);
     expect(byKind).toContainEqual(["class", "ordered"]);
     expect(byKind).toContainEqual(["instantiation", undefined]);
     expect(byKind).toContainEqual(["interpretation", undefined]);
@@ -120,5 +118,49 @@ describe("extractCommandSpans", () => {
     expect(byKind).toContainEqual(["value", undefined]);
     expect(byKind).toContainEqual(["find_theorems", undefined]);
     expect(byKind).toContainEqual(["ML", undefined]);
+  });
+
+  it("extracts declaration names that follow type parameters and locale targets", () => {
+    const spans = extractCommandSpans(
+      "file:///TypeParams.thy",
+      [
+        "theory TypeParams",
+        "imports Main",
+        "begin",
+        "datatype 'a list = Nil | Cons 'a \"'a list\"",
+        "codatatype ('a, 'b) tree = Node 'a 'b",
+        "type_synonym 'a env = \"string \\<Rightarrow> 'a\"",
+        "definition (in monoid) e :: 'a where \"e = one\"",
+        "lemma (in group) inv_unique: True",
+        "  by simp",
+        "datatype nat' = Z | S nat'",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const byKind = new Map(spans.map((span) => [span.kind + ":" + span.range.start.line, span.name]));
+    expect(byKind.get("datatype:3")).toBe("list");
+    expect(byKind.get("codatatype:4")).toBe("tree");
+    expect(byKind.get("type_synonym:5")).toBe("env");
+    expect(byKind.get("definition:6")).toBe("e");
+    expect(byKind.get("lemma:7")).toBe("inv_unique");
+    // A name that simply happens to be primed (no leading type parameter) is
+    // still taken verbatim.
+    expect(byKind.get("datatype:9")).toBe("nat'");
+  });
+
+  it("leaves a name that precedes everything else untouched", () => {
+    const spans = extractCommandSpans(
+      "file:///PlainNames.thy",
+      [
+        "definition foo :: nat where \"foo = 0\"",
+        "lemma bar: True",
+        "  by simp"
+      ].join("\n"),
+      1
+    );
+    expect(spans.find((span) => span.kind === "definition")?.name).toBe("foo");
+    expect(spans.find((span) => span.kind === "lemma")?.name).toBe("bar");
   });
 });
