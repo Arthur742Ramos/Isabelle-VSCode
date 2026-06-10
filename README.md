@@ -38,6 +38,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 
 - **Syntax & semantic highlighting** for Isabelle commands, declarations, and symbols.
 - **Offline symbol entry** — type `\<` and complete the full Isabelle symbol table (`\<forall>` → ∀, `\<Longrightarrow>` → ⟹, …) with glyph previews and ASCII abbreviations, with no prover or language server running.
+- **Symbol hover** — hover over any `\<...>` token *or* its rendered glyph (∀, ⟹, λ) to see the symbol name, Unicode code point, group, and the ASCII abbreviations Isabelle accepts.
 - **Symbol conversion** — `Isabelle: Convert Symbols to Unicode` / `to ASCII` rewrite `\<forall>` ↔ ∀ across the selection or whole file (lossless, offline) — paste an ASCII proof and render it, or normalize back to portable ASCII.
 - **Structural code folding** — fold `proof … qed` blocks, the `section`/`subsection` hierarchy, multi-line comments, and the `theory … begin` header (comment/cartouche/string aware).
 - **Unicode bracket editing** — auto-close and surround the cartouche `‹ ›` and `⟨ ⟩` / `⟦ ⟧` pairs, with symbol- and prime-aware word selection (`\<alpha>`, `\<^sub>`, `xs'`).

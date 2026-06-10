@@ -146,3 +146,63 @@ export function symbolsToAscii(text: string): string {
   }
   return out.join("");
 }
+
+export interface GlyphSpan {
+  /** The full glyph at the cursor (may be a surrogate pair). */
+  readonly glyph: string;
+  /** UTF-16 start offset of the glyph in the line. */
+  readonly start: number;
+  /** UTF-16 end offset (exclusive). */
+  readonly end: number;
+}
+
+/**
+ * Return the Unicode code point covering `character` in `lineText`, as a glyph
+ * plus its UTF-16 span — correctly spanning a surrogate pair whether the cursor
+ * sits on the high or low half. Returns `undefined` past the end of the line.
+ */
+export function findGlyphSpanAt(lineText: string, character: number): GlyphSpan | undefined {
+  if (character < 0 || character >= lineText.length) {
+    return undefined;
+  }
+  const unit = lineText.charCodeAt(character);
+  const isLowSurrogate = unit >= 0xdc00 && unit <= 0xdfff;
+  const start = isLowSurrogate ? character - 1 : character;
+  if (start < 0) {
+    return undefined;
+  }
+  const codePoint = lineText.codePointAt(start);
+  if (codePoint === undefined) {
+    return undefined;
+  }
+  const length = codePoint > 0xffff ? 2 : 1;
+  return { glyph: String.fromCodePoint(codePoint), start, end: start + length };
+}
+
+/**
+ * Build a Markdown description of an Isabelle symbol for hovers: the glyph (or a
+ * markup-symbol note), the symbol token, its Unicode code point, group, and the
+ * ASCII abbreviations Isabelle accepts.
+ */
+export function buildSymbolHoverMarkdown(symbol: ResolvedIsabelleSymbol): string {
+  const lines: string[] = [];
+  if (symbol.glyph !== null) {
+    lines.push(`**${symbol.glyph}**  \`${symbol.name}\``);
+  } else {
+    lines.push(`\`${symbol.name}\` — Isabelle markup symbol`);
+  }
+  const facts: string[] = [];
+  if (symbol.code !== null) {
+    facts.push(`Unicode \`U+${symbol.code.toString(16).toUpperCase().padStart(4, "0")}\``);
+  }
+  if (symbol.group !== null) {
+    facts.push(`group \`${symbol.group}\``);
+  }
+  if (facts.length > 0) {
+    lines.push("", facts.join(" · "));
+  }
+  if (symbol.abbrevs.length > 0) {
+    lines.push("", `Type: ${symbol.abbrevs.map((abbrev) => `\`${abbrev}\``).join(", ")}`);
+  }
+  return lines.join("\n");
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_ISABELLE_SYMBOLS,
+  buildSymbolHoverMarkdown,
+  findGlyphSpanAt,
   findSymbolCompletionContext,
   ISABELLE_SYMBOL_COUNT,
   resolveSymbolByGlyph,
@@ -112,5 +114,45 @@ describe("findSymbolCompletionContext", () => {
     const line = "  from \\<fora rest";
     const result = findSymbolCompletionContext(line, "  from \\<fora".length);
     expect(result).toEqual({ replaceStart: "  from ".length, query: "fora" });
+  });
+});
+
+describe("findGlyphSpanAt", () => {
+  it("spans a single BMP glyph", () => {
+    const line = "x \u2200 y"; // ∀ at index 2
+    expect(findGlyphSpanAt(line, 2)).toEqual({ glyph: "\u2200", start: 2, end: 3 });
+  });
+
+  it("spans an astral glyph as two UTF-16 units from the high half", () => {
+    const line = "\u{1d7ec}"; // 𝟬 — \<zero>
+    expect(findGlyphSpanAt(line, 0)).toEqual({ glyph: "\u{1d7ec}", start: 0, end: 2 });
+  });
+
+  it("spans an astral glyph when the cursor sits on the low half", () => {
+    const line = "\u{1d7ec}";
+    expect(findGlyphSpanAt(line, 1)).toEqual({ glyph: "\u{1d7ec}", start: 0, end: 2 });
+  });
+
+  it("returns undefined past the end of the line", () => {
+    expect(findGlyphSpanAt("ab", 2)).toBeUndefined();
+    expect(findGlyphSpanAt("", 0)).toBeUndefined();
+  });
+});
+
+describe("buildSymbolHoverMarkdown", () => {
+  it("describes a glyph symbol with token, code point, group, and abbreviations", () => {
+    const md = buildSymbolHoverMarkdown(resolveSymbolByName("\\<forall>")!);
+    expect(md).toContain("\u2200");
+    expect(md).toContain("\\<forall>");
+    expect(md).toContain("U+2200");
+    expect(md).toContain("logic");
+    expect(md).toContain("ALL");
+  });
+
+  it("notes markup symbols that have no glyph", () => {
+    const md = buildSymbolHoverMarkdown(resolveSymbolByName("\\<^latex>")!);
+    expect(md).toContain("\\<^latex>");
+    expect(md.toLowerCase()).toContain("markup");
+    expect(md).not.toContain("U+");
   });
 });
