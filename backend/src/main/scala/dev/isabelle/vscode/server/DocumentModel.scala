@@ -319,9 +319,19 @@ object CommandSpanParser {
 
   def parse(document: TheoryDocument): Vector[CommandSpan] = {
     val lines = document.text.split("\n", -1).toVector
-    val starts = lines.zipWithIndex.flatMap { case (line, index) =>
-      commandStart(line).map(start => (index, start))
+
+    // Walk the lines carrying comment / string / cartouche state across line
+    // boundaries (mirroring the TS commandSpans.ts scanner) so a command keyword
+    // inside a multi-line `(* … *)` comment, a `"…"` string, or a `text ‹…›` /
+    // `\<open>…\<close>` cartouche is never mistaken for a real command.
+    var state = ScanState(commentDepth = 0, inString = false, cartoucheDepth = 0)
+    val startsBuilder = Vector.newBuilder[(Int, ParsedCommand)]
+    lines.zipWithIndex.foreach { case (line, index) =>
+      val result = scanLineForCommand(line, state)
+      state = result.state
+      result.command.foreach(command => startsBuilder += ((index, command)))
     }
+    val starts = startsBuilder.result()
 
     starts.zipWithIndex.map { case ((line, command), index) =>
       val nextLine = starts.lift(index + 1).map(_._1)
@@ -344,23 +354,82 @@ object CommandSpanParser {
     }
   }
 
-  private def commandStart(line: String): Option[ParsedCommand] = {
-    val leading = line.indexWhere(!_.isWhitespace)
-    if (leading < 0) {
-      return None
+  private val AsciiCartoucheOpen = "\\<open>"
+  private val AsciiCartoucheClose = "\\<close>"
+  private val UnicodeCartoucheOpen = '‹' // ‹
+  private val UnicodeCartoucheClose = '›' // ›
+
+  private final case class ScanState(commentDepth: Int, inString: Boolean, cartoucheDepth: Int)
+  private final case class LineScan(command: Option[ParsedCommand], state: ScanState)
+
+  /**
+   * Scan a single line starting from `initial` state, returning the (possibly
+   * carried-over) end state plus the command this line begins, if any. A command
+   * is only recognised when the first top-level *code* token on the line — not
+   * inside a comment, string, or cartouche — is a recognised keyword.
+   */
+  private def scanLineForCommand(line: String, initial: ScanState): LineScan = {
+    var commentDepth = initial.commentDepth
+    var inString = initial.inString
+    var cartoucheDepth = initial.cartoucheDepth
+    var sawCode = false
+    var command: Option[ParsedCommand] = None
+    var index = 0
+    val len = line.length
+
+    def startsAt(s: String, at: Int): Boolean = line.regionMatches(at, s, 0, s.length)
+
+    while (index < len) {
+      if (commentDepth > 0) {
+        if (startsAt("(*", index)) { commentDepth += 1; index += 2 }
+        else if (startsAt("*)", index)) { commentDepth -= 1; index += 2 }
+        else index += 1
+      } else if (inString) {
+        if (line.charAt(index) == '\\') index += 2
+        else if (line.charAt(index) == '"') { inString = false; index += 1 }
+        else index += 1
+      } else if (cartoucheDepth > 0) {
+        if (startsAt(AsciiCartoucheOpen, index)) { cartoucheDepth += 1; index += AsciiCartoucheOpen.length }
+        else if (startsAt(AsciiCartoucheClose, index)) {
+          cartoucheDepth = math.max(0, cartoucheDepth - 1); index += AsciiCartoucheClose.length
+        } else if (line.charAt(index) == UnicodeCartoucheOpen) { cartoucheDepth += 1; index += 1 }
+        else if (line.charAt(index) == UnicodeCartoucheClose) {
+          cartoucheDepth = math.max(0, cartoucheDepth - 1); index += 1
+        } else index += 1
+      } else if (startsAt("(*", index)) {
+        commentDepth += 1; index += 2
+      } else if (startsAt(AsciiCartoucheOpen, index)) {
+        sawCode = true; cartoucheDepth += 1; index += AsciiCartoucheOpen.length
+      } else if (line.charAt(index) == '"') {
+        sawCode = true; inString = true; index += 1
+      } else if (line.charAt(index) == UnicodeCartoucheOpen) {
+        sawCode = true; cartoucheDepth += 1; index += 1
+      } else if (line.charAt(index).isWhitespace) {
+        index += 1
+      } else {
+        if (!sawCode) {
+          sawCode = true
+          command = commandAt(line, index)
+        }
+        index += 1
+      }
     }
 
-    val trimmed = line.drop(leading)
-    val parts = trimmed.split("\\s+", 2).toVector
+    LineScan(command, ScanState(commentDepth, inString, cartoucheDepth))
+  }
+
+  /** Parse a command keyword (and its declared name) starting at column `from`. */
+  private def commandAt(line: String, from: Int): Option[ParsedCommand] = {
+    val rest = line.substring(from)
+    val parts = rest.split("\\s+", 2).toVector
     val keyword = parts.headOption.getOrElse("")
     if (!CommandKeywords.contains(keyword)) {
       return None
     }
-
     val name =
       if (NameDeclaringKeywords.contains(keyword)) declarationName(parts.lift(1).getOrElse(""))
       else None
-    Some(ParsedCommand(keyword, name, leading))
+    Some(ParsedCommand(keyword, name, from))
   }
 
   // A leading type parameter (`'a`, `'a::ord`) at the start of the rest-of-line.

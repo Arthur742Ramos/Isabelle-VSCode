@@ -163,6 +163,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- The Scala backend's command-span parser no longer mistakes a command keyword
+  inside a multi-line `(* … *)` comment, a `"…"` string, or a `text ‹…›` /
+  `\<open>…\<close>` cartouche for a real command. It previously scanned line by
+  line with no cross-line state, so a `lemma`/`definition` at the start of a
+  commented-out or prose line produced a spurious backend command span. The
+  parser now carries comment / string / cartouche depth across lines, matching
+  the TypeScript scanner, and only recognises a command as the first top-level
+  *code* token on a line.
 - The Scala backend's command-span parser now extracts declaration names past a
   leading type parameter or `(in locale)` target — `datatype 'a tree` → `tree`,
   `definition (in monoid) e` → `e` — matching the TypeScript side, so

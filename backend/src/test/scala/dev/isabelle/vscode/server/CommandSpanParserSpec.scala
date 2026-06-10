@@ -138,4 +138,64 @@ final class CommandSpanParserSpec extends AnyFunSuite {
     assert(spans.find(_.kind == "definition").flatMap(_.name).contains("foo"))
     assert(spans.find(_.kind == "lemma").flatMap(_.name).contains("bar"))
   }
+
+  test("ignores command keywords inside a multi-line block comment") {
+    val commented = document.copy(
+      text =
+        "theory C\n" +
+          "imports Main\n" +
+          "begin\n" +
+          "(*\n" +
+          "lemma ignored: True\n" +
+          "definition also_ignored where \"x = 0\"\n" +
+          "*)\n" +
+          "lemma kept: True by simp\n" +
+          "end\n",
+      version = 7
+    )
+    val kinds = CommandSpanParser.parse(commented).map(_.kind)
+    assert(!kinds.contains("definition"), s"definition leaked from comment: $kinds")
+    // The only lemma span is the real one after the comment closes.
+    val lemmas = CommandSpanParser.parse(commented).filter(_.kind == "lemma")
+    assert(lemmas.size == 1, s"expected one lemma, got ${lemmas.map(_.name)}")
+    assert(lemmas.head.name.contains("kept"))
+  }
+
+  test("ignores command keywords inside a multi-line cartouche and string") {
+    val open = "‹" // ‹
+    val close = "›" // ›
+    val cartouche = document.copy(
+      text =
+        "theory K\n" +
+          "imports Main\n" +
+          "begin\n" +
+          s"text $open\n" +
+          "lemma ignored_in_cartouche: True\n" +
+          s"$close\n" +
+          "text \"\n" +
+          "definition ignored_in_string where x\n" +
+          "\"\n" +
+          "lemma kept: True by simp\n" +
+          "end\n",
+      version = 8
+    )
+    val spans = CommandSpanParser.parse(cartouche)
+    val kinds = spans.map(_.kind)
+    assert(!kinds.contains("definition"), s"definition leaked: $kinds")
+    val lemmas = spans.filter(_.kind == "lemma")
+    assert(lemmas.size == 1 && lemmas.head.name.contains("kept"), s"unexpected lemmas: ${lemmas.map(_.name)}")
+  }
+
+  test("does not treat a keyword after code on the same line as a command start") {
+    // `instance ..` and a trailing `by` are not separate command spans, and a
+    // keyword that is not the first code token on the line is ignored.
+    val doc = document.copy(
+      text = "theory I\nimports Main\nbegin\nlemma l: \"True\" by simp\nend\n",
+      version = 9
+    )
+    val kinds = CommandSpanParser.parse(doc).map(_.kind)
+    // only the leading `lemma` (plus theory/imports/begin/end), not a `by` span
+    assert(!kinds.contains("by"), s"`by` should not be a span: $kinds")
+    assert(kinds.count(_ == "lemma") == 1)
+  }
 }
