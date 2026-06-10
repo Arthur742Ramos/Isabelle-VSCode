@@ -105,6 +105,10 @@ These features work the instant `Smoke.thy` opens, with **no prerequisites** —
 - [ ] **Snippets.** On a blank line type `lemma` and accept the snippet; confirm the Isar skeleton expands. Repeat with a specification prefix such as `typedef`, `instantiation`, or `interpretation`.
 - [ ] **Folding.** Confirm the `theory … begin` header, the `proof … qed` block (if you add one), and multi-line comments each show a fold control in the gutter.
 - [ ] **Theory Outline.** Open the **Isabelle Theory Outline** view. Confirm `conj_commute_smoke`, `add_zero_right_smoke`, and `identity_smoke` appear grouped under their kinds (Lemmas / Definitions).
+- [ ] **Occurrence highlighting.** Click the `n` in `add_zero_right_smoke`'s `n + 0 = n`. Confirm both uses of `n` highlight (and that clicking a name inside a comment/string highlights nothing).
+- [ ] **Find All References.** Right-click `identity_smoke` → "Find All References" (or <kbd>Shift</kbd>+<kbd>F12</kbd>). Confirm its uses across the open theory are listed.
+- [ ] **Workspace symbols.** Press <kbd>Ctrl/Cmd</kbd>+<kbd>T</kbd>, type `identity`. Confirm `identity_smoke` appears with a definition icon and jumps to it.
+- [ ] **Smart selection.** With the cursor inside the quoted goal of a lemma, press <kbd>⌥/Alt</kbd>+<kbd>Shift</kbd>+<kbd>→</kbd> repeatedly. Confirm the selection grows: token → quoted term → command → … → whole theory.
 - [ ] **Proof-gap audit.** Confirm the `sorry` in `conj_commute_smoke` is flagged in the Problems panel as a warning by `isabelle proof-gap`, with **no Isabelle process running**. Comment it out and confirm the warning clears.
 - [ ] **New theory scaffolding.** Run `Isabelle: New Theory File`, enter a name, and confirm a correctly-named `<Name>.thy` opens with a `theory … imports Main begin … end` header.
 
