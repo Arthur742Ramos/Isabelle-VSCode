@@ -93,6 +93,7 @@ import { RepairAiSecretStore } from "./repair/RepairAiSecretStore";
 import { RepairService } from "./repair/RepairService";
 import { RepairVerificationContext } from "./repair/verificationPlan";
 import { IsabelleDefinitionProvider } from "./semantic/IsabelleDefinitionProvider";
+import { IsabelleReferenceProvider } from "./semantic/IsabelleReferenceProvider";
 import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkProvider";
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
 import { IsabelleWorkspaceSymbolProvider } from "./semantic/IsabelleWorkspaceSymbolProvider";
@@ -370,6 +371,10 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.languages.registerDefinitionProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleDefinitionProvider(documentSyncService, sessions, output)
+    ),
+    vscode.languages.registerReferenceProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleReferenceProvider(output)
     ),
     registerPideAbbrevsCompletionProvider(pideAbbrevsCache),
     registerIsabelleSymbolCompletionProvider(),

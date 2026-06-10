@@ -102,12 +102,46 @@ export function findOccurrences(source: string, cursorOffset: number): Occurrenc
     return [];
   }
 
+  return findTokenOccurrencesInMasked(masked, source, target.token);
+}
+
+/**
+ * The Isabelle identifier token at `cursorOffset` in a full `source`, masking
+ * comments / cartouches / strings first, or `undefined` if the cursor is not on
+ * a code identifier. The returned offsets are into the original source.
+ */
+export function identifierAt(
+  source: string,
+  cursorOffset: number
+): { token: string; start: number; end: number } | undefined {
+  const masked = maskNonProofText(source);
+  if (cursorOffset < 0 || cursorOffset > masked.length) {
+    return undefined;
+  }
+  // identifierTokenAt scans the whole masked source (offsets are absolute,
+  // matching the original since masking preserves length).
+  return identifierTokenAt(masked, cursorOffset);
+}
+
+/**
+ * Every whole-token occurrence of the exact identifier `token` in `source`,
+ * with comments / cartouches / strings masked out. Used for cross-file
+ * reference search, where the target token comes from another document.
+ */
+export function findTokenOccurrences(source: string, token: string): Occurrence[] {
+  if (token.length === 0) {
+    return [];
+  }
+  return findTokenOccurrencesInMasked(maskNonProofText(source), source, token);
+}
+
+function findTokenOccurrencesInMasked(masked: string, source: string, token: string): Occurrence[] {
   const lineStarts = computeLineStarts(source);
   const occurrences: Occurrence[] = [];
   const regex = identifierTokenRegex();
   let match: RegExpExecArray | null;
   while ((match = regex.exec(masked)) !== null) {
-    if (match[0] !== target.token) {
+    if (match[0] !== token) {
       continue;
     }
     const offset = match.index;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { findOccurrences, identifierTokenAt } from "../../src/semantic/occurrences";
+import {
+  findOccurrences,
+  findTokenOccurrences,
+  identifierAt,
+  identifierTokenAt
+} from "../../src/semantic/occurrences";
 import { maskNonProofText } from "../../src/audit/proofGapScanner";
 
 // Helper: offset of the first occurrence of `needle` in `source`, optionally
@@ -111,5 +116,42 @@ describe("findOccurrences", () => {
     const src = "definition foo where \"foo = 0\"";
     expect(findOccurrences(src, -1)).toHaveLength(0);
     expect(findOccurrences(src, src.length + 100)).toHaveLength(0);
+  });
+});
+
+describe("identifierAt (full-source, masking-aware)", () => {
+  const src = ["definition foo where \"foo = bar\"", "lemma l: foo"].join("\n");
+
+  it("returns the token at a full-source offset", () => {
+    expect(identifierAt(src, src.indexOf("foo"))?.token).toBe("foo");
+    // on the second line's `foo`
+    expect(identifierAt(src, src.lastIndexOf("foo"))?.token).toBe("foo");
+  });
+
+  it("returns undefined inside a masked string and out of range", () => {
+    // the `foo` and `bar` inside the quoted "..." are masked
+    expect(identifierAt(src, src.indexOf("\"foo") + 2)).toBeUndefined();
+    expect(identifierAt(src, -5)).toBeUndefined();
+    expect(identifierAt(src, src.length + 5)).toBeUndefined();
+  });
+});
+
+describe("findTokenOccurrences (cross-file token search)", () => {
+  it("finds every code occurrence of a given token", () => {
+    const src = ["fun foo where \"foo x = x\"", "lemma l: foo", "  using foo by simp"].join("\n");
+    const occ = findTokenOccurrences(src, "foo");
+    // `fun foo` (write), `lemma l: foo` (text), `using foo` (text); the `foo`
+    // inside the quoted body is masked.
+    expect(occ.map((o) => o.kind)).toEqual(["write", "text", "text"]);
+  });
+
+  it("does not match different tokens or masked text", () => {
+    const src = ["definition foo where \"foo = 0\"", "lemma l: foo_bar"].join("\n");
+    // only the `definition foo`; `foo_bar` differs and the string `"foo = 0"` is masked
+    expect(findTokenOccurrences(src, "foo")).toHaveLength(1);
+  });
+
+  it("returns nothing for an empty token", () => {
+    expect(findTokenOccurrences("definition foo", "")).toHaveLength(0);
   });
 });

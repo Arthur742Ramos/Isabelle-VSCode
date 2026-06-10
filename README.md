@@ -50,6 +50,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 - **Workspace symbol search** — press <kbd>Ctrl/Cmd</kbd>+<kbd>T</kbd> to jump to any lemma, definition, datatype, type class, locale, … across every `.thy` file in the workspace, fuzzy-matched and grouped by kind. No prover required.
 - **Navigation** — go-to-definition for local declarations, command/symbol hovers, import links, and next/previous/reveal command jumps.
 - **Occurrence highlighting** — put the cursor on a name to highlight every other use of it in the theory (the declaration shown distinctly), whole-token and symbol/prime aware, ignoring comments and strings.
+- **Find All References** — <kbd>Shift</kbd>+<kbd>F12</kbd> lists every use of the name under the cursor across the workspace's `.thy` files (a name-based, offline search; the prover is the authority on scope).
 - **Offline proof-gap audit** — flags `sorry` and `oops` in the Problems panel with no prover running (it ignores comments, cartouches, and strings).
 
 ### 🚀 With Isabelle installed — auto-detected, zero-config
