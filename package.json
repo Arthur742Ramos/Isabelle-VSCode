@@ -56,6 +56,8 @@
     "onCommand:isabelle.resyncOpenTheories",
     "onCommand:isabelle.showDocumentStatus",
     "onCommand:isabelle.auditProofGaps",
+    "onCommand:isabelle.convertSymbolsToUnicode",
+    "onCommand:isabelle.convertSymbolsToAscii",
     "onCommand:isabelle.refreshProofOutline",
     "onCommand:isabelle.refreshProofState",
     "onCommand:isabelle.nextCommand",
@@ -349,6 +351,14 @@
         "title": "Isabelle: Audit Proof Gaps in Open Theories"
       },
       {
+        "command": "isabelle.convertSymbolsToUnicode",
+        "title": "Isabelle: Convert Symbols to Unicode (∀)"
+      },
+      {
+        "command": "isabelle.convertSymbolsToAscii",
+        "title": "Isabelle: Convert Symbols to ASCII (\\<forall>)"
+      },
+      {
         "command": "isabelle.explainCurrentMode",
         "title": "Isabelle: Explain Current Mode"
       }
@@ -471,6 +481,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "isabelle.convertSymbolsToUnicode",
+          "when": "editorLangId == isabelle"
+        },
+        {
+          "command": "isabelle.convertSymbolsToAscii",
+          "when": "editorLangId == isabelle"
+        },
         {
           "command": "isabelle.showPideProofState",
           "when": "editorLangId == isabelle"
@@ -626,6 +644,16 @@
           "command": "isabelle.excludeWordPermanently",
           "when": "editorLangId == isabelle",
           "group": "5_spellcheck@4"
+        },
+        {
+          "command": "isabelle.convertSymbolsToUnicode",
+          "when": "editorLangId == isabelle",
+          "group": "6_symbols@1"
+        },
+        {
+          "command": "isabelle.convertSymbolsToAscii",
+          "when": "editorLangId == isabelle",
+          "group": "6_symbols@2"
         },
         {
           "command": "isabelle.createRepairRequest",

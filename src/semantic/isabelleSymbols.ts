@@ -114,3 +114,35 @@ export function symbolFilterText(symbol: ResolvedIsabelleSymbol): string {
   const bareName = symbol.name.replace(/^\\</, "").replace(/>$/, "");
   return [symbol.name, bareName, ...symbol.abbrevs].join(" ");
 }
+
+// Any `\<...>` symbol token, including the control caret form `\<^...>`.
+const SYMBOL_TOKEN = /\\<\^?[A-Za-z][A-Za-z0-9_]*>/g;
+
+/**
+ * Replace every Isabelle symbol token that has a glyph with that glyph, e.g.
+ * `\<forall>` → `∀`. Tokens with no glyph (markup-only symbols) and any token
+ * not in the table are left untouched. Inverse of {@link symbolsToAscii}.
+ */
+export function symbolsToUnicode(text: string): string {
+  return text.replace(SYMBOL_TOKEN, (token) => {
+    const symbol = BY_NAME.get(token);
+    return symbol && symbol.glyph !== null ? symbol.glyph : token;
+  });
+}
+
+/**
+ * Replace every rendered Isabelle glyph with its ASCII symbol token, e.g. `∀` →
+ * `\<forall>`. Ordinary ASCII text and any non-symbol character are left
+ * untouched. Inverse of {@link symbolsToUnicode}.
+ *
+ * Iterates by Unicode code point so astral-plane glyphs (e.g. `𝟬` for
+ * `\<zero>`) are matched as a single character.
+ */
+export function symbolsToAscii(text: string): string {
+  const out: string[] = [];
+  for (const char of text) {
+    const symbol = BY_GLYPH.get(char);
+    out.push(symbol ? symbol.name : char);
+  }
+  return out.join("");
+}

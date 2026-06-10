@@ -70,6 +70,12 @@ Semantic Versioning while the extension remains in preview.
   language server is also running, its `PIDE/abbrevs` completions remain
   available alongside these. See `THIRD_PARTY_NOTICES.md` for the symbol-table
   attribution.
+- Isabelle symbol conversion commands. `Isabelle: Convert Symbols to Unicode (∀)`
+  and `Isabelle: Convert Symbols to ASCII (\<forall>)` rewrite symbol tokens to
+  their glyphs and back across the current selection (or the whole file when
+  nothing is selected). The mapping is lossless and prover-independent — paste
+  an ASCII Isabelle proof and render it as Unicode, or normalize a file back to
+  portable ASCII notation. Also available from the editor right-click menu.
 
 ## 0.1.0-alpha.6
 

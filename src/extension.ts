@@ -100,6 +100,7 @@ import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
 import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
 import { registerIsabelleSymbolCompletionProvider } from "./semantic/IsabelleSymbolCompletionProvider";
+import { convertIsabelleSymbols } from "./semantic/convertSymbolsCommand";
 import {
   ISABELLE_SEMANTIC_TOKENS_LEGEND,
   IsabelleSemanticTokensProvider
@@ -385,6 +386,8 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.resyncOpenTheories", async () => documentSyncService?.resyncOpenTheories()),
     vscode.commands.registerCommand("isabelle.showDocumentStatus", () => documentStatusService?.showActiveDocumentStatus()),
     vscode.commands.registerCommand("isabelle.auditProofGaps", () => proofGapAuditService?.auditOpenDocuments()),
+    vscode.commands.registerCommand("isabelle.convertSymbolsToUnicode", () => convertIsabelleSymbols("unicode")),
+    vscode.commands.registerCommand("isabelle.convertSymbolsToAscii", () => convertIsabelleSymbols("ascii")),
     vscode.commands.registerCommand("isabelle.refreshProofOutline", () => proofOutlineProvider?.refresh()),
     vscode.commands.registerCommand("isabelle.refreshProofState", async () => proofStatePanel?.refresh()),
     vscode.commands.registerCommand("isabelle.nextCommand", async () => navigateCommand("next", output)),
