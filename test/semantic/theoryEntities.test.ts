@@ -58,6 +58,38 @@ describe("extractTheoryEntities", () => {
     );
   });
 
+  it("extracts the broader specification vocabulary as theory entities", () => {
+    const spans = extractCommandSpans(
+      "file:///Specs.thy",
+      [
+        "theory Specs",
+        "imports Main",
+        "begin",
+        "typedecl ident",
+        "type_synonym env = \"ident \\<Rightarrow> nat\"",
+        "typedef pos = \"{n :: nat. n > 0}\"",
+        "  by auto",
+        "codatatype stream = SCons nat \"stream\"",
+        "primcorec ones :: \"nat stream\" where \"ones = SCons 1 ones\"",
+        "inductive_set evens :: \"nat set\" where \"0 \\<in> evens\"",
+        "lift_definition pos_one :: pos is \"1 :: nat\" by simp",
+        "class ordered = fixes le :: \"'a \\<Rightarrow> 'a \\<Rightarrow> bool\"",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const byKind = new Map(extractTheoryEntities(spans).map((entity) => [entity.kind, entity.name]));
+    expect(byKind.get("typedecl")).toBe("ident");
+    expect(byKind.get("type_synonym")).toBe("env");
+    expect(byKind.get("typedef")).toBe("pos");
+    expect(byKind.get("codatatype")).toBe("stream");
+    expect(byKind.get("primcorec")).toBe("ones");
+    expect(byKind.get("inductive_set")).toBe("evens");
+    expect(byKind.get("lift_definition")).toBe("pos_one");
+    expect(byKind.get("class")).toBe("ordered");
+  });
+
   it("omits anonymous statements and spans that do not declare entities", () => {
     const spans = extractCommandSpans(
       "file:///Anonymous.thy",
@@ -162,7 +194,18 @@ describe("groupEntitiesByKind", () => {
 
 describe("isTheoryEntityKind", () => {
   it("recognizes known entity kinds and rejects others", () => {
-    const known: IsabelleEntityKind[] = ["theorem", "definition", "datatype", "locale", "section"];
+    const known: IsabelleEntityKind[] = [
+      "theorem",
+      "definition",
+      "datatype",
+      "locale",
+      "section",
+      "typedef",
+      "type_synonym",
+      "codatatype",
+      "class",
+      "lift_definition"
+    ];
     for (const kind of known) {
       expect(isTheoryEntityKind(kind)).toBe(true);
     }

@@ -39,10 +39,19 @@ const KIND_LABELS: Record<IsabelleEntityKind, string> = {
   fun: "Functions (fun)",
   function: "Functions",
   primrec: "Primitive Recursive Functions",
+  primcorec: "Primitive Corecursive Functions",
   inductive: "Inductive Predicates",
+  inductive_set: "Inductive Sets",
+  coinductive: "Coinductive Predicates",
   datatype: "Datatypes",
+  codatatype: "Codatatypes",
   record: "Records",
+  typedef: "Type Definitions",
+  typedecl: "Type Declarations",
+  type_synonym: "Type Synonyms",
+  lift_definition: "Lifted Definitions",
   locale: "Locales",
+  class: "Type Classes",
   section: "Sections",
   subsection: "Subsections",
   subsubsection: "Subsubsections",
@@ -215,12 +224,22 @@ function iconForKind(kind: IsabelleEntityKind): vscode.ThemeIcon {
     case "fun":
     case "function":
     case "primrec":
+    case "primcorec":
     case "inductive":
+    case "inductive_set":
+    case "coinductive":
+    case "lift_definition":
       return new vscode.ThemeIcon("symbol-function");
     case "datatype":
+    case "codatatype":
     case "record":
     case "locale":
+    case "class":
       return new vscode.ThemeIcon("symbol-class");
+    case "typedef":
+    case "typedecl":
+    case "type_synonym":
+      return new vscode.ThemeIcon("symbol-interface");
     case "section":
     case "subsection":
     case "subsubsection":

@@ -11,10 +11,19 @@ export type IsabelleEntityKind =
   | "fun"
   | "function"
   | "primrec"
+  | "primcorec"
   | "inductive"
+  | "inductive_set"
+  | "coinductive"
   | "datatype"
+  | "codatatype"
   | "record"
+  | "typedef"
+  | "typedecl"
+  | "type_synonym"
+  | "lift_definition"
   | "locale"
+  | "class"
   | "section"
   | "subsection"
   | "subsubsection"
@@ -38,10 +47,19 @@ export const THEORY_ENTITY_KINDS: ReadonlyArray<IsabelleEntityKind> = [
   "fun",
   "function",
   "primrec",
+  "primcorec",
   "inductive",
+  "inductive_set",
+  "coinductive",
   "datatype",
+  "codatatype",
   "record",
+  "typedef",
+  "typedecl",
+  "type_synonym",
+  "lift_definition",
   "locale",
+  "class",
   "section",
   "subsection",
   "subsubsection",
