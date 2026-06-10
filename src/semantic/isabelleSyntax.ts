@@ -101,6 +101,7 @@ const COMMANDS: IsabelleCommandInfo[] = [
   { keyword: "global_interpretation", description: "Interprets a locale at the theory top level.", category: "statement" },
   { keyword: "sublocale", description: "Interprets one locale within another.", category: "statement" },
   { keyword: "context", description: "Opens a local proof context.", category: "context" },
+  { keyword: "notepad", description: "Opens a scratch context for Isar proof text without stating a theorem.", category: "context" },
   // ── Isar proof structure ────────────────────────────────────────────────
   { keyword: "proof", description: "Starts an Isar proof block.", category: "proof" },
   { keyword: "apply", description: "Applies a proof method to the current goal.", category: "proof" },

@@ -8,6 +8,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Specification snippets for the broader vocabulary. Tab-completable skeletons
+  now cover `type_synonym`, `typedef`, `function` (with completeness +
+  `lexicographic_order` termination), `primcorec`, `codatatype`,
+  `lift_definition`, `class`, `instantiation`, `interpretation`, and `notepad`
+  — the type-definition, type-class, locale-interpretation, and codata
+  constructs that real HOL/AFP theories use, alongside the lemma/definition/
+  datatype skeletons already shipped. `notepad` is now also a recognised
+  command (highlighting + hover).
 - Offline proof-method completion. When the cursor is where a proof *method
   name* is expected — right after `apply`, `by`, or `proof`, or after a method
   combinator (`(`, `,`, `|`, `;`) — VS Code now suggests the core HOL methods

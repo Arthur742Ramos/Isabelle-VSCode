@@ -66,6 +66,24 @@ describe("Isabelle snippets manifest", () => {
     }
   });
 
+  it("includes the broader specification constructs", () => {
+    const allPrefixes = new Set(entries.flatMap(([, snippet]) => prefixes(snippet.prefix)));
+    for (const required of [
+      "type_synonym",
+      "typedef",
+      "function",
+      "primcorec",
+      "codatatype",
+      "lift_definition",
+      "class",
+      "instantiation",
+      "interpretation",
+      "notepad"
+    ]) {
+      expect(allPrefixes.has(required), `missing specification snippet prefix "${required}"`).toBe(true);
+    }
+  });
+
   it("has a final tab stop ($0) wherever it uses numbered tab stops", () => {
     for (const [name, snippet] of entries) {
       const body = bodyText(snippet.body);
