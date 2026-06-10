@@ -58,35 +58,63 @@ export function parseProofBody(text: string): ParsedProofBody | null {
 }
 
 /**
- * Split an Isabelle fact list, respecting that fact names with
- * subscripts/brackets stay together. For Phase 5 we keep this very
- * simple — whitespace-separated, drop empties, drop common trailing
- * punctuation. Quoted fact names are preserved as-is.
+ * Split the leading **bare** fact list of an Isabelle method argument, used to
+ * drive `onlyFacts` minimization. Only the facts before any modifier matter
+ * here, so the scan stops at:
+ *
+ *   * a modifier label — a token ending in `:` (`add:`, `del:`, `simp:`,
+ *     `intro:`, `dest:`, `elim:`, `split:`, …): everything after it is named
+ *     arguments to that modifier, not bare facts; and
+ *   * a bracket-modifier group (`[where x = 1]`, `[OF a b]`, `[simplified]`):
+ *     these annotate a fact/method, not a fact to minimize.
+ *
+ * Whitespace-separated otherwise; quoted fact names are preserved verbatim.
  */
 function splitFactList(raw: string): string[] {
   if (!raw) return [];
-  // First pass: tokenize handling quoted strings.
   const tokens: string[] = [];
   let i = 0;
   let buf = "";
+  const flush = (): void => {
+    if (buf) {
+      tokens.push(buf);
+      buf = "";
+    }
+  };
   while (i < raw.length) {
     const c = raw[i];
     if (c === '"') {
       // Capture quoted string verbatim.
+      flush();
       let j = i + 1;
       while (j < raw.length && raw[j] !== '"') j++;
       tokens.push(raw.slice(i + 1, j));
       i = j + 1;
       continue;
     }
+    if (c === "[") {
+      // A bracket-modifier group ends the bare-fact list.
+      flush();
+      break;
+    }
     if (/\s/.test(c)) {
-      if (buf) { tokens.push(buf); buf = ""; }
+      flush();
       i++;
       continue;
     }
     buf += c;
     i++;
   }
-  if (buf) tokens.push(buf);
-  return tokens.map(t => t.trim()).filter(t => t.length > 0);
+  flush();
+
+  // Stop at the first modifier label (token ending in `:`); drop it and the
+  // rest, which are arguments to that modifier rather than bare facts.
+  const result: string[] = [];
+  for (const token of tokens) {
+    const trimmed = token.trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.endsWith(":")) break;
+    result.push(trimmed);
+  }
+  return result;
 }
