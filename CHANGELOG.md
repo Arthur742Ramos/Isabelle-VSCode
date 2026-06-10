@@ -98,6 +98,11 @@ Semantic Versioning while the extension remains in preview.
 
 ### Changed
 
+- The Scala backend's command-span parser now recognises the same broad HOL/AFP
+  outer-syntax vocabulary as the TypeScript foundation, so backend-mode command
+  spans (PIDE document status, navigation) cover `typedef`, `class`,
+  `instantiation`, `interpretation`, `lift_definition`, `value`, `ML`, and the
+  rest — keeping the two engines in parity.
 - Command hovers now show a role label, matching the proof-method hover. Hovering
   an outer-syntax command renders as `**Isabelle command** \`lemma\` — goal
   statement` followed by the description, with the role derived from the
