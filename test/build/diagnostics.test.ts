@@ -64,6 +64,72 @@ describe("parseBuildDiagnostics", () => {
       }
     ]);
   });
+
+  it("parses the `At command \"...\" (line N of \"FILE\")` error format", () => {
+    expect(
+      parseBuildDiagnostics(
+        [
+          "*** Type unification failed: Clash of types",
+          "*** Failed to meet type constraint",
+          '*** At command "lemma" (line 12 of "/home/u/Foo.thy")'
+        ].join("\n")
+      )
+    ).toEqual([
+      {
+        filePath: "/home/u/Foo.thy",
+        message: ["Type unification failed: Clash of types", "Failed to meet type constraint"].join("\n"),
+        severity: "error",
+        startLine: 11,
+        startCharacter: 0,
+        endLine: 11,
+        endCharacter: 1
+      }
+    ]);
+  });
+
+  it("keeps the leading text of an inline `(line N of \"FILE\")` location", () => {
+    expect(
+      parseBuildDiagnostics('*** Failed to finish proof (line 5 of "Bar.thy")')
+    ).toEqual([
+      {
+        filePath: "Bar.thy",
+        message: "Failed to finish proof",
+        severity: "error",
+        startLine: 4,
+        startCharacter: 0,
+        endLine: 4,
+        endCharacter: 1
+      }
+    ]);
+  });
+
+  it("does not emit an `(line N of \"FILE\")` diagnostic from a non-`***` line", () => {
+    // A `(line N of "FILE")` mention in ordinary prose (no `***` prefix) is not
+    // an error location.
+    expect(parseBuildDiagnostics('see the note (line 5 of "Bar.thy") for details')).toEqual([]);
+  });
+
+  it("captures only the contiguous `***` run as the At-command message", () => {
+    const diagnostics = parseBuildDiagnostics(
+      [
+        "Building session...",
+        "ordinary output line",
+        "*** Failed to finish proof:",
+        '*** At command "by" (line 7 of "Bar.thy")'
+      ].join("\n")
+    );
+    expect(diagnostics).toEqual([
+      {
+        filePath: "Bar.thy",
+        message: "Failed to finish proof:",
+        severity: "error",
+        startLine: 6,
+        startCharacter: 0,
+        endLine: 6,
+        endCharacter: 1
+      }
+    ]);
+  });
 });
 
 describe("build diagnostic identity constants", () => {

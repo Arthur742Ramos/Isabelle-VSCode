@@ -33,13 +33,19 @@ export const BUILD_DIAGNOSTIC_COLLECTION_NAME = "isabelle-build";
 
 const COLON_LOCATION = /^(.+?\.thy):(\d+):(\d+):\s*(error|warning):\s*(.+)$/i;
 const ISABELLE_FILE_LOCATION = /^File "(.+?\.thy)", line (\d+)(?:, characters (\d+)-(\d+))?:\s*$/;
+// Isabelle's dominant build-error location: a trailing `(line N of "FILE")`,
+// e.g. `*** At command "lemma" (line 12 of "/path/Foo.thy")` or
+// `*** Failed to finish proof ... (line 5 of "Foo.thy")`. The message is the
+// run of `***`-prefixed lines ending at this location line.
+const AT_COMMAND_LOCATION = /\(line (\d+) of "(.+?\.thy)"\)\s*$/;
 
 export function parseBuildDiagnostics(output: string): BuildDiagnostic[] {
   const lines = output.split(/\r?\n/);
   const diagnostics: BuildDiagnostic[] = [];
 
   for (let index = 0; index < lines.length; index++) {
-    const line = stripMessagePrefix(lines[index]);
+    const rawLine = lines[index];
+    const line = stripMessagePrefix(rawLine);
     const colonLocation = COLON_LOCATION.exec(line);
     if (colonLocation) {
       diagnostics.push({
@@ -55,40 +61,84 @@ export function parseBuildDiagnostics(output: string): BuildDiagnostic[] {
     }
 
     const fileLocation = ISABELLE_FILE_LOCATION.exec(line);
-    if (!fileLocation) {
+    if (fileLocation) {
+      const messageLines: string[] = [];
+      let cursor = index + 1;
+      while (cursor < lines.length && !isLocationLine(stripMessagePrefix(lines[cursor]))) {
+        const messageLine = stripMessagePrefix(lines[cursor]).trim();
+        if (messageLine.length > 0) {
+          messageLines.push(messageLine);
+        }
+        cursor++;
+      }
+
+      const startLine = toZeroBased(Number(fileLocation[2]));
+      const startCharacter = fileLocation[3] ? Number(fileLocation[3]) : 0;
+      const endCharacter = fileLocation[4] ? Number(fileLocation[4]) : Math.max(startCharacter + 1, 1);
+
+      diagnostics.push({
+        filePath: fileLocation[1],
+        startLine,
+        startCharacter,
+        endLine: startLine,
+        endCharacter,
+        severity: inferSeverity(messageLines),
+        message: messageLines.length > 0 ? messageLines.join("\n") : "Isabelle build diagnostic"
+      });
       continue;
     }
 
-    const messageLines: string[] = [];
-    let cursor = index + 1;
-    while (cursor < lines.length && !isLocationLine(stripMessagePrefix(lines[cursor]))) {
-      const messageLine = stripMessagePrefix(lines[cursor]).trim();
-      if (messageLine.length > 0) {
-        messageLines.push(messageLine);
-      }
-      cursor++;
+    // `*** ... (line N of "FILE")` — the message is the run of `***`-prefixed
+    // lines immediately preceding (and including) this location line.
+    const atCommand = AT_COMMAND_LOCATION.exec(line);
+    if (atCommand && rawLine.startsWith("***")) {
+      const messageLines = collectAtCommandMessage(lines, index, line);
+      const startLine = toZeroBased(Number(atCommand[1]));
+      diagnostics.push({
+        filePath: atCommand[2],
+        startLine,
+        startCharacter: 0,
+        endLine: startLine,
+        endCharacter: 1,
+        severity: inferSeverity(messageLines),
+        message: messageLines.length > 0 ? messageLines.join("\n") : "Isabelle build diagnostic"
+      });
+      continue;
     }
-
-    const startLine = toZeroBased(Number(fileLocation[2]));
-    const startCharacter = fileLocation[3] ? Number(fileLocation[3]) : 0;
-    const endCharacter = fileLocation[4] ? Number(fileLocation[4]) : Math.max(startCharacter + 1, 1);
-
-    diagnostics.push({
-      filePath: fileLocation[1],
-      startLine,
-      startCharacter,
-      endLine: startLine,
-      endCharacter,
-      severity: inferSeverity(messageLines),
-      message: messageLines.length > 0 ? messageLines.join("\n") : "Isabelle build diagnostic"
-    });
   }
 
   return diagnostics;
 }
 
+/**
+ * Gather the message for an `... (line N of "FILE")` diagnostic: the contiguous
+ * run of `***`-prefixed lines ending at `locationIndex`. The location line's
+ * own text (minus the trailing `(line N of "FILE")`) is kept when it carries
+ * more than the bare `At command "..."` boilerplate.
+ */
+function collectAtCommandMessage(lines: string[], locationIndex: number, strippedLocationLine: string): string[] {
+  const collected: string[] = [];
+  let start = locationIndex;
+  while (start > 0 && lines[start - 1].startsWith("***")) {
+    start -= 1;
+  }
+  for (let i = start; i < locationIndex; i++) {
+    const text = stripMessagePrefix(lines[i]).trim();
+    if (text.length > 0) {
+      collected.push(text);
+    }
+  }
+  // Strip the trailing location from the final line; keep any leading text
+  // (e.g. "Failed to finish proof") but drop a bare "At command \"...\"".
+  const tail = strippedLocationLine.replace(AT_COMMAND_LOCATION, "").trim();
+  if (tail.length > 0 && !/^At command\b/i.test(tail)) {
+    collected.push(tail);
+  }
+  return collected;
+}
+
 function isLocationLine(line: string): boolean {
-  return COLON_LOCATION.test(line) || ISABELLE_FILE_LOCATION.test(line);
+  return COLON_LOCATION.test(line) || ISABELLE_FILE_LOCATION.test(line) || AT_COMMAND_LOCATION.test(line);
 }
 
 function stripMessagePrefix(line: string): string {

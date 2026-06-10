@@ -163,6 +163,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- `isabelle build` errors in the dominant `*** At command "…" (line N of
+  "FILE")` format now appear as clickable Problems-panel diagnostics. The build
+  output parser previously recognised only the colon (`file:line:col: error:`)
+  and `File "…", line N, characters …` forms, so the most common theory errors
+  — type-unification failures, `Failed to finish proof`, etc., which report
+  their location as a trailing `(line N of "FILE")` — produced no diagnostic at
+  all. The parser now reads that format (and a bare inline `(line N of "FILE")`
+  on a `***` line), gathering the message from the preceding `***` lines.
 - The Scala backend's command-span parser no longer mistakes a command keyword
   inside a multi-line `(* … *)` comment, a `"…"` string, or a `text ‹…›` /
   `\<open>…\<close>` cartouche for a real command. It previously scanned line by
