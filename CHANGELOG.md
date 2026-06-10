@@ -8,6 +8,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Document headings now appear in the outline, breadcrumb, and Theory Outline
+  with their **title**. `section ‹Introduction›`, `subsection "Helpers"`,
+  `chapter \<open>…\<close>`, `subsubsection`/`paragraph`/`subparagraph` headings
+  are read from their cartouche or quoted argument (whitespace collapsed), so
+  the structure you wrote shows up where you navigate — instead of headings
+  being unnamed and dropped. Empty-title headings are still omitted. Offline.
 - Smart selection (Expand / Shrink Selection, `Alt/⌥+Shift+→`/`←`). Each expand
   grows the selection through the Isabelle structure around the cursor:
   identifier token → enclosing quoted term / cartouche → command span →

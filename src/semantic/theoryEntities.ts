@@ -84,10 +84,10 @@ export function isTheoryEntityKind(kind: string): kind is IsabelleEntityKind {
  * (as produced by `extractCommandSpans`) and does not consult PIDE entity
  * metadata.
  *
- * Section/subsection/subsubsection entities are best-effort: they only appear
- * when the originating span exposes a usable `name` (current
- * `extractCommandSpans` does not derive section titles from trailing text, so
- * such entities are omitted today; future increments may pre-populate them).
+ * Section/subsection/subsubsection (and chapter/paragraph) entities appear with
+ * their heading title, which `extractCommandSpans` derives from the heading's
+ * cartouche / quoted argument (e.g. `section ‹Introduction›` → `Introduction`).
+ * A heading with an empty title exposes no usable `name` and is omitted.
  */
 export function extractTheoryEntities(spans: readonly CommandSpan[]): IsabelleTheoryEntity[] {
   const entities: IsabelleTheoryEntity[] = [];
