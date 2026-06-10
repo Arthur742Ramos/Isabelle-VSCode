@@ -232,7 +232,9 @@ function iconForKind(kind: IsabelleEntityKind): vscode.ThemeIcon {
       return new vscode.ThemeIcon("symbol-function");
     case "datatype":
     case "codatatype":
+      return new vscode.ThemeIcon("symbol-enum");
     case "record":
+      return new vscode.ThemeIcon("symbol-struct");
     case "locale":
     case "class":
       return new vscode.ThemeIcon("symbol-class");

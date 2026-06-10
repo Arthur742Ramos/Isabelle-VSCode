@@ -75,7 +75,10 @@ describe("extractIsabelleDocumentSymbols", () => {
     // vscode.SymbolKind values:
     //   "method"    -> vscode.SymbolKind.Method
     //   "function"  -> vscode.SymbolKind.Function
-    //   "class"     -> vscode.SymbolKind.Class
+    //   "class"     -> vscode.SymbolKind.Class      (locale / class / instantiation)
+    //   "enum"      -> vscode.SymbolKind.Enum       (datatype / codatatype)
+    //   "struct"    -> vscode.SymbolKind.Struct     (record)
+    //   "interface" -> vscode.SymbolKind.Interface  (typedef / typedecl / type_synonym)
     //   "module"    -> vscode.SymbolKind.Module
     //   "namespace" -> vscode.SymbolKind.Namespace
     const spans = extractCommandSpans(
@@ -115,8 +118,8 @@ describe("extractIsabelleDocumentSymbols", () => {
     expect(named.get("f")).toEqual({ detail: "fun", kind: "function" });
     expect(named.get("g")).toEqual({ detail: "function", kind: "function" });
     expect(named.get("p")).toEqual({ detail: "primrec", kind: "function" });
-    expect(named.get("t")).toEqual({ detail: "datatype", kind: "class" });
-    expect(named.get("r")).toEqual({ detail: "record", kind: "class" });
+    expect(named.get("t")).toEqual({ detail: "datatype", kind: "enum" });
+    expect(named.get("r")).toEqual({ detail: "record", kind: "struct" });
     expect(named.get("L")).toEqual({ detail: "locale", kind: "class" });
     expect(named.get("the_lemma")).toEqual({ detail: "lemma", kind: "method" });
     expect(named.get("the_theorem")).toEqual({ detail: "theorem", kind: "method" });
@@ -124,5 +127,37 @@ describe("extractIsabelleDocumentSymbols", () => {
     expect(named.get("the_proposition")).toEqual({ detail: "proposition", kind: "method" });
     expect(named.get("sg")).toEqual({ detail: "schematic_goal", kind: "method" });
     expect(named.get("theory")).toEqual({ detail: "theory", kind: "module" });
+  });
+
+  it("maps type-introducing commands to type-appropriate symbol kinds", () => {
+    const spans = extractCommandSpans(
+      "file:///Types.thy",
+      [
+        "theory Types",
+        "imports Main",
+        "begin",
+        "typedecl ident",
+        "type_synonym env = \"ident \\<Rightarrow> nat\"",
+        "typedef pos = \"{n :: nat. n > 0}\"",
+        "  by auto",
+        "codatatype stream = SCons nat stream",
+        "class ordered = fixes le :: \"'a \\<Rightarrow> 'a \\<Rightarrow> bool\"",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const named = new Map<string, string>();
+    for (const symbol of extractIsabelleDocumentSymbols(spans)) {
+      named.set(symbol.name, symbol.kind);
+    }
+
+    // typedef / typedecl / type_synonym → interface (abstract / alias types)
+    expect(named.get("ident")).toBe("interface");
+    expect(named.get("env")).toBe("interface");
+    expect(named.get("pos")).toBe("interface");
+    // codatatype → enum (sum type with constructors), class → class
+    expect(named.get("stream")).toBe("enum");
+    expect(named.get("ordered")).toBe("class");
   });
 });

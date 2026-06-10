@@ -98,6 +98,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Changed
 
+- The Outline / breadcrumb and the Theory Outline tree now use type-appropriate
+  icons for type-introducing commands: `datatype` / `codatatype` show as an
+  **enum**, `record` as a **struct**, `typedef` / `typedecl` / `type_synonym`
+  as an **interface**, and `class` / `instantiation` / `locale` as a **class**
+  — instead of all type-like declarations sharing the class icon. Purely
+  presentational; the symbols and ranges are unchanged.
 - Settings now render their inline code, bold, and examples correctly in the
   VS Code Settings UI. Every configuration setting whose help text uses Markdown
   was moved from a plain `description` to `markdownDescription`, so backticks
