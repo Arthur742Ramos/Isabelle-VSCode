@@ -48,6 +48,7 @@
     "onCommand:isabelle.showPideProofState",
     "onCommand:isabelle.minimizeSledgehammerProof",
     "onCommand:isabelle.discoverSessions",
+    "onCommand:isabelle.newTheory",
     "onCommand:isabelle.refreshSessions",
     "onCommand:isabelle.selectSession",
     "onCommand:isabelle.openTheory",
@@ -158,6 +159,10 @@
       {
         "command": "isabelle.discoverSessions",
         "title": "Isabelle: Discover Sessions"
+      },
+      {
+        "command": "isabelle.newTheory",
+        "title": "Isabelle: New Theory File"
       },
       {
         "command": "isabelle.refreshSessions",

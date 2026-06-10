@@ -107,6 +107,7 @@ import {
 } from "./semantic/IsabelleSemanticTokensProvider";
 import { TheoryOutlineTreeProvider } from "./semantic/TheoryOutlineTreeProvider";
 import { SessionService } from "./session/SessionService";
+import { createNewTheoryFile } from "./session/newTheoryCommand";
 import { SessionTreeProvider } from "./session/SessionTreeProvider";
 import { SledgehammerPanel } from "./sledgehammer/SledgehammerPanel";
 import { PideQuiescenceTracker } from "./sledgehammer/PideQuiescenceTracker";
@@ -378,6 +379,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.commands.registerCommand("isabelle.showPideProofState", async () => showPideProofState(output)),
     vscode.commands.registerCommand("isabelle.minimizeSledgehammerProof", async () => minimizeSledgehammerProof(output)),
     vscode.commands.registerCommand("isabelle.discoverSessions", async () => discoverSessions(output)),
+    vscode.commands.registerCommand("isabelle.newTheory", async () => createNewTheoryFile(output)),
     vscode.commands.registerCommand("isabelle.refreshSessions", async () => discoverSessions(output)),
     vscode.commands.registerCommand("isabelle.selectSession", async (sessionName?: string) => selectSession(sessionName, output)),
     vscode.commands.registerCommand("isabelle.openTheory", async (theoryPath?: string) => openTheory(theoryPath)),

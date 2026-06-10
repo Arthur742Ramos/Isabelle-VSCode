@@ -8,6 +8,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- `Isabelle: New Theory File` command. Scaffolds a correctly-named `<Name>.thy`
+  (Isabelle requires the theory name to equal the file base name) with a ready
+  `theory … imports Main begin … end` header, in the active file's folder (or the
+  workspace root), then opens it with the cursor in the body. The name is
+  validated against Isabelle's identifier rules as you type, and an existing file
+  is offered to open rather than overwritten.
 - Isabelle snippets. Tab-completable skeletons for the core authoring
   constructs — `theory`, `lemma` (Isar / one-liner / assumes-shows), `theorem`,
   `corollary`, `definition`, `abbreviation`, `fun`, `primrec`, `datatype`,
