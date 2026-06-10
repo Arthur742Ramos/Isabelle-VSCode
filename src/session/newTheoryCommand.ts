@@ -59,10 +59,10 @@ export async function createNewTheoryFile(output: vscode.OutputChannel): Promise
     const content = buildTheoryFileContent({ name: theoryName });
     await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, "utf8"));
     await openTheory(fileUri, content);
-    output.appendLine(`Created new theory: ${fileUri.fsPath}`);
+    output.appendLine(`Created new theory: ${displayPath(fileUri)}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    output.appendLine(`Failed to create theory ${fileUri.fsPath}: ${message}`);
+    output.appendLine(`Failed to create theory ${displayPath(fileUri)}: ${message}`);
     vscode.window.showErrorMessage(`Could not create theory file: ${message}`);
   }
 }
@@ -82,19 +82,27 @@ async function openTheory(fileUri: vscode.Uri, content?: string): Promise<void> 
 
 function resolveTargetDirectory(): vscode.Uri | undefined {
   const activeUri = vscode.window.activeTextEditor?.document.uri;
-  if (activeUri && activeUri.scheme === "file") {
-    return vscode.Uri.file(path.dirname(activeUri.fsPath));
+  // Use the active document's folder for any real (saved) resource — works for
+  // both `file:` and remote schemes (`vscode-remote:` under Remote-SSH/WSL/dev
+  // containers). URIs always use POSIX-style `/` separators in `.path`.
+  if (activeUri && activeUri.scheme !== "untitled") {
+    return activeUri.with({ path: path.posix.dirname(activeUri.path) });
   }
   return vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
 function activeBaseName(): string | undefined {
   const activeUri = vscode.window.activeTextEditor?.document.uri;
-  if (!activeUri || activeUri.scheme !== "file") {
+  if (!activeUri || activeUri.scheme === "untitled") {
     return undefined;
   }
-  const base = path.basename(activeUri.fsPath).replace(/\.thy$/i, "");
+  const base = path.posix.basename(activeUri.path).replace(/\.thy$/i, "");
   return base.length > 0 ? base : undefined;
+}
+
+/** A human-readable path for logs: filesystem path for `file:`, URI otherwise. */
+function displayPath(uri: vscode.Uri): string {
+  return uri.scheme === "file" ? uri.fsPath : uri.toString();
 }
 
 async function fileExists(uri: vscode.Uri): Promise<boolean> {
