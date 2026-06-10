@@ -72,4 +72,53 @@ describe("extractCommandSpans", () => {
       ["lemma", "kept"]
     ]);
   });
+
+  it("recognises the broader HOL/AFP command vocabulary and its names", () => {
+    // A theory exercising specifications, type classes, locales, and
+    // diagnostics that the foundation previously left unhighlighted.
+    const spans = extractCommandSpans(
+      "file:///Vocabulary.thy",
+      [
+        "theory Vocabulary",
+        "imports Main",
+        "begin",
+        "typedecl point",
+        "type_synonym name = string",
+        "typedef pos = \"{n :: nat. n > 0}\"",
+        "  by auto",
+        "codatatype 'a stream = SCons 'a \"'a stream\"",
+        "class ordered =",
+        "  fixes le :: \"'a \\<Rightarrow> 'a \\<Rightarrow> bool\"",
+        "instantiation nat :: ordered",
+        "begin",
+        "end",
+        "interpretation trivial: ordered \"(\\<le>)\"",
+        "  by standard",
+        "lift_definition pos_one :: pos is \"1 :: nat\"",
+        "  by simp",
+        "lemmas useful = conjI disjI1",
+        "value \"2 + 2 :: nat\"",
+        "find_theorems \"_ + _ = _ + _\"",
+        "ML \\<open>writeln \"hi\"\\<close>",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const byKind = spans.map((span) => [span.kind, span.name]);
+    expect(byKind).toContainEqual(["typedecl", "point"]);
+    expect(byKind).toContainEqual(["type_synonym", "name"]);
+    expect(byKind).toContainEqual(["typedef", "pos"]);
+    // `codatatype 'a stream` is recognised; the name follows the type
+    // parameter, which the local name extractor does not yet skip.
+    expect(spans.map((span) => span.kind)).toContain("codatatype");
+    expect(byKind).toContainEqual(["class", "ordered"]);
+    expect(byKind).toContainEqual(["instantiation", undefined]);
+    expect(byKind).toContainEqual(["interpretation", undefined]);
+    expect(byKind).toContainEqual(["lift_definition", "pos_one"]);
+    expect(byKind).toContainEqual(["lemmas", "useful"]);
+    expect(byKind).toContainEqual(["value", undefined]);
+    expect(byKind).toContainEqual(["find_theorems", undefined]);
+    expect(byKind).toContainEqual(["ML", undefined]);
+  });
 });
