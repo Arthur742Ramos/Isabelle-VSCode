@@ -192,6 +192,15 @@ describe("findMethodCompletionContext", () => {
     expect(findMethodCompletionContext(factArg, factArg.length)).toBeUndefined();
   });
 
+  it("does NOT offer completion after a closed group or inside focus brackets", () => {
+    // `apply (simp) ‹here›` — the group is closed; no method name is expected.
+    const closed = "  apply (simp) au";
+    expect(findMethodCompletionContext(closed, closed.length)).toBeUndefined();
+    // `apply (simp[1]` style goal-restriction focus expects a number, not a method.
+    const focus = "  apply (simp[au";
+    expect(findMethodCompletionContext(focus, focus.length)).toBeUndefined();
+  });
+
   it("does not offer completion outside method position", () => {
     const haveLine = "  have foo: \"x = y\"";
     expect(findMethodCompletionContext(haveLine, haveLine.length)).toBeUndefined();

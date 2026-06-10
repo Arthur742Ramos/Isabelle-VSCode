@@ -213,8 +213,11 @@ export interface MethodCompletionContext {
 // A partial method-name word ending at the cursor.
 const PARTIAL_METHOD_WORD = /[A-Za-z_][A-Za-z0-9_']*$/;
 // Method-combinator delimiters after which a *method name* is expected:
-// `(` opens a group, `,`/`;` sequence, `|` alternates, `[`/`]` for `[1]` focus.
-const METHOD_NAME_DELIMITERS = new Set(["(", ")", ",", ";", "|", "[", "]"]);
+// `(` opens a group, `,`/`;` sequence the methods, `|` alternates between them.
+// Deliberately NOT `)` (a closed group — `apply (simp) ‹here›` expects nothing),
+// nor `[`/`]` (goal-restriction focus like `simp[1]`, where a number/end
+// follows, not a method).
+const METHOD_NAME_DELIMITERS = new Set(["(", ",", ";", "|"]);
 
 /**
  * If the cursor sits exactly where an Isabelle proof *method name* is expected,
