@@ -21,10 +21,12 @@ Semantic Versioning while the extension remains in preview.
   Isar steps (`subgoal`, `supply`, `define`, `consider`, `include`), document
   headings (`chapter`, `paragraph`, `text_raw`), diagnostics (`value`, `term`,
   `thm`, `find_theorems`, `find_consts`, `sledgehammer`, `nitpick`,
-  `quickcheck`, `export_code`), and embedded ML (`ML`, `ML_file`, `setup`,
-  `method_setup`). Two new command categories — `diagnostic` and `ml` — keep
-  exploratory and ML commands out of the proof outline while still highlighting
-  them. Works offline, no Isabelle required.
+  `quickcheck`, `export_code`), ML setup (`setup`, `method_setup`,
+  `attribute_setup`), and embedded ML (`ML`, `ML_file`, `ML_val`, `ML_prf`).
+  Two new command categories — `diagnostic` (exploratory commands like `value`
+  and `sledgehammer`) and `ml` (the `ML*` commands) — keep those commands out
+  of the proof outline while still highlighting and describing them. Works
+  offline, no Isabelle required.
 - `Isabelle: Insert Symbol` command. Browse and search the full Isabelle symbol
   table by glyph, token (`\<forall>`), group (`logic`), or ASCII abbreviation
   (`ALL`, `!`) in a quick-pick, and insert the chosen symbol at the cursor — for

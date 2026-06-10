@@ -100,4 +100,36 @@ describe("proof outline helpers", () => {
       "buildActiveSession"
     ]);
   });
+
+  it("keeps diagnostic and ML commands out of the proof outline", () => {
+    const outlineSpans = extractCommandSpans(
+      "file:///Diagnostics.thy",
+      [
+        "theory Diagnostics",
+        "imports Main",
+        "begin",
+        "value \"2 + 2 :: nat\"",
+        "lemma foo: \"True\"",
+        "  thm conjI",
+        "  by simp",
+        "ML \\<open>writeln \"hi\"\\<close>",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const outline = buildProofOutline(outlineSpans);
+    // value / ML never appear at the top level …
+    expect(outline.map((node) => node.span.kind)).toEqual([
+      "theory",
+      "imports",
+      "begin",
+      "lemma",
+      "end"
+    ]);
+    // … and a diagnostic command inside a proof (`thm`) is skipped without
+    // disturbing the lemma's real proof steps.
+    const lemma = outline.find((node) => node.span.kind === "lemma");
+    expect(lemma?.children.map((node) => node.span.kind)).toEqual(["by"]);
+  });
 });

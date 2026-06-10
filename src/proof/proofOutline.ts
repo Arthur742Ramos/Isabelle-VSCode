@@ -1,6 +1,8 @@
 import { CommandSpan, ProtocolPosition } from "../protocol/messages";
 import {
   isDeclarationCommand,
+  isDiagnosticCommand,
+  isMlCommand,
   isProofStatementCommand,
   isProofStepCommand,
   isProofTerminalCommand,
@@ -33,6 +35,16 @@ export function buildProofOutline(spans: CommandSpan[]): ProofOutlineNode[] {
   let activeProofDepth = 0;
 
   for (const span of spans) {
+    // Diagnostic (`value`, `term`, `thm`, `sledgehammer`, …) and embedded-ML
+    // (`ML`, `ML_file`, …) commands are not proof structure: they neither open
+    // nor close a proof, so they stay out of the outline entirely rather than
+    // landing as spurious top-level nodes. A diagnostic command sitting inside
+    // a proof (e.g. `thm` between steps) is simply skipped without disturbing
+    // the active statement.
+    if (isDiagnosticCommand(span.kind) || isMlCommand(span.kind)) {
+      continue;
+    }
+
     const node = outlineNode(span);
     if (isProofStatementCommand(span.kind)) {
       roots.push(node);
