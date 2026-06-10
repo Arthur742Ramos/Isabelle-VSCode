@@ -97,4 +97,45 @@ final class CommandSpanParserSpec extends AnyFunSuite {
     assert(spans.find(_.kind == "type_synonym").flatMap(_.name).contains("envty"))
     assert(spans.find(_.kind == "lemmas").flatMap(_.name).contains("useful"))
   }
+
+  test("extracts declaration names that follow type parameters and locale targets") {
+    val parametric = document.copy(
+      text =
+        "theory Param\n" +
+          "imports Main\n" +
+          "begin\n" +
+          "datatype 'a tree = Leaf | Node 'a \"'a tree\"\n" +
+          "codatatype ('a, 'b) bitree = BNode 'a 'b\n" +
+          "type_synonym 'a env = \"string \\<Rightarrow> 'a\"\n" +
+          "definition (in monoid) e :: 'a where \"e = one\"\n" +
+          "lemma (in group) inv_unique: True\n" +
+          "datatype nat' = Z | S nat'\n" +
+          "end\n",
+      version = 5
+    )
+    val spans = CommandSpanParser.parse(parametric)
+    assert(spans.find(_.kind == "datatype").flatMap(_.name).contains("tree"))
+    assert(spans.find(_.kind == "codatatype").flatMap(_.name).contains("bitree"))
+    assert(spans.find(_.kind == "type_synonym").flatMap(_.name).contains("env"))
+    assert(spans.find(_.kind == "definition").flatMap(_.name).contains("e"))
+    assert(spans.find(_.kind == "lemma").flatMap(_.name).contains("inv_unique"))
+    // A name that is merely primed (no leading type parameter) is taken as-is.
+    assert(spans.find(s => s.kind == "datatype" && s.name.contains("nat'")).isDefined)
+  }
+
+  test("still captures a plain leading name and ignores fixes/assumes") {
+    val plain = document.copy(
+      text =
+        "theory Plain\n" +
+          "imports Main\n" +
+          "begin\n" +
+          "definition foo :: nat where \"foo = 0\"\n" +
+          "lemma bar: True by simp\n" +
+          "end\n",
+      version = 6
+    )
+    val spans = CommandSpanParser.parse(plain)
+    assert(spans.find(_.kind == "definition").flatMap(_.name).contains("foo"))
+    assert(spans.find(_.kind == "lemma").flatMap(_.name).contains("bar"))
+  }
 }
