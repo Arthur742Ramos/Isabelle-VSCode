@@ -108,8 +108,11 @@ describe("extractTheoryEntities", () => {
 
     const entities = extractTheoryEntities(spans);
 
+    // The anonymous `lemma "True"` is omitted; the named lemma and the section
+    // heading (whose title is now extracted from its quoted argument) appear.
     expect(entities.map((entity) => [entity.kind, entity.name])).toEqual([
-      ["lemma", "named_one"]
+      ["lemma", "named_one"],
+      ["section", "A section without metadata"]
     ]);
   });
 
@@ -134,25 +137,30 @@ describe("extractTheoryEntities", () => {
     expect(extractTheoryEntities(spans)).toEqual([]);
   });
 
-  it("omits section entities while current command-span extraction does not populate their names", () => {
+  it("extracts document-heading titles from their cartouche / quoted argument", () => {
+    const open = "‹";
+    const close = "›";
     const spans = extractCommandSpans(
       "file:///Sections.thy",
       [
-        "section \"Top\"",
-        "subsection \"Middle\"",
-        "subsubsection \"Bottom\"",
         "theory Sections",
         "imports Main",
         "begin",
+        `section ${open}Top${close}`,
+        "subsection \"Middle\"",
+        `subsubsection ${open}Bottom level${close}`,
+        "section ‹›", // empty title → no entity
         "end"
       ].join("\n"),
       1
     );
 
     const entities = extractTheoryEntities(spans);
-    expect(entities.find((entity) => entity.kind === "section")).toBeUndefined();
-    expect(entities.find((entity) => entity.kind === "subsection")).toBeUndefined();
-    expect(entities.find((entity) => entity.kind === "subsubsection")).toBeUndefined();
+    expect(entities.find((entity) => entity.kind === "section")?.name).toBe("Top");
+    expect(entities.find((entity) => entity.kind === "subsection")?.name).toBe("Middle");
+    expect(entities.find((entity) => entity.kind === "subsubsection")?.name).toBe("Bottom level");
+    // The empty-title `section ‹›` declares no usable name, so it is omitted.
+    expect(entities.filter((entity) => entity.kind === "section")).toHaveLength(1);
   });
 });
 

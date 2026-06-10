@@ -163,4 +163,30 @@ describe("extractCommandSpans", () => {
     expect(spans.find((span) => span.kind === "definition")?.name).toBe("foo");
     expect(spans.find((span) => span.kind === "lemma")?.name).toBe("bar");
   });
+
+  it("extracts document-heading titles from cartouche / quoted arguments", () => {
+    const open = "‹";
+    const close = "›";
+    const spans = extractCommandSpans(
+      "file:///Headings.thy",
+      [
+        "theory Headings", // 0
+        "imports Main", // 1
+        "begin", // 2
+        `chapter ${open}A Chapter${close}`, // 3
+        `section ${open}Introduction${close}`, // 4
+        "subsection \"Quoted  title\"", // 5 (double space collapses)
+        "subsubsection \\<open>ASCII cartouche\\<close>", // 6
+        `paragraph ${open}${close}`, // 7 (empty → no name)
+        "end" // 8
+      ].join("\n"),
+      1
+    );
+    const named = new Map(spans.map((span) => [span.kind, span.name]));
+    expect(named.get("chapter")).toBe("A Chapter");
+    expect(named.get("section")).toBe("Introduction");
+    expect(named.get("subsection")).toBe("Quoted title");
+    expect(named.get("subsubsection")).toBe("ASCII cartouche");
+    expect(named.get("paragraph")).toBeUndefined();
+  });
 });

@@ -24,6 +24,18 @@ const IGNORED_DECLARATION_NAMES = new Set(["fixes", "assumes", "shows", "where",
 const CARTOUCHE_OPEN = "\u2039";
 const CARTOUCHE_CLOSE = "\u203A";
 
+// Document-markup heading commands whose "name" is the title text in the
+// following cartouche / quoted argument (e.g. `section \u2039Introduction\u203A`), rather
+// than a bare identifier.
+const HEADING_COMMANDS = new Set([
+  "chapter",
+  "section",
+  "subsection",
+  "subsubsection",
+  "paragraph",
+  "subparagraph"
+]);
+
 export function extractCommandSpans(uri: string, text: string, version: number): CommandSpan[] {
   const lines = text.split("\n");
   const starts: ParsedCommandStart[] = [];
@@ -178,9 +190,12 @@ function scanLineForCommand(line: string, initialState: ScanState): LineScanResu
       sawCode = true;
       const match = WORD.exec(line.slice(index));
       if (match && isCommandKeyword(match[0])) {
+        const afterKeyword = index + match[0].length;
         command = {
           keyword: match[0],
-          name: commandNameAfter(line, index + match[0].length),
+          name: HEADING_COMMANDS.has(match[0])
+            ? headingTitleAfter(line, afterKeyword)
+            : commandNameAfter(line, afterKeyword),
           character: index
         };
       }
@@ -211,6 +226,44 @@ function commandNameAfter(line: string, offset: number): string | undefined {
     return undefined;
   }
   return match[0];
+}
+
+/**
+ * Extract the title of a document-markup heading (`section ‹Introduction›`,
+ * `subsection "Helpers"`, `chapter \<open>…\<close>`) from the text after the
+ * keyword on the same line. Recognises the Unicode cartouche `‹…›`, the ASCII
+ * cartouche `\<open>…\<close>`, and a quoted `"…"` argument. Returns the title
+ * with surrounding whitespace trimmed and internal runs collapsed to single
+ * spaces, or `undefined` when the title is empty or the heading's argument
+ * opens but does not close on this line (multi-line titles are left unnamed,
+ * matching the single-line nature of the span scanner).
+ */
+function headingTitleAfter(line: string, offset: number): string | undefined {
+  const rest = line.slice(offset).replace(/^\s+/, "");
+
+  let inner: string | undefined;
+  if (rest.startsWith(CARTOUCHE_OPEN)) {
+    const close = rest.indexOf(CARTOUCHE_CLOSE, CARTOUCHE_OPEN.length);
+    if (close >= 0) {
+      inner = rest.slice(CARTOUCHE_OPEN.length, close);
+    }
+  } else if (rest.startsWith("\\<open>")) {
+    const close = rest.indexOf("\\<close>", "\\<open>".length);
+    if (close >= 0) {
+      inner = rest.slice("\\<open>".length, close);
+    }
+  } else if (rest.startsWith('"')) {
+    const close = rest.indexOf('"', 1);
+    if (close >= 0) {
+      inner = rest.slice(1, close);
+    }
+  }
+
+  if (inner === undefined) {
+    return undefined;
+  }
+  const title = inner.replace(/\s+/g, " ").trim();
+  return title.length > 0 ? title : undefined;
 }
 
 const LEADING_TYPE_VARIABLE = /^'[A-Za-z_][A-Za-z0-9_']*(?:\s*::\s*[A-Za-z_][A-Za-z0-9_'.]*)?/;
