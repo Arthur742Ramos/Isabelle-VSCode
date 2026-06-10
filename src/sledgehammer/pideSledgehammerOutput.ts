@@ -417,16 +417,29 @@ function decodeXmlEntities(input: string): string {
     /&(amp|lt|gt|quot|apos|#\d+|#x[0-9A-Fa-f]+);/g,
     (match, ref: string) => {
       if (ref.startsWith("#x")) {
-        const cp = Number.parseInt(ref.slice(2), 16);
-        return Number.isFinite(cp) && cp >= 0 ? String.fromCodePoint(cp) : match;
+        return fromCodePointOrSelf(Number.parseInt(ref.slice(2), 16), match);
       }
       if (ref.startsWith("#")) {
-        const cp = Number.parseInt(ref.slice(1), 10);
-        return Number.isFinite(cp) && cp >= 0 ? String.fromCodePoint(cp) : match;
+        return fromCodePointOrSelf(Number.parseInt(ref.slice(1), 10), match);
       }
       return NAMED_ENTITIES[ref] ?? match;
     }
   );
+}
+
+/**
+ * Convert a numeric character reference to its character, or return the
+ * original `fallback` text when the value is not a legal Unicode code point.
+ * `String.fromCodePoint` throws a `RangeError` for anything outside
+ * `0 … 0x10FFFF`, so an out-of-range or malformed entity (e.g. `&#x110000;`)
+ * must be rejected here rather than be allowed to crash the whole parse — and
+ * with it the proof-state / Sledgehammer panel render.
+ */
+function fromCodePointOrSelf(codePoint: number, fallback: string): string {
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return fallback;
+  }
+  return String.fromCodePoint(codePoint);
 }
 
 function escapeHtml(value: string): string {

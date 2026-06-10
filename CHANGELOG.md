@@ -176,6 +176,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- A malformed numeric XML entity in PIDE output (a code point above U+10FFFF,
+  e.g. `&#x110000;`) no longer crashes the proof-state / Sledgehammer panel
+  render. The entity decoder guarded only against negatives, but
+  `String.fromCodePoint` also throws for values past the Unicode maximum; such
+  references now pass through verbatim. Valid astral-plane entities
+  (`&#x1D7EC;` → 𝟬) still decode.
 - Sledgehammer suggestions whose proof ends in parentheses but carries no timing
   (e.g. `metis: Try this: by (metis foo)`) are no longer truncated. The backend
   output parser previously split greedily and reported the proof as just `by`

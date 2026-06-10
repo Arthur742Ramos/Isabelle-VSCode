@@ -34,6 +34,25 @@ describe("parsePideSledgehammerOutput", () => {
     ]);
   });
 
+  it("decodes astral-plane numeric entities (surrogate-pair code points)", () => {
+    // \<zero> renders as the mathematical bold digit 𝟬 (U+1D7EC).
+    expect(parsePideSledgehammerOutput("&#x1D7EC;")).toEqual([
+      { kind: "text", text: "\u{1D7EC}" }
+    ]);
+  });
+
+  it("leaves an out-of-range numeric entity verbatim instead of crashing", () => {
+    // Code points above U+10FFFF make String.fromCodePoint throw RangeError; a
+    // malformed entity must not crash the whole render of the proof-state /
+    // Sledgehammer panel. Such refs pass through unchanged.
+    expect(parsePideSledgehammerOutput("x &#x110000; y")).toEqual([
+      { kind: "text", text: "x &#x110000; y" }
+    ]);
+    expect(parsePideSledgehammerOutput("&#1114112; &#xFFFFFFFF;")).toEqual([
+      { kind: "text", text: "&#1114112; &#xFFFFFFFF;" }
+    ]);
+  });
+
   it("preserves unknown named entities verbatim", () => {
     expect(parsePideSledgehammerOutput("&nope; &amp;")).toEqual([
       { kind: "text", text: "&nope; &" }
