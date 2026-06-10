@@ -132,6 +132,53 @@
     ],
     "description": "Record type declaration."
   },
+  "Type synonym": {
+    "prefix": "type_synonym",
+    "body": "type_synonym ${1:name} = \"${2:typ}\"$0",
+    "description": "Type abbreviation."
+  },
+  "Type definition": {
+    "prefix": "typedef",
+    "body": [
+      "typedef ${1:name} = \"${2:carrier_set}\"",
+      "  ${3:morphisms Rep Abs}",
+      "  $0"
+    ],
+    "description": "Define a type as a non-empty subset of an existing type (proof obligation: non-emptiness)."
+  },
+  "General recursive function": {
+    "prefix": "function",
+    "body": [
+      "function ${1:name} :: \"${2:typ}\" where",
+      "  \"${3:lhs} = ${4:rhs}\"$0",
+      "  by pat_completeness auto",
+      "termination by lexicographic_order"
+    ],
+    "description": "General recursive function with completeness and termination proofs."
+  },
+  "Primitively corecursive function": {
+    "prefix": "primcorec",
+    "body": [
+      "primcorec ${1:name} :: \"${2:typ}\" where",
+      "  \"${3:lhs} = ${4:rhs}\"$0"
+    ],
+    "description": "Primitively corecursive function over a codatatype."
+  },
+  "Codatatype": {
+    "prefix": "codatatype",
+    "body": [
+      "codatatype ${1:'a} ${2:name} =",
+      "  ${3:Cons} (${4:hd}: '${5:a}) (${6:tl}: \"${7:'a name}\")$0"
+    ],
+    "description": "Codatatype definition with selectors."
+  },
+  "Lifted definition": {
+    "prefix": "lift_definition",
+    "body": [
+      "lift_definition ${1:name} :: \"${2:typ}\" is \"${3:term}\"$0"
+    ],
+    "description": "Define a constant on a quotient or subtype via the Lifting package."
+  },
   "Inductive predicate": {
     "prefix": "inductive",
     "body": [
@@ -139,6 +186,51 @@
       "  ${3:rule1}: \"${4:premise} \\<Longrightarrow> ${5:conclusion}\"$0"
     ],
     "description": "Inductive predicate definition."
+  },
+  "Type class": {
+    "prefix": "class",
+    "body": [
+      "class ${1:name} = ${2:parent} +",
+      "  fixes ${3:f} :: \"${4:'a \\<Rightarrow> 'a}\"",
+      "  assumes ${5:ax}: \"${6:P}\"",
+      "begin",
+      "",
+      "$0",
+      "",
+      "end"
+    ],
+    "description": "Axiomatic type class with operations and axioms."
+  },
+  "Class instantiation": {
+    "prefix": "instantiation",
+    "body": [
+      "instantiation ${1:type} :: ${2:class}",
+      "begin",
+      "",
+      "$0",
+      "",
+      "instance ..",
+      "end"
+    ],
+    "description": "Instantiate a type as a member of a type class."
+  },
+  "Locale interpretation": {
+    "prefix": "interpretation",
+    "body": [
+      "interpretation ${1:name}: ${2:locale} \"${3:args}\"",
+      "  $0"
+    ],
+    "description": "Interpret a locale in the current context (leaves the proof obligations of its assumptions)."
+  },
+  "Notepad": {
+    "prefix": "notepad",
+    "body": [
+      "notepad",
+      "begin",
+      "  $0",
+      "end"
+    ],
+    "description": "Scratch context for experimenting with Isar proof text without stating a theorem."
   },
   "Locale": {
     "prefix": "locale",
