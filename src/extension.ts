@@ -98,6 +98,7 @@ import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkPro
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
 import { IsabelleWorkspaceSymbolProvider } from "./semantic/IsabelleWorkspaceSymbolProvider";
 import { IsabelleFoldingRangeProvider } from "./semantic/IsabelleFoldingRangeProvider";
+import { IsabelleSelectionRangeProvider } from "./semantic/IsabelleSelectionRangeProvider";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import { IsabelleDocumentHighlightProvider } from "./semantic/IsabelleDocumentHighlightProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
@@ -367,6 +368,10 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     vscode.languages.registerFoldingRangeProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleFoldingRangeProvider()
+    ),
+    vscode.languages.registerSelectionRangeProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleSelectionRangeProvider()
     ),
     vscode.languages.registerDefinitionProvider(
       { language: "isabelle", scheme: "file" },
