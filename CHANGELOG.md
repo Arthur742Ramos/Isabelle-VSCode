@@ -8,6 +8,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Find All References (`Shift+F12`). Placing the cursor on an identifier and
+  running "Find All References" now lists every whole-token, code-only use of
+  that name across the open theories and the workspace's `.thy` files — the
+  cross-file companion to occurrence highlighting. Honours "include
+  declaration" (omitting the `definition`/`lemma`/… site when unchecked). It is
+  a name-based search, not scope-resolved — it cannot tell two unrelated
+  constants of the same name apart; that precision needs the prover. Offline.
 - Workspace symbol search (`Ctrl/Cmd+T`, "Go to Symbol in Workspace"). Jump to
   any named entity — lemma, definition, datatype, type definition, type class,
   locale, … — across every `.thy` file in the workspace (and the open editors,
