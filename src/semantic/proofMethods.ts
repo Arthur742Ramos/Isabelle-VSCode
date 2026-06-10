@@ -202,3 +202,101 @@ export function isMethodArgumentLabel(lineText: string, wordEnd: number): boolea
   }
   return lineText[index] === ":";
 }
+
+export interface MethodCompletionContext {
+  /** UTF-16 column where the replacement should begin (start of the partial word). */
+  readonly replaceStart: number;
+  /** The partial method name already typed (may be empty right after an introducer/delimiter). */
+  readonly query: string;
+}
+
+// A partial method-name word ending at the cursor.
+const PARTIAL_METHOD_WORD = /[A-Za-z_][A-Za-z0-9_']*$/;
+// Method-combinator delimiters after which a *method name* is expected:
+// `(` opens a group, `,`/`;` sequence the methods, `|` alternates between them.
+// Deliberately NOT `)` (a closed group — `apply (simp) ‹here›` expects nothing),
+// nor `[`/`]` (goal-restriction focus like `simp[1]`, where a number/end
+// follows, not a method).
+const METHOD_NAME_DELIMITERS = new Set(["(", ",", ";", "|"]);
+
+/**
+ * If the cursor sits exactly where an Isabelle proof *method name* is expected,
+ * return the replacement range start and the partial query; otherwise
+ * `undefined`.
+ *
+ * A method name is expected when the cursor is in method position (after
+ * `apply` / `by` / `proof` on the line, see {@link isMethodPosition}) AND the
+ * token immediately before the partial word is either a method-introducing
+ * keyword or a method combinator delimiter (`(`, `,`, `|`, `;`, …). This is
+ * deliberately tighter than the hover gate: it stops completion from firing in
+ * argument position such as the fact list of `apply (simp add: ...)` or
+ * `apply (induct v)`, where a fact or term — not a method — is expected.
+ *
+ * Never fires inside a quoted `"..."` inner-syntax string.
+ */
+export function findMethodCompletionContext(
+  lineText: string,
+  character: number
+): MethodCompletionContext | undefined {
+  const before = lineText.slice(0, character);
+  if (isInsideQuotedString(before)) {
+    return undefined;
+  }
+  const match = PARTIAL_METHOD_WORD.exec(before);
+  const query = match ? match[0] : "";
+  const replaceStart = character - query.length;
+  if (!isMethodPosition(lineText, replaceStart)) {
+    return undefined;
+  }
+  if (!expectsMethodNameAt(lineText, replaceStart)) {
+    return undefined;
+  }
+  return { replaceStart, query };
+}
+
+/**
+ * Whether a method *name* (as opposed to an argument/fact) is expected at UTF-16
+ * offset `start`: the immediately preceding non-space token must be a method
+ * introducer keyword or a combinator delimiter.
+ */
+function expectsMethodNameAt(lineText: string, start: number): boolean {
+  let index = start - 1;
+  while (index >= 0 && (lineText[index] === " " || lineText[index] === "\t")) {
+    index -= 1;
+  }
+  if (index < 0) {
+    return false;
+  }
+  const char = lineText[index];
+  if (METHOD_NAME_DELIMITERS.has(char)) {
+    return true;
+  }
+  // Otherwise the preceding token must be a method-introducing keyword.
+  let end = index + 1;
+  while (index >= 0 && /[A-Za-z0-9_']/.test(lineText[index])) {
+    index -= 1;
+  }
+  const previousWord = lineText.slice(index + 1, end);
+  return METHOD_INTRODUCERS.has(previousWord);
+}
+
+/** Whether an unclosed double-quote precedes the cursor on this line. */
+function isInsideQuotedString(before: string): boolean {
+  let inString = false;
+  for (let index = 0; index < before.length; index++) {
+    const char = before[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+    }
+  }
+  return inString;
+}
+
+/** Every known proof method, in declaration order, for completion listing. */
+export function allMethods(): readonly IsabelleMethodInfo[] {
+  return [...BY_NAME.values()];
+}
