@@ -36,8 +36,8 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 
 ### ⚡ Works instantly — no Isabelle, Java, or setup required
 
-- **Syntax & semantic highlighting** for Isabelle commands, declarations, and symbols.
-- **Snippets** — tab-completable skeletons for the core constructs (`theory`, `lemma`, `theorem`, `fun`, `definition`, `datatype`, `locale`, `proof`, induction/cases proofs, …); the `theory` skeleton even defaults its name to the file name, as Isabelle requires.
+- **Syntax & semantic highlighting** for the outer-syntax command vocabulary HOL and the AFP routinely use (specifications, type classes, locale interpretation, diagnostics, embedded ML), declarations, schematic/type variables, and `\<...>` symbols.
+- **Snippets** — tab-completable skeletons for the constructs real theories use: `theory`, `lemma`/`theorem`, `definition`, `fun`/`function`, `datatype`/`codatatype`, `record`, `typedef`/`type_synonym`, `inductive`, `primrec`/`primcorec`, `lift_definition`, `locale`, `class`/`instantiation`, `interpretation`, `notepad`, document headings, and Isar proof skeletons (induction/cases/obtain); the `theory` skeleton even defaults its name to the file name, as Isabelle requires.
 - **New theory scaffolding** — `Isabelle: New Theory File` creates a correctly-named `<Name>.thy` (Isabelle requires the theory name to equal the file name) with a ready `theory … imports Main begin … end` header, validating the name as you type.
 - **Offline symbol entry** — type `\<` and complete the full Isabelle symbol table (`\<forall>` → ∀, `\<Longrightarrow>` → ⟹, …) with glyph previews and ASCII abbreviations, with no prover or language server running. `Isabelle: Insert Symbol` also lets you browse/search the whole table by glyph, name, group, or abbreviation.
 - **Offline method completion** — after `apply`, `by`, or `proof` (or a method combinator), get completions for the core HOL proof methods (`simp`, `auto`, `blast`, `induct`, `rule`, `metis`, …), each tagged by role. The gate is tight enough to stay out of argument and term positions. No prover required.
@@ -46,7 +46,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 - **Symbol conversion** — `Isabelle: Convert Symbols to Unicode` / `to ASCII` rewrite `\<forall>` ↔ ∀ across the selection or whole file (lossless, offline) — paste an ASCII proof and render it, or normalize back to portable ASCII.
 - **Structural code folding** — fold `proof … qed` blocks, the `section`/`subsection` hierarchy, multi-line comments, and the `theory … begin` header (comment/cartouche/string aware).
 - **Unicode bracket editing** — auto-close and surround the cartouche `‹ ›` and `⟨ ⟩` / `⟦ ⟧` pairs, with symbol- and prime-aware word selection (`\<alpha>`, `\<^sub>`, `xs'`).
-- **Explorer views** — **Sessions**, **Theory Graph** (forward/reverse dependencies), **Theory Outline**, and **Proof Outline** trees that follow the active theory.
+- **Explorer views** — **Sessions**, **Theory Graph** (forward/reverse dependencies), **Theory Outline** (lemmas, definitions, datatypes, type definitions, type classes, … grouped by kind with type-appropriate icons), and **Proof Outline** trees that follow the active theory.
 - **Navigation** — go-to-definition for local declarations, command/symbol hovers, import links, and next/previous/reveal command jumps.
 - **Offline proof-gap audit** — flags `sorry` and `oops` in the Problems panel with no prover running (it ignores comments, cartouches, and strings).
 
