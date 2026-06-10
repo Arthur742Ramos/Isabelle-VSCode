@@ -137,6 +137,13 @@ describe("findGlyphSpanAt", () => {
     expect(findGlyphSpanAt("ab", 2)).toBeUndefined();
     expect(findGlyphSpanAt("", 0)).toBeUndefined();
   });
+
+  it("treats a lone low surrogate as a single unit, not the previous char", () => {
+    // Ill-formed UTF-16: "a" then a lone low surrogate. At index 1 the result
+    // must be the surrogate itself, not "a".
+    const line = "a\udc00";
+    expect(findGlyphSpanAt(line, 1)).toEqual({ glyph: "\udc00", start: 1, end: 2 });
+  });
 });
 
 describe("buildSymbolHoverMarkdown", () => {

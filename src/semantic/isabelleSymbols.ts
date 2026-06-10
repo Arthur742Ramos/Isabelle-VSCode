@@ -167,16 +167,21 @@ export function findGlyphSpanAt(lineText: string, character: number): GlyphSpan 
   }
   const unit = lineText.charCodeAt(character);
   const isLowSurrogate = unit >= 0xdc00 && unit <= 0xdfff;
-  const start = isLowSurrogate ? character - 1 : character;
-  if (start < 0) {
-    return undefined;
+  if (isLowSurrogate) {
+    // Only step back when the previous unit is actually a high surrogate, i.e.
+    // the cursor is on the trailing half of a well-formed pair. A lone low
+    // surrogate (ill-formed UTF-16) is treated as a single unit at the cursor
+    // rather than borrowing the previous character.
+    const previous = character > 0 ? lineText.charCodeAt(character - 1) : 0;
+    if (previous >= 0xd800 && previous <= 0xdbff) {
+      const codePoint = lineText.codePointAt(character - 1) as number;
+      return { glyph: String.fromCodePoint(codePoint), start: character - 1, end: character + 1 };
+    }
+    return { glyph: lineText[character], start: character, end: character + 1 };
   }
-  const codePoint = lineText.codePointAt(start);
-  if (codePoint === undefined) {
-    return undefined;
-  }
+  const codePoint = lineText.codePointAt(character) as number;
   const length = codePoint > 0xffff ? 2 : 1;
-  return { glyph: String.fromCodePoint(codePoint), start, end: start + length };
+  return { glyph: String.fromCodePoint(codePoint), start: character, end: character + length };
 }
 
 /**
@@ -202,7 +207,7 @@ export function buildSymbolHoverMarkdown(symbol: ResolvedIsabelleSymbol): string
     lines.push("", facts.join(" · "));
   }
   if (symbol.abbrevs.length > 0) {
-    lines.push("", `Type: ${symbol.abbrevs.map((abbrev) => `\`${abbrev}\``).join(", ")}`);
+    lines.push("", `Abbreviations: ${symbol.abbrevs.map((abbrev) => `\`${abbrev}\``).join(", ")}`);
   }
   return lines.join("\n");
 }
