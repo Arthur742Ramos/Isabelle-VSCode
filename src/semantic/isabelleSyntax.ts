@@ -231,3 +231,33 @@ export function getSymbolInfo(source: string): IsabelleSymbolInfo | undefined {
   const match = /^\\<([^>]+)>$/.exec(source);
   return match ? ISABELLE_SYMBOLS.get(match[1]) : undefined;
 }
+
+const CATEGORY_ROLE_LABELS: Record<IsabelleCommandCategory, string> = {
+  theory: "theory / document command",
+  declaration: "specification command",
+  statement: "goal statement",
+  proof: "Isar proof command",
+  proofTerminal: "proof terminator",
+  context: "context command",
+  diagnostic: "diagnostic command",
+  ml: "Isabelle/ML command"
+};
+
+/** Human-readable role label for a command's category (used in hovers). */
+export function commandRoleLabel(category: IsabelleCommandCategory): string {
+  return CATEGORY_ROLE_LABELS[category];
+}
+
+/**
+ * Build a Markdown hover description for an outer-syntax command: the command
+ * name, a role label derived from its category, and the one-line description.
+ * Mirrors the shape of the proof-method hover so the two read consistently.
+ */
+export function buildCommandHoverMarkdown(info: IsabelleCommandInfo): string {
+  return [
+    `**Isabelle command** \`${info.keyword}\` — ${commandRoleLabel(info.category)}`,
+    "",
+    info.description
+  ].join("\n");
+}
+

@@ -98,6 +98,11 @@ Semantic Versioning while the extension remains in preview.
 
 ### Changed
 
+- Command hovers now show a role label, matching the proof-method hover. Hovering
+  an outer-syntax command renders as `**Isabelle command** \`lemma\` — goal
+  statement` followed by the description, with the role derived from the
+  command's category (theory/document, specification, goal statement, Isar proof
+  command, proof terminator, context, diagnostic, Isabelle/ML).
 - The Outline / breadcrumb and the Theory Outline tree now use type-appropriate
   icons for type-introducing commands: `datatype` / `codatatype` show as an
   **enum**, `record` as a **struct**, `typedef` / `typedecl` / `type_synonym`
