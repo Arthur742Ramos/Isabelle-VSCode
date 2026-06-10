@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTheoryFileContent,
+  isReservedTheoryName,
   isValidTheoryName,
   sanitizeTheoryName,
   theoryFileName
@@ -16,6 +17,22 @@ describe("isValidTheoryName", () => {
   it("rejects illegal names", () => {
     for (const name of ["", "1Foo", "_Foo", "Foo Bar", "Foo.thy", "Foo-Bar", "Fo/o", "with spaces"]) {
       expect(isValidTheoryName(name), name).toBe(false);
+    }
+  });
+
+  it("rejects reserved Isabelle keywords that Isabelle would refuse to load", () => {
+    // These match the identifier pattern but `theory end` / `theory lemma` are
+    // rejected by the prover, so the validator must reject them too.
+    for (const name of ["theory", "imports", "begin", "end", "lemma", "datatype", "definition", "and", "where", "in"]) {
+      expect(isReservedTheoryName(name), name).toBe(true);
+      expect(isValidTheoryName(name), name).toBe(false);
+    }
+  });
+
+  it("does not reject names that merely contain a keyword", () => {
+    for (const name of ["ended", "lemma_1", "Datatype", "theory_helpers", "Inductive_Set"]) {
+      expect(isReservedTheoryName(name), name).toBe(false);
+      expect(isValidTheoryName(name), name).toBe(true);
     }
   });
 });
@@ -48,12 +65,20 @@ describe("sanitizeTheoryName", () => {
   });
 
   it("produces a name that always validates when defined", () => {
-    for (const input of ["Foo.thy", "my theory", "123", "a-b", "  Weird@Name!  "]) {
+    for (const input of ["Foo.thy", "my theory", "123", "a-b", "  Weird@Name!  ", "end", "lemma", "datatype"]) {
       const result = sanitizeTheoryName(input);
       if (result !== undefined) {
         expect(isValidTheoryName(result), `${input} -> ${result}`).toBe(true);
       }
     }
+  });
+
+  it("salvages a reserved-keyword input with a suffix instead of failing", () => {
+    expect(sanitizeTheoryName("end")).toBe("end_thy");
+    expect(sanitizeTheoryName("lemma.thy")).toBe("lemma_thy");
+    expect(sanitizeTheoryName("datatype")).toBe("datatype_thy");
+    // The salvaged name validates.
+    expect(isValidTheoryName(sanitizeTheoryName("theory")!)).toBe(true);
   });
 });
 

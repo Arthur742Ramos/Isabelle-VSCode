@@ -176,6 +176,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- `Isabelle: New Theory File` now rejects a theory name that is a reserved
+  Isabelle keyword (`end`, `lemma`, `datatype`, `theory`, `and`, `where`, …).
+  These match the identifier pattern but Isabelle refuses `theory end` at load
+  time, so the in-prompt validator flagged them as valid when they weren't; it
+  now shows a specific "reserved keyword" message, and the name-sanitizer
+  salvages such input with a `_thy` suffix (`end` → `end_thy`) instead of
+  silently producing an unloadable theory. Names that merely *contain* a
+  keyword (`ended`, `lemma_1`) are unaffected.
 - `isabelle build` errors in the dominant `*** At command "…" (line N of
   "FILE")` format now appear as clickable Problems-panel diagnostics. The build
   output parser previously recognised only the colon (`file:line:col: error:`)
