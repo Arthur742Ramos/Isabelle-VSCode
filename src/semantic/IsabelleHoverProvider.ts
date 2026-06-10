@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getCommandInfo } from "./isabelleSyntax";
+import { buildCommandHoverMarkdown, getCommandInfo } from "./isabelleSyntax";
 import { buildMethodHoverMarkdown, getMethodInfo, isMethodArgumentLabel, isMethodPosition } from "./proofMethods";
 import {
   buildSymbolHoverMarkdown,
@@ -50,7 +50,7 @@ export class IsabelleHoverProvider implements vscode.HoverProvider {
     const word = document.getText(wordRange);
     const command = getCommandInfo(word);
     if (command) {
-      return new vscode.Hover(new vscode.MarkdownString(`**Isabelle command** \`${word}\`\n\n${command.description}`), wordRange);
+      return new vscode.Hover(new vscode.MarkdownString(buildCommandHoverMarkdown(command)), wordRange);
     }
 
     // 4. Cursor on a proof method (`simp`, `auto`, `induct`, …) in method

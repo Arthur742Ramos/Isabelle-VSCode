@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCommandHoverMarkdown,
+  commandRoleLabel,
   getCommandInfo,
   getSymbolInfo,
   isCommandKeyword,
@@ -140,5 +142,37 @@ describe("expanded outer-syntax command vocabulary", () => {
     ]) {
       expect(isCommandKeyword(keyword)).toBe(true);
     }
+  });
+});
+
+describe("command hover markdown", () => {
+  it("labels every category with a non-empty role", () => {
+    const categories = [
+      "theory",
+      "declaration",
+      "statement",
+      "proof",
+      "proofTerminal",
+      "context",
+      "diagnostic",
+      "ml"
+    ] as const;
+    for (const category of categories) {
+      expect(commandRoleLabel(category).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("renders a command hover with the name, a role label, and the description", () => {
+    const markdown = buildCommandHoverMarkdown(getCommandInfo("lemma")!);
+    expect(markdown).toContain("`lemma`");
+    expect(markdown).toContain("goal statement");
+    expect(markdown).toContain(getCommandInfo("lemma")!.description);
+  });
+
+  it("uses the right role label per category", () => {
+    expect(buildCommandHoverMarkdown(getCommandInfo("value")!)).toContain("diagnostic command");
+    expect(buildCommandHoverMarkdown(getCommandInfo("ML")!)).toContain("Isabelle/ML command");
+    expect(buildCommandHoverMarkdown(getCommandInfo("definition")!)).toContain("specification command");
+    expect(buildCommandHoverMarkdown(getCommandInfo("qed")!)).toContain("proof terminator");
   });
 });
