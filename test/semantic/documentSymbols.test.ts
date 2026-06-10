@@ -160,4 +160,66 @@ describe("extractIsabelleDocumentSymbols", () => {
     expect(named.get("stream")).toBe("enum");
     expect(named.get("ordered")).toBe("class");
   });
+
+  it("nests declarations under their document heading (and proofs under their statement)", () => {
+    const open = "‹";
+    const close = "›";
+    const spans = extractCommandSpans(
+      "file:///Nested.thy",
+      [
+        "theory Nested", // 0
+        "imports Main", // 1
+        "begin", // 2
+        `section ${open}Basics${close}`, // 3
+        "definition d where \"d = (0::nat)\"", // 4
+        "lemma l1: True", // 5
+        "  by simp", // 6
+        `subsection ${open}More${close}`, // 7
+        "lemma l2: True", // 8
+        "proof -", // 9
+        "  show True by simp", // 10
+        "qed", // 11
+        `section ${open}Advanced${close}`, // 12
+        "lemma l3: True by simp", // 13
+        "end" // 14
+      ].join("\n"),
+      1
+    );
+
+    const symbols = extractIsabelleDocumentSymbols(spans);
+    const byName = new Map(symbols.map((s) => [s.name, s]));
+
+    // theory / begin / end are roots, never nested under a section.
+    assertChild(byName, "theory");
+    assertChild(byName, "begin");
+    assertChild(byName, "end");
+
+    const basics = byName.get("Basics");
+    expect(basics, "Basics section should be a root").toBeDefined();
+    const basicsChildren = basics!.children.map((c) => c.name);
+    expect(basicsChildren).toContain("d");
+    expect(basicsChildren).toContain("l1");
+    // The nested subsection lives inside its parent section.
+    expect(basicsChildren).toContain("More");
+
+    const more = basics!.children.find((c) => c.name === "More");
+    expect(more, "More subsection should nest under Basics").toBeDefined();
+    expect(more!.children.map((c) => c.name)).toContain("l2");
+
+    // Proof steps still nest under their statement, now two levels deep.
+    const l2 = more!.children.find((c) => c.name === "l2");
+    expect(l2!.children.map((c) => c.detail)).toEqual(["proof", "show", "qed"]);
+
+    // A sibling section closes the previous one (not nested inside it).
+    const advanced = byName.get("Advanced");
+    expect(advanced, "Advanced should be a sibling root section").toBeDefined();
+    expect(advanced!.children.map((c) => c.name)).toContain("l3");
+    expect(basicsChildren).not.toContain("Advanced");
+  });
 });
+
+function assertChild(byName: Map<string, { name: string }>, name: string): void {
+  if (!byName.has(name)) {
+    throw new Error(`expected ${name} to be a top-level symbol`);
+  }
+}

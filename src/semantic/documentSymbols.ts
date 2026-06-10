@@ -40,9 +40,36 @@ const NAMED_FALLBACKS = new Map<string, string>([
   ["show", "show"]
 ]);
 
+// Document-heading commands and their nesting level (smaller = outer), so the
+// outline can nest a section's declarations beneath it. Mirrors the folding
+// provider's heading hierarchy.
+const HEADING_LEVELS = new Map<string, number>([
+  ["chapter", 1],
+  ["section", 2],
+  ["subsection", 3],
+  ["subsubsection", 4],
+  ["paragraph", 5],
+  ["subparagraph", 6]
+]);
+
 export function extractIsabelleDocumentSymbols(spans: CommandSpan[]): IsabelleDocumentSymbol[] {
   const roots: MutableSymbol[] = [];
+  // Stack of open headings, shallowest first, each entry carrying its level so
+  // a new heading can close the equal-or-deeper ones it supersedes.
+  const headingStack: Array<{ level: number; symbol: MutableSymbol }> = [];
   let activeParent: MutableSymbol | undefined;
+
+  // Append a freshly-created top-level symbol either under the deepest open
+  // heading or, when there is none, at the document root.
+  const placeTopLevel = (symbol: MutableSymbol): void => {
+    const enclosing = headingStack[headingStack.length - 1]?.symbol;
+    if (enclosing) {
+      enclosing.children.push(symbol);
+      enclosing.range = mergeRanges(enclosing.range, symbol.range);
+    } else {
+      roots.push(symbol);
+    }
+  };
 
   for (const span of spans) {
     const info = getCommandInfo(span.kind);
@@ -50,14 +77,39 @@ export function extractIsabelleDocumentSymbols(spans: CommandSpan[]): IsabelleDo
       continue;
     }
 
+    const headingLevel = HEADING_LEVELS.get(span.kind);
+    if (headingLevel !== undefined) {
+      // A heading closes every open heading at its level or deeper.
+      while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= headingLevel) {
+        headingStack.pop();
+      }
+      activeParent = undefined;
+      const symbol = createSymbol(span, info.category);
+      if (symbol) {
+        placeTopLevel(symbol);
+        headingStack.push({ level: headingLevel, symbol });
+      }
+      continue;
+    }
+
     if (isTopLevelSymbol(info.category)) {
+      // Structural theory keywords (`theory`, `begin`, `end`) are not part of a
+      // section — they bracket the whole theory body — so they reset the heading
+      // hierarchy and sit at the document root, never nested under a heading.
+      const isStructuralKeyword = span.kind === "theory" || span.kind === "begin" || span.kind === "end";
       const symbol = createSymbol(span, info.category);
       if (!symbol) {
         activeParent = undefined;
         continue;
       }
-      roots.push(symbol);
-      activeParent = info.category === "theory" ? undefined : symbol;
+      if (isStructuralKeyword) {
+        headingStack.length = 0;
+        roots.push(symbol);
+        activeParent = undefined;
+        continue;
+      }
+      placeTopLevel(symbol);
+      activeParent = symbol;
       continue;
     }
 
@@ -66,11 +118,22 @@ export function extractIsabelleDocumentSymbols(spans: CommandSpan[]): IsabelleDo
       if (child) {
         activeParent.children.push(child);
         activeParent.range = mergeRanges(activeParent.range, child.range);
+        propagateRangeToHeadings(headingStack, child.range);
       }
     }
   }
 
   return roots.map(toPublicSymbol);
+}
+
+/** Extend every open heading's range to include a newly-added descendant. */
+function propagateRangeToHeadings(
+  headingStack: Array<{ level: number; symbol: MutableSymbol }>,
+  range: ProtocolRange
+): void {
+  for (const entry of headingStack) {
+    entry.symbol.range = mergeRanges(entry.symbol.range, range);
+  }
 }
 
 function createSymbol(span: CommandSpan, category: IsabelleCommandCategory): MutableSymbol | undefined {

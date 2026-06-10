@@ -8,6 +8,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- The outline / breadcrumb now **nests** declarations under their document
+  heading: a `section`'s definitions and lemmas appear as its children, a
+  `subsection` nests inside its `section`, and so on down the
+  chapter→subparagraph hierarchy — while proof steps still nest under their
+  statement (so a lemma's `proof … qed` sits two levels deep, under its
+  section). `theory` / `begin` / `end` stay at the root. This makes the outline
+  mirror the structure you actually wrote. Offline.
 - Document headings now appear in the outline, breadcrumb, and Theory Outline
   with their **title**. `section ‹Introduction›`, `subsection "Helpers"`,
   `chapter \<open>…\<close>`, `subsubsection`/`paragraph`/`subparagraph` headings
