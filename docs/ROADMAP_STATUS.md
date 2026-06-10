@@ -4,7 +4,13 @@ This document consolidates where each milestone from the
 [README roadmap](../README.md#roadmap) stands today. It is the
 single page to read for "what is shipped, what is still open, why."
 
-> Last refreshed: 2026-05-20 (alpha posture pass: `v0.1.0-alpha.6` is published; smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90), walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93), Marketplace posture is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97), and AFP-scale dogfood is documented in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md#beyond-smokethy-afp-scale-dogfood-record)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
+> Last refreshed: 2026-06-10 (local-foundation depth pass: the offline layer
+> now covers the broad HOL/AFP outer-syntax command vocabulary, declaration-name
+> extraction past type parameters / `(in locale)` targets, type-appropriate
+> outline symbol kinds, command + proof-method hovers, offline proof-method
+> completion, `begin … end` folding, and specification snippets — with the Scala
+> backend's command-span parser kept in parity. See the [`CHANGELOG`](../CHANGELOG.md)
+> "Unreleased" section for the per-PR detail). Previously: 2026-05-20 (alpha posture pass: `v0.1.0-alpha.6` is published; smoke evidence is tracked in [#90](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/90), walkthrough screenshots are tracked in [#93](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/93), Marketplace posture is tracked in [#97](https://github.com/Arthur742Ramos/Isabelle-VSCode/issues/97), and AFP-scale dogfood is documented in [`SMOKE_THEORY_CHECKLIST.md`](SMOKE_THEORY_CHECKLIST.md#beyond-smokethy-afp-scale-dogfood-record)). Previously: 2026-05-19 — release matrix change dropped `darwin-x64` after three consecutive release-tag runs stalled on the `macos-13` runner pool; see AGENTS.md §17 for re-add criteria. Previously: 2026-05-18 — bundled per-platform JRE (`release.yml` now ships eight platform-targeted `.vsix` files alongside the universal one; `extension/jre/` removes the Java prerequisite for end users on supported platforms). Previously: PRs #51-#57 — PIDE decoration overlay, abbrevs completion, documentation browser, status consolidation, live theory preview, spell-checker dictionary commands, proof state auto-update / margin / relocate controls. For per-feature checkboxes,
 > see [`PIDE_INTEGRATION.md`](PIDE_INTEGRATION.md); for the
 > upstream LSP research that backs the M6/M7 decisions, see
 > [`sledgehammer_lsp_research.md`](sledgehammer_lsp_research.md)
@@ -74,7 +80,17 @@ ships behind `isabelle.languageServer.enabled`. When it is
 ### Milestone 5 — Semantic markup
 Local syntax-only foundation (semantic tokens, hover, definition,
 document-link, document-symbol) registered against
-`{language: "isabelle", scheme: "file"}`. When the LSP is
+`{language: "isabelle", scheme: "file"}`. The local layer has grown well
+beyond a syntax stub: it recognises the broad HOL/AFP outer-syntax command
+vocabulary (specifications, type classes, locale interpretation, diagnostics,
+embedded ML), extracts declaration names past type parameters and `(in
+locale)` targets, surfaces them in the outline / breadcrumb with
+type-appropriate symbol kinds (enum / struct / interface / class), hovers both
+commands and proof methods (`simp`, `auto`, `induct`, …) with a role label,
+offers offline proof-method completion in method position, folds `begin … end`
+bodies, and scaffolds the broader vocabulary via snippets — all with no
+Isabelle, Java, or LSP required. The Scala backend's command-span parser is
+kept in parity with this vocabulary. When the LSP is
 `running`, `vscode-languageclient` auto-registers hover, definition,
 and completion providers against the same selector (Isabelle
 2025-2 advertises all three); VS Code aggregates results from
