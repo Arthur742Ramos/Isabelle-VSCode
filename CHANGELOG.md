@@ -176,6 +176,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- `Isabelle: Minimize Sledgehammer Proof at Cursor` no longer mis-reads method
+  modifiers as facts. For `by (simp add: foo bar)` or `by (auto simp: defs
+  intro: rules)` it stops the bare-fact list at the first modifier label (a
+  token ending in `:`) and drops bracket-modifier groups (`[where …]`, `[OF …]`),
+  so it minimizes only the genuine leading facts (e.g. `by (metis foo bar [OF
+  a])` → `foo`, `bar`) instead of sending `add:` / `[where` to the prover as
+  fact names.
 - `Isabelle: New Theory File` now rejects a theory name that is a reserved
   Isabelle keyword (`end`, `lemma`, `datatype`, `theory`, `and`, `where`, …).
   These match the identifier pattern but Isabelle refuses `theory end` at load

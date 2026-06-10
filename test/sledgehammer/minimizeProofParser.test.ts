@@ -17,11 +17,24 @@ describe("parseProofBody", () => {
     expect(r!.facts).toEqual([]);
   });
 
-  it("parses `apply (simp add: foo)` (we keep `add: foo` as facts for now)", () => {
+  it("parses `apply (simp foo bar)` as bare facts", () => {
     const r = parseProofBody("apply (simp foo bar)");
     expect(r).not.toBeNull();
     expect(r!.method).toBe("simp");
     expect(r!.facts).toEqual(["foo", "bar"]);
+  });
+
+  it("stops the fact list at a modifier label (`add:` / `simp:` / `intro:`)", () => {
+    // The bare-fact list is what minimization restricts to; modifier arguments
+    // are not bare facts, so they must not leak into `facts`.
+    expect(parseProofBody("by (simp add: foo bar)")!.facts).toEqual([]);
+    expect(parseProofBody("by (auto simp: defs intro: rules)")!.facts).toEqual([]);
+    expect(parseProofBody("by (metis foo add: bar)")!.facts).toEqual(["foo"]);
+  });
+
+  it("drops bracket-modifier groups from the fact list", () => {
+    expect(parseProofBody("by (metis foo bar [where x = 1])")!.facts).toEqual(["foo", "bar"]);
+    expect(parseProofBody("by (metis foo [OF a] bar)")!.facts).toEqual(["foo"]);
   });
 
   it("parses `using fact1 fact2 by (metis fact3)`", () => {
