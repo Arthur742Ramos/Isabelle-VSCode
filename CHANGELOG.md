@@ -8,6 +8,25 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Full HOL/AFP outer-syntax command vocabulary in the local foundation. The
+  command table that drives semantic highlighting, command hovers, the proof
+  outline, the document-symbol/breadcrumb tree, and go-to-definition now
+  recognises the commands real theories use — type specifications (`typedef`,
+  `typedecl`, `type_synonym`, `codatatype`, `primcorec`, `lift_definition`,
+  `inductive_set`, `coinductive`), type classes and locale interpretation
+  (`class`, `instantiation`, `instance`, `subclass`, `interpretation`,
+  `interpret`, `sublocale`, `global_interpretation`, `experiment`, `bundle`),
+  declarations (`consts`, `axiomatization`, `lemmas`, `named_theorems`,
+  `declare`, `notation`, `syntax`, `translations`, `hide_const`, `default_sort`),
+  Isar steps (`subgoal`, `supply`, `define`, `consider`, `include`), document
+  headings (`chapter`, `paragraph`, `text_raw`), diagnostics (`value`, `term`,
+  `thm`, `find_theorems`, `find_consts`, `sledgehammer`, `nitpick`,
+  `quickcheck`, `export_code`), ML setup (`setup`, `method_setup`,
+  `attribute_setup`), and embedded ML (`ML`, `ML_file`, `ML_val`, `ML_prf`).
+  Two new command categories — `diagnostic` (exploratory commands like `value`
+  and `sledgehammer`) and `ml` (the `ML*` commands) — keep those commands out
+  of the proof outline while still highlighting and describing them. Works
+  offline, no Isabelle required.
 - `Isabelle: Insert Symbol` command. Browse and search the full Isabelle symbol
   table by glyph, token (`\<forall>`), group (`logic`), or ASCII abbreviation
   (`ALL`, `!`) in a quick-pick, and insert the chosen symbol at the cursor — for
