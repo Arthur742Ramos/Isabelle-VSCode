@@ -35,6 +35,10 @@ Semantic Versioning while the extension remains in preview.
   and occurrences inside comments, cartouches, and strings are ignored. Bare
   command keywords (`by`, `lemma`) are not highlighted. Offline, no Isabelle
   required.
+- Code folding for multi-line cartouche blocks. `text ‹…›` documentation,
+  `ML ‹…›` embedded source, and any other multi-line `‹…›` / `\<open>…\<close>`
+  block now collapses to its opening line (nesting-aware), so a long prose or
+  ML block folds away. Single-line cartouches are left alone.
 - Code folding for `begin … end` blocks. Locale, type-class, `instantiation`,
   `context`, and `notepad` bodies now collapse to their opening line (nesting
   aware), so a long instantiation or locale body folds away. The theory's own
