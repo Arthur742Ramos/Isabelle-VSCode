@@ -4,7 +4,6 @@ import { CommandSpan } from "../../src/protocol/messages";
 import {
   extractTheoryEntities,
   groupEntitiesByKind,
-  IsabelleEntityKind,
   isTheoryEntityKind,
   THEORY_ENTITY_KINDS
 } from "../../src/semantic/theoryEntities";
@@ -193,25 +192,24 @@ describe("groupEntitiesByKind", () => {
 });
 
 describe("isTheoryEntityKind", () => {
-  it("recognizes known entity kinds and rejects others", () => {
-    const known: IsabelleEntityKind[] = [
-      "theorem",
-      "definition",
-      "datatype",
-      "locale",
-      "section",
-      "typedef",
-      "type_synonym",
-      "codatatype",
-      "class",
-      "lift_definition"
-    ];
-    for (const kind of known) {
+  it("recognizes every declared entity kind", () => {
+    // Exhaustive: iterate the canonical list so a newly added IsabelleEntityKind
+    // cannot silently lose `isTheoryEntityKind` recognition (the gate that
+    // extractTheoryEntities uses to decide which spans become outline entries).
+    for (const kind of THEORY_ENTITY_KINDS) {
       expect(isTheoryEntityKind(kind)).toBe(true);
     }
+    expect(THEORY_ENTITY_KINDS).toContain("typedecl");
+    expect(THEORY_ENTITY_KINDS).toContain("primcorec");
+    expect(THEORY_ENTITY_KINDS).toContain("inductive_set");
+    expect(THEORY_ENTITY_KINDS).toContain("coinductive");
+  });
 
+  it("rejects non-entity command kinds and nonsense", () => {
     expect(isTheoryEntityKind("apply")).toBe(false);
     expect(isTheoryEntityKind("have")).toBe(false);
+    expect(isTheoryEntityKind("value")).toBe(false);
+    expect(isTheoryEntityKind("ML")).toBe(false);
     expect(isTheoryEntityKind("nonsense")).toBe(false);
   });
 });
