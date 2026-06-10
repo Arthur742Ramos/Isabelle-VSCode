@@ -147,9 +147,9 @@ Why: vitest cannot import `vscode`. The `vscode-languageclient` package transiti
 
 #### Hosted integration tests (small, additive)
 
-There is also a **deliberately tiny** VS Code-hosted Mocha surface under
+There is also a **small, deliberately-scoped** VS Code-hosted Mocha surface under
 `test/integration/`, driven by `@vscode/test-electron` (`npm run test:integration`).
-It exists to catch two failure modes that no structural test can see:
+It exists to catch failure modes that no structural test can see:
 
 1. `activate()` actually runs end-to-end without throwing inside a real
    extension host (`activation.test.ts`).
@@ -157,20 +157,32 @@ It exists to catch two failure modes that no structural test can see:
    actually registered by `src/extension.ts` (`commandRegistration.test.ts`,
    computed dynamically from `package.json` — never hard-code the count;
    see gotcha #7 below).
+3. Each offline **language provider** is actually wired to the editor and
+   returns results when driven through VS Code's built-in
+   `vscode.executeXProvider` commands against a real `.thy` file
+   (`navigationProviders.test.ts` — highlight / references / workspace symbols /
+   selection / folding / hover; `coreProviders.test.ts` — document symbols /
+   definition / symbol + method completion / semantic tokens). A provider can be
+   registered with the wrong selector or command id and still pass every
+   vscode-free unit test of its pure core; only a hosted run catches that. These
+   open a temp on-disk file because the providers select on `scheme: "file"`,
+   and need **no Isabelle install** — they exercise only the offline foundation.
 
 This surface is **opt-in**: `npm run check` deliberately does *not* run it,
 so Tier-1 (Node-only) contributors keep their fast green. Use
 `npm run test:all` to run both suites. CI runs the hosted suite as a
 separate `integration-tests` job on `ubuntu-latest` under `xvfb-run`.
 
-**Do not** expand the hosted surface speculatively. Add a hosted test only
-when the behaviour genuinely cannot be tested structurally (and prefer to
-add an injectable seam first). LSP behaviour, Sledgehammer dispatch, proof
-state, AI repair, etc. all require a real Isabelle install and are covered
-by `docs/SMOKE_THEORY_CHECKLIST.md` instead.
+**Keep the hosted surface principled.** It is for behaviour that genuinely
+cannot be tested structurally: activation, command-registration drift, and the
+provider→editor wiring above. Prefer an injectable seam + a vscode-free unit
+test first; reach for a hosted test only when the thing under test *is* the
+VS Code integration. Anything that needs a real Isabelle install (LSP,
+Sledgehammer dispatch, proof state, build, AI repair) stays out of here and is
+covered by `docs/SMOKE_THEORY_CHECKLIST.md` instead.
 
 Prefer vscode-free unit/structural tests with injected fakes. The hosted
-surface is the floor, not the ceiling.
+surface is the floor for integration wiring, not a substitute for unit tests.
 
 ### Process spawning
 
