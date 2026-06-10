@@ -76,14 +76,25 @@ describe("Isabelle snippets manifest", () => {
     }
   });
 
-  it("balances braces in every snippet body (no stray ${ tab stops)", () => {
+  it("closes every ${...} tab-stop placeholder (nesting-aware)", () => {
+    // Walk the body tracking placeholder depth: `${` opens, `}` closes. This
+    // catches an unclosed `${...` directly, rather than just comparing counts
+    // (which a literal `}` elsewhere could mask).
     for (const [name, snippet] of entries) {
       const body = bodyText(snippet.body);
-      const open = (body.match(/\$\{/g) ?? []).length;
-      // Each ${...} placeholder must have a matching closing brace; count plain
-      // closing braces that are not escaped.
-      const close = (body.match(/\}/g) ?? []).length;
-      expect(close, `${name} has unbalanced \${...} placeholders`).toBeGreaterThanOrEqual(open);
+      let depth = 0;
+      let minDepth = 0;
+      for (let i = 0; i < body.length; i++) {
+        if (body[i] === "$" && body[i + 1] === "{") {
+          depth += 1;
+          i += 1;
+        } else if (body[i] === "}" && depth > 0) {
+          depth -= 1;
+        }
+        minDepth = Math.min(minDepth, depth);
+      }
+      expect(depth, `${name} has an unclosed \${...} placeholder`).toBe(0);
+      expect(minDepth, `${name} placeholder nesting underflowed`).toBe(0);
     }
   });
 
