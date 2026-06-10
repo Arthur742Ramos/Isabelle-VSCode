@@ -178,6 +178,85 @@ describe("computeIsabelleFoldingRanges — theory header", () => {
   });
 });
 
+describe("computeIsabelleFoldingRanges — begin..end blocks", () => {
+  it("folds a context block but not the theory body", () => {
+    const source = [
+      "theory T", // 0
+      "imports Main", // 1
+      "begin", // 2
+      "context fixes x begin", // 3
+      "  definition d where \"d = x\"", // 4
+      "  lemma l: \"d = x\" by simp", // 5
+      "end", // 6
+      "end" // 7
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    // The context body folds...
+    expect(hasRange(ranges, 3, 6, "region")).toBe(true);
+    // ...but the theory body (begin line 2 .. end line 7) does not.
+    expect(ranges.some((r) => r.start === 2)).toBe(false);
+  });
+
+  it("folds instantiation and locale blocks independently", () => {
+    const source = [
+      "theory T", // 0
+      "imports Main", // 1
+      "begin", // 2
+      "instantiation nat :: ord", // 3
+      "begin", // 4
+      "  definition le where \"le = (\\<le>)\"", // 5
+      "  instance ..", // 6
+      "end", // 7
+      "locale L =", // 8
+      "  fixes f", // 9
+      "begin", // 10
+      "  lemma e: True by simp", // 11
+      "end", // 12
+      "end" // 13
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 4, 7, "region")).toBe(true);
+    expect(hasRange(ranges, 10, 12, "region")).toBe(true);
+    // theory body begin (2) is not folded.
+    expect(ranges.some((r) => r.start === 2)).toBe(false);
+  });
+
+  it("does not fold a single-line begin..end block", () => {
+    const source = ["theory T", "imports Main", "begin", "context begin end", "end"].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(ranges.some((r) => r.kind === "region")).toBe(false);
+  });
+
+  it("folds a standalone begin..end fragment with no theory header", () => {
+    // Without a `theory ... begin` header, the only begin..end pair is a real
+    // block (e.g. a snippet or an included fragment), so it must fold — the
+    // theory-body exclusion only applies to the begin that follows `theory`.
+    const source = [
+      "context fixes x begin", // 0
+      "  definition d where \"d = x\"", // 1
+      "  lemma l: True by simp", // 2
+      "end" // 3
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 0, 3, "region")).toBe(true);
+  });
+
+  it("ignores begin/end keywords inside comments and strings", () => {
+    const source = [
+      "theory T", // 0
+      "imports Main", // 1
+      "begin", // 2
+      "(* context begin", // 3
+      "   end *)", // 4
+      "lemma x: \"begin = end\" by simp", // 5
+      "end" // 6
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    // Only the multi-line comment folds; no spurious begin..end region.
+    expect(kinds(ranges, "region")).toHaveLength(0);
+  });
+});
+
 describe("computeIsabelleFoldingRanges — masking", () => {
   it("ignores keywords inside block comments", () => {
     const source = ["(* proof", "   section here", "   qed *)", "lemma foo by simp"].join("\n");
