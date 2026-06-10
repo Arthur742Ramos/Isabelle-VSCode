@@ -11,9 +11,9 @@
  * Matching is case-insensitive and **subsequence-based** (the characters of the
  * query appear in order within the name — the same model VS Code's own quick-open
  * uses), with a small ranking that prefers a prefix match, then a contiguous
- * substring, then a scattered subsequence, and breaks ties by shorter name then
- * alphabetical order. An empty query matches everything (VS Code asks for the
- * full set to seed the picker).
+ * substring, then a scattered subsequence, and breaks ties lexicographically by
+ * name (then by URI, then by line). An empty query matches everything (VS Code
+ * asks for the full set to seed the picker).
  *
  * This module is free of any `vscode` import so it can be unit tested under
  * vitest.
@@ -144,8 +144,14 @@ export function workspaceSymbolKind(kind: IsabelleEntityKind): WorkspaceSymbolKi
       return "namespace";
     case "theory":
       return "module";
-    default:
+    default: {
+      // Exhaustiveness guard: if a new IsabelleEntityKind is added without a
+      // mapping here, this fails to compile rather than silently defaulting to
+      // "variable" and drifting from the document-symbol provider's icons.
+      const exhaustive: never = kind;
+      void exhaustive;
       return "variable";
+    }
   }
 }
 

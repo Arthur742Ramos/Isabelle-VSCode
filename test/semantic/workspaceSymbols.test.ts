@@ -64,7 +64,7 @@ describe("matchWorkspaceSymbols", () => {
     expect(matchWorkspaceSymbols("zzz", entities)).toHaveLength(0);
   });
 
-  it("breaks score ties by shorter/alphabetical name then uri then line", () => {
+  it("breaks score ties lexicographically by name, then uri, then line", () => {
     const dupes = [
       entity("foo", "file:///B.thy", "lemma", 3),
       entity("foo", "file:///A.thy", "lemma", 1),

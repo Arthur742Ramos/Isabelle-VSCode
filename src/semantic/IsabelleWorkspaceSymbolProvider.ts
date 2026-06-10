@@ -23,6 +23,9 @@ import {
  */
 export class IsabelleWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
   private static readonly MAX_FILES = 2000;
+  private capWarningEmitted = false;
+
+  public constructor(private readonly output?: vscode.OutputChannel) {}
 
   public async provideWorkspaceSymbols(
     query: string,
@@ -52,6 +55,15 @@ export class IsabelleWorkspaceSymbolProvider implements vscode.WorkspaceSymbolPr
       IsabelleWorkspaceSymbolProvider.MAX_FILES,
       token
     );
+    if (files.length === IsabelleWorkspaceSymbolProvider.MAX_FILES && !this.capWarningEmitted) {
+      // findFiles truncates at the cap, so results may be incomplete in a very
+      // large workspace. Warn once so users understand why a symbol is missing.
+      this.capWarningEmitted = true;
+      this.output?.appendLine(
+        `Isabelle workspace symbols: reached the ${IsabelleWorkspaceSymbolProvider.MAX_FILES}-file scan cap; ` +
+          "results may be incomplete in this workspace."
+      );
+    }
     for (const file of files) {
       if (token.isCancellationRequested) {
         break;

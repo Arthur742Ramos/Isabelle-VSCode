@@ -362,7 +362,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       { language: "isabelle", scheme: "file" },
       new IsabelleDocumentSymbolProvider(documentSyncService)
     ),
-    vscode.languages.registerWorkspaceSymbolProvider(new IsabelleWorkspaceSymbolProvider()),
+    vscode.languages.registerWorkspaceSymbolProvider(new IsabelleWorkspaceSymbolProvider(output)),
     vscode.languages.registerFoldingRangeProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleFoldingRangeProvider()
