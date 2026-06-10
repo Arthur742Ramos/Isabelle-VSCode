@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
-import { getCommandInfo, getSymbolInfo } from "./isabelleSyntax";
+import { getCommandInfo } from "./isabelleSyntax";
+import {
+  buildSymbolHoverMarkdown,
+  findGlyphSpanAt,
+  resolveSymbolByGlyph,
+  resolveSymbolByName
+} from "./isabelleSymbols";
 import { findSymbolEscapeRange } from "./ranges";
 
 export class IsabelleHoverProvider implements vscode.HoverProvider {
@@ -7,18 +13,34 @@ export class IsabelleHoverProvider implements vscode.HoverProvider {
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.ProviderResult<vscode.Hover> {
-    const symbolRange = symbolEscapeRangeAt(document, position);
-    if (symbolRange) {
-      const source = document.getText(symbolRange);
-      const symbol = getSymbolInfo(source);
+    const lineText = document.lineAt(position.line).text;
+
+    // 1. Cursor inside a `\<...>` symbol token.
+    const escapeRange = findSymbolEscapeRange(lineText, position.character);
+    if (escapeRange) {
+      const token = lineText.slice(escapeRange.start, escapeRange.end);
+      const symbol = resolveSymbolByName(token);
       if (symbol) {
         return new vscode.Hover(
-          new vscode.MarkdownString(`**${symbol.glyph}** \`${source}\`\n\n${symbol.description}`),
-          symbolRange
+          new vscode.MarkdownString(buildSymbolHoverMarkdown(symbol)),
+          new vscode.Range(position.line, escapeRange.start, position.line, escapeRange.end)
         );
       }
     }
 
+    // 2. Cursor on a rendered Isabelle glyph (e.g. ∀, ⟹, λ).
+    const glyphSpan = findGlyphSpanAt(lineText, position.character);
+    if (glyphSpan) {
+      const symbol = resolveSymbolByGlyph(glyphSpan.glyph);
+      if (symbol) {
+        return new vscode.Hover(
+          new vscode.MarkdownString(buildSymbolHoverMarkdown(symbol)),
+          new vscode.Range(position.line, glyphSpan.start, position.line, glyphSpan.end)
+        );
+      }
+    }
+
+    // 3. Cursor on an Isabelle command keyword.
     const wordRange = document.getWordRangeAtPosition(position, /[A-Za-z_][A-Za-z0-9_']*/);
     if (!wordRange) {
       return undefined;
@@ -32,10 +54,4 @@ export class IsabelleHoverProvider implements vscode.HoverProvider {
 
     return new vscode.Hover(new vscode.MarkdownString(`**Isabelle command** \`${word}\`\n\n${command.description}`), wordRange);
   }
-}
-
-function symbolEscapeRangeAt(document: vscode.TextDocument, position: vscode.Position): vscode.Range | undefined {
-  const text = document.lineAt(position.line).text;
-  const range = findSymbolEscapeRange(text, position.character);
-  return range ? new vscode.Range(position.line, range.start, position.line, range.end) : undefined;
 }

@@ -76,6 +76,11 @@ Semantic Versioning while the extension remains in preview.
   nothing is selected). The mapping is lossless and prover-independent — paste
   an ASCII Isabelle proof and render it as Unicode, or normalize a file back to
   portable ASCII notation. Also available from the editor right-click menu.
+- Rich Isabelle symbol hovers. Hovering over a `\<...>` symbol token **or** its
+  rendered glyph (∀, ⟹, λ, …) now shows the symbol name, its Unicode code point,
+  its group, and the ASCII abbreviations Isabelle accepts — sourced from the same
+  authoritative table, so it covers the full symbol set rather than a handful of
+  hard-coded entries.
 
 ## 0.1.0-alpha.6
 
