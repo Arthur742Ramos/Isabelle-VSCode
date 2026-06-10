@@ -351,16 +351,65 @@ object CommandSpanParser {
     }
 
     val trimmed = line.drop(leading)
-    val parts = trimmed.split("\\s+", 3).toVector
+    val parts = trimmed.split("\\s+", 2).toVector
     val keyword = parts.headOption.getOrElse("")
     if (!CommandKeywords.contains(keyword)) {
       return None
     }
 
     val name =
-      if (NameDeclaringKeywords.contains(keyword)) parts.lift(1).flatMap(cleanName)
+      if (NameDeclaringKeywords.contains(keyword)) declarationName(parts.lift(1).getOrElse(""))
       else None
     Some(ParsedCommand(keyword, name, leading))
+  }
+
+  // A leading type parameter (`'a`, `'a::ord`) at the start of the rest-of-line.
+  private val LeadingTypeVariable =
+    """^'[A-Za-z_][A-Za-z0-9_']*(?:\s*::\s*[A-Za-z_][A-Za-z0-9_'.]*)?""".r
+
+  /**
+   * Find the declared name in the text following a name-declaring keyword,
+   * skipping a leading type parameter or parenthesised `(in locale)` target so
+   * `datatype 'a list` yields `list` and `definition (in monoid) e` yields `e`.
+   * Kept in parity with the TS `commandNameAfter` policy in `commandSpans.ts`.
+   */
+  private def declarationName(rest: String): Option[String] = {
+    var remaining = rest.dropWhile(_.isWhitespace)
+    var advanced = true
+    while (advanced) {
+      advanced = false
+      LeadingTypeVariable.findPrefixOf(remaining) match {
+        case Some(matched) =>
+          remaining = remaining.drop(matched.length).dropWhile(_.isWhitespace)
+          advanced = true
+        case None =>
+          if (remaining.startsWith("(")) {
+            val close = matchingParen(remaining)
+            if (close >= 0) {
+              remaining = remaining.drop(close + 1).dropWhile(_.isWhitespace)
+              advanced = true
+            }
+          }
+      }
+    }
+    cleanName(remaining.takeWhile(!_.isWhitespace))
+  }
+
+  /** Index of the `)` closing the `(` at position 0, or -1 if unbalanced. */
+  private def matchingParen(text: String): Int = {
+    var depth = 0
+    var index = 0
+    while (index < text.length) {
+      text.charAt(index) match {
+        case '(' => depth += 1
+        case ')' =>
+          depth -= 1
+          if (depth == 0) return index
+        case _ => ()
+      }
+      index += 1
+    }
+    -1
   }
 
   private def cleanName(token: String): Option[String] = {

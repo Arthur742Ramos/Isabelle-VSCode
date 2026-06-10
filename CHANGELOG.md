@@ -132,6 +132,11 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- The Scala backend's command-span parser now extracts declaration names past a
+  leading type parameter or `(in locale)` target — `datatype 'a tree` → `tree`,
+  `definition (in monoid) e` → `e` — matching the TypeScript side, so
+  backend-mode spans name parametric datatypes and in-target statements
+  correctly instead of reporting the type variable.
 - Semantic highlighting no longer marks a word inside a quoted proposition as a
   declaration name. `have "x = y"` and the anonymous `lemma "True"` previously
   tinted the first word *inside* the quotes (`x`, `True`) as a declared name;
