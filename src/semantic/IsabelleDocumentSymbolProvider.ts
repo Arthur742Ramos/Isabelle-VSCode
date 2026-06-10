@@ -33,6 +33,12 @@ function toVscodeSymbolKind(kind: IsabelleSymbolKind): vscode.SymbolKind {
       return vscode.SymbolKind.Module;
     case "class":
       return vscode.SymbolKind.Class;
+    case "interface":
+      return vscode.SymbolKind.Interface;
+    case "enum":
+      return vscode.SymbolKind.Enum;
+    case "struct":
+      return vscode.SymbolKind.Struct;
     case "method":
       return vscode.SymbolKind.Method;
     case "function":

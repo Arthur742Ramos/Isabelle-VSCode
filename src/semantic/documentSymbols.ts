@@ -5,6 +5,9 @@ export type IsabelleSymbolKind =
   | "namespace"
   | "module"
   | "class"
+  | "interface"
+  | "enum"
+  | "struct"
   | "method"
   | "function"
   | "field"
@@ -100,11 +103,21 @@ function symbolKind(commandKind: string, category: IsabelleCommandCategory): Isa
   if (commandKind === "section" || commandKind === "subsection" || commandKind === "subsubsection") {
     return "namespace";
   }
-  if (commandKind === "locale" || commandKind === "context") {
+  if (commandKind === "locale" || commandKind === "context" || commandKind === "class" || commandKind === "instantiation") {
+    // Locales and type classes group operations + assumptions, like a class.
     return "class";
   }
-  if (commandKind === "datatype" || commandKind === "record") {
-    return "class";
+  if (commandKind === "datatype" || commandKind === "codatatype") {
+    // Sum types with named constructors map most naturally onto an enum.
+    return "enum";
+  }
+  if (commandKind === "record") {
+    // A product type with named fields is a struct.
+    return "struct";
+  }
+  if (commandKind === "typedef" || commandKind === "typedecl" || commandKind === "type_synonym") {
+    // Abstract / alias type introductions surface as an interface.
+    return "interface";
   }
   if (category === "statement") {
     return "method";
