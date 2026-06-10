@@ -35,10 +35,19 @@ object SledgehammerSuggestionParser {
   )
 
   // Group 1: prover name (alphanumeric + underscore).
-  // Group 2: proof text (greedy, stops at the timing parenthesis or end).
-  // Group 3: optional timing or description in parens.
+  // Group 2: everything after `Try this:` (the proof plus an optional trailing
+  // timing parenthesis). We deliberately capture the whole tail here and peel a
+  // *timing-shaped* trailing `(...)` off in code, because a greedy/lazy regex
+  // split mis-handles proofs that themselves end in parens with no timing —
+  // e.g. `by (metis foo)` would wrongly parse as proof `by`, timing `metis foo`.
   private val Pattern: Regex =
-    """^\s*(\w+):\s*Try this:\s*(.+?)(?:\s*\(([^()]+)\))?\s*$""".r
+    """^\s*(\w+):\s*Try this:\s*(.+?)\s*$""".r
+
+  // A trailing parenthesised group that is a *timing* (or other prover note),
+  // not part of the proof: a leading number/decimal, typically with a time unit
+  // (`ms`, `s`, `min`). Matches `(144 ms)`, `(1.2 s)`, `(3 ms)`, `(> 5 s)`.
+  private val TrailingTiming: Regex =
+    """^(.*?)\s*\((\s*[<>~]?\s*\d[\d.,]*\s*(?:ms|s|min)?\s*)\)$""".r
 
   /**
    * Parse a single line, returning Some(suggestion) for "Try this:"
@@ -46,10 +55,16 @@ object SledgehammerSuggestionParser {
    */
   def parseLine(line: String): Option[Suggestion] =
     line match {
-      case Pattern(method, proof, descRaw) =>
-        val proofTrimmed = proof.trim
-        if (proofTrimmed.isEmpty) None
-        else Some(Suggestion(method.trim, proofTrimmed, Option(descRaw).map(_.trim).filter(_.nonEmpty)))
+      case Pattern(method, body) =>
+        val bodyTrimmed = body.trim
+        if (bodyTrimmed.isEmpty) None
+        else {
+          val (proof, desc) = bodyTrimmed match {
+            case TrailingTiming(p, timing) if p.trim.nonEmpty => (p.trim, Some(timing.trim))
+            case _                                            => (bodyTrimmed, None)
+          }
+          Some(Suggestion(method.trim, proof, desc.filter(_.nonEmpty)))
+        }
       case _ => None
     }
 
