@@ -8,6 +8,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Occurrence highlighting. Placing the cursor on an identifier now highlights
+  every other use of that same name in the theory, with the declaration (the
+  name after `definition`, `lemma`, `datatype`, …) shown as a write highlight.
+  It is whole-token and Isabelle-aware — `xs` does not match inside `xs'`,
+  `xs.foo`, or `xs_tl`, symbol escapes (`\<alpha>`) are matched as one token,
+  and occurrences inside comments, cartouches, and strings are ignored. Bare
+  command keywords (`by`, `lemma`) are not highlighted. Offline, no Isabelle
+  required.
 - Code folding for `begin … end` blocks. Locale, type-class, `instantiation`,
   `context`, and `notepad` bodies now collapse to their opening line (nesting
   aware), so a long instantiation or locale body folds away. The theory's own

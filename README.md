@@ -48,6 +48,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 - **Unicode bracket editing** — auto-close and surround the cartouche `‹ ›` and `⟨ ⟩` / `⟦ ⟧` pairs, with symbol- and prime-aware word selection (`\<alpha>`, `\<^sub>`, `xs'`).
 - **Explorer views** — **Sessions**, **Theory Graph** (forward/reverse dependencies), **Theory Outline** (lemmas, definitions, datatypes, type definitions, type classes, … grouped by kind with type-appropriate icons), and **Proof Outline** trees that follow the active theory.
 - **Navigation** — go-to-definition for local declarations, command/symbol hovers, import links, and next/previous/reveal command jumps.
+- **Occurrence highlighting** — put the cursor on a name to highlight every other use of it in the theory (the declaration shown distinctly), whole-token and symbol/prime aware, ignoring comments and strings.
 - **Offline proof-gap audit** — flags `sorry` and `oops` in the Problems panel with no prover running (it ignores comments, cartouches, and strings).
 
 ### 🚀 With Isabelle installed — auto-detected, zero-config
