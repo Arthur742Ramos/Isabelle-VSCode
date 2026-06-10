@@ -36,7 +36,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 
 ### ⚡ Works instantly — no Isabelle, Java, or setup required
 
-- **Syntax & semantic highlighting** for Isabelle's full outer-syntax command vocabulary (specifications, type classes, locale interpretation, diagnostics, embedded ML), declarations, schematic/type variables, and `\<...>` symbols.
+- **Syntax & semantic highlighting** for the outer-syntax command vocabulary HOL and the AFP routinely use (specifications, type classes, locale interpretation, diagnostics, embedded ML), declarations, schematic/type variables, and `\<...>` symbols.
 - **Snippets** — tab-completable skeletons for the constructs real theories use: `theory`, `lemma`/`theorem`, `definition`, `fun`/`function`, `datatype`/`codatatype`, `record`, `typedef`/`type_synonym`, `inductive`, `primrec`/`primcorec`, `lift_definition`, `locale`, `class`/`instantiation`, `interpretation`, `notepad`, document headings, and Isar proof skeletons (induction/cases/obtain); the `theory` skeleton even defaults its name to the file name, as Isabelle requires.
 - **New theory scaffolding** — `Isabelle: New Theory File` creates a correctly-named `<Name>.thy` (Isabelle requires the theory name to equal the file name) with a ready `theory … imports Main begin … end` header, validating the name as you type.
 - **Offline symbol entry** — type `\<` and complete the full Isabelle symbol table (`\<forall>` → ∀, `\<Longrightarrow>` → ⟹, …) with glyph previews and ASCII abbreviations, with no prover or language server running. `Isabelle: Insert Symbol` also lets you browse/search the whole table by glyph, name, group, or abbreviation.
