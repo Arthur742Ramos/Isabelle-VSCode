@@ -4,7 +4,6 @@ import { CommandSpan } from "../../src/protocol/messages";
 import {
   extractTheoryEntities,
   groupEntitiesByKind,
-  IsabelleEntityKind,
   isTheoryEntityKind,
   THEORY_ENTITY_KINDS
 } from "../../src/semantic/theoryEntities";
@@ -56,6 +55,38 @@ describe("extractTheoryEntities", () => {
     expect(lemma?.spanId).toEqual(
       spans.find((span) => span.kind === "lemma" && span.name === "answer_positive")?.id
     );
+  });
+
+  it("extracts the broader specification vocabulary as theory entities", () => {
+    const spans = extractCommandSpans(
+      "file:///Specs.thy",
+      [
+        "theory Specs",
+        "imports Main",
+        "begin",
+        "typedecl ident",
+        "type_synonym env = \"ident \\<Rightarrow> nat\"",
+        "typedef pos = \"{n :: nat. n > 0}\"",
+        "  by auto",
+        "codatatype stream = SCons nat \"stream\"",
+        "primcorec ones :: \"nat stream\" where \"ones = SCons 1 ones\"",
+        "inductive_set evens :: \"nat set\" where \"0 \\<in> evens\"",
+        "lift_definition pos_one :: pos is \"1 :: nat\" by simp",
+        "class ordered = fixes le :: \"'a \\<Rightarrow> 'a \\<Rightarrow> bool\"",
+        "end"
+      ].join("\n"),
+      1
+    );
+
+    const byKind = new Map(extractTheoryEntities(spans).map((entity) => [entity.kind, entity.name]));
+    expect(byKind.get("typedecl")).toBe("ident");
+    expect(byKind.get("type_synonym")).toBe("env");
+    expect(byKind.get("typedef")).toBe("pos");
+    expect(byKind.get("codatatype")).toBe("stream");
+    expect(byKind.get("primcorec")).toBe("ones");
+    expect(byKind.get("inductive_set")).toBe("evens");
+    expect(byKind.get("lift_definition")).toBe("pos_one");
+    expect(byKind.get("class")).toBe("ordered");
   });
 
   it("omits anonymous statements and spans that do not declare entities", () => {
@@ -161,14 +192,24 @@ describe("groupEntitiesByKind", () => {
 });
 
 describe("isTheoryEntityKind", () => {
-  it("recognizes known entity kinds and rejects others", () => {
-    const known: IsabelleEntityKind[] = ["theorem", "definition", "datatype", "locale", "section"];
-    for (const kind of known) {
+  it("recognizes every declared entity kind", () => {
+    // Exhaustive: iterate the canonical list so a newly added IsabelleEntityKind
+    // cannot silently lose `isTheoryEntityKind` recognition (the gate that
+    // extractTheoryEntities uses to decide which spans become outline entries).
+    for (const kind of THEORY_ENTITY_KINDS) {
       expect(isTheoryEntityKind(kind)).toBe(true);
     }
+    expect(THEORY_ENTITY_KINDS).toContain("typedecl");
+    expect(THEORY_ENTITY_KINDS).toContain("primcorec");
+    expect(THEORY_ENTITY_KINDS).toContain("inductive_set");
+    expect(THEORY_ENTITY_KINDS).toContain("coinductive");
+  });
 
+  it("rejects non-entity command kinds and nonsense", () => {
     expect(isTheoryEntityKind("apply")).toBe(false);
     expect(isTheoryEntityKind("have")).toBe(false);
+    expect(isTheoryEntityKind("value")).toBe(false);
+    expect(isTheoryEntityKind("ML")).toBe(false);
     expect(isTheoryEntityKind("nonsense")).toBe(false);
   });
 });

@@ -8,6 +8,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Theory Outline coverage for the broader specification vocabulary. The
+  **Isabelle Theory Outline** tree now groups and shows type definitions
+  (`typedef`, `typedecl`, `type_synonym`), (co)datatypes and (co)recursion
+  (`codatatype`, `primcorec`, `coinductive`, `inductive_set`), lifted
+  definitions (`lift_definition`), and type classes (`class`) alongside the
+  lemmas, definitions, functions, and locales it already listed — each with a
+  dedicated section heading and icon. Offline, no Isabelle required.
 - Full HOL/AFP outer-syntax command vocabulary in the local foundation. The
   command table that drives semantic highlighting, command hovers, the proof
   outline, the document-symbol/breadcrumb tree, and go-to-definition now
