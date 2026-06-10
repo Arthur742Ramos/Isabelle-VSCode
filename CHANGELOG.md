@@ -176,6 +176,13 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- Sledgehammer suggestions whose proof ends in parentheses but carries no timing
+  (e.g. `metis: Try this: by (metis foo)`) are no longer truncated. The backend
+  output parser previously split greedily and reported the proof as just `by`
+  with `metis foo` as the "timing"; it now peels only a *timing-shaped* trailing
+  `(…)` (a number with an optional `ms`/`s`/`min` unit) off the proof, so the
+  inserted proof is the whole `by (metis foo)` and nested parens
+  (`by (smt (z3) foo) (10 ms)`) are preserved.
 - `Isabelle: Minimize Sledgehammer Proof at Cursor` no longer mis-reads method
   modifiers as facts. For `by (simp add: foo bar)` or `by (auto simp: defs
   intro: rules)` it stops the bare-fact list at the first modifier label (a

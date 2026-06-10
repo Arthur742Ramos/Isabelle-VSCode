@@ -36,6 +36,38 @@ class SledgehammerSuggestionParserSpec extends AnyFunSpec with Matchers {
       s.get.proofText shouldBe "by metis"
       s.get.description shouldBe None
     }
+
+    it("keeps a proof that ends in parens when there is no timing suffix") {
+      // Regression: the old greedy/lazy split parsed this as proof `by`,
+      // timing `metis foo`. The proof's own trailing parens are part of it.
+      val s = SledgehammerSuggestionParser.parseLine("metis: Try this: by (metis foo)")
+      s shouldBe defined
+      s.get.method shouldBe "metis"
+      s.get.proofText shouldBe "by (metis foo)"
+      s.get.description shouldBe None
+    }
+
+    it("peels only a timing-shaped trailing parenthesis off the proof") {
+      val withTiming = SledgehammerSuggestionParser.parseLine("metis: Try this: by (metis foo) (144 ms)")
+      withTiming.get.proofText shouldBe "by (metis foo)"
+      withTiming.get.description shouldBe Some("144 ms")
+
+      // A proof ending in a non-timing paren keeps it.
+      val noTiming = SledgehammerSuggestionParser.parseLine("blast: Try this: by (auto simp: x)")
+      noTiming.get.proofText shouldBe "by (auto simp: x)"
+      noTiming.get.description shouldBe None
+    }
+
+    it("keeps nested parens in the proof while extracting the timing") {
+      val s = SledgehammerSuggestionParser.parseLine("z3: Try this: by (smt (z3) foo) (10 ms)")
+      s shouldBe defined
+      s.get.proofText shouldBe "by (smt (z3) foo)"
+      s.get.description shouldBe Some("10 ms")
+    }
+
+    it("accepts fractional and second-unit timings") {
+      SledgehammerSuggestionParser.parseLine("metis: Try this: by metis (1.2 s)").get.description shouldBe Some("1.2 s")
+    }
   }
 
   describe("SledgehammerSuggestionParser.parse") {
