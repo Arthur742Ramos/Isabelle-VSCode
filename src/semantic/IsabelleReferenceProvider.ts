@@ -19,6 +19,9 @@ import { isCommandKeyword } from "./isabelleSyntax";
  */
 export class IsabelleReferenceProvider implements vscode.ReferenceProvider {
   private static readonly MAX_FILES = 2000;
+  private capWarningEmitted = false;
+
+  public constructor(private readonly output?: vscode.OutputChannel) {}
 
   public async provideReferences(
     document: vscode.TextDocument,
@@ -50,6 +53,15 @@ export class IsabelleReferenceProvider implements vscode.ReferenceProvider {
       IsabelleReferenceProvider.MAX_FILES,
       token
     );
+    if (files.length === IsabelleReferenceProvider.MAX_FILES && !this.capWarningEmitted) {
+      // findFiles truncates at the cap, so the reference list may be incomplete
+      // in a very large workspace. Warn once so users know.
+      this.capWarningEmitted = true;
+      this.output?.appendLine(
+        `Isabelle references: reached the ${IsabelleReferenceProvider.MAX_FILES}-file scan cap; ` +
+          "some references may be missing in this workspace."
+      );
+    }
     for (const file of files) {
       if (token.isCancellationRequested) {
         break;

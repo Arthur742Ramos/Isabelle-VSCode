@@ -374,7 +374,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     ),
     vscode.languages.registerReferenceProvider(
       { language: "isabelle", scheme: "file" },
-      new IsabelleReferenceProvider()
+      new IsabelleReferenceProvider(output)
     ),
     registerPideAbbrevsCompletionProvider(pideAbbrevsCache),
     registerIsabelleSymbolCompletionProvider(),
