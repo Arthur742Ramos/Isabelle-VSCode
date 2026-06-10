@@ -120,6 +120,12 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "isabelle",
+        "path": "./snippets/isabelle.json"
+      }
+    ],
     "commands": [
       {
         "command": "isabelle.showVersion",

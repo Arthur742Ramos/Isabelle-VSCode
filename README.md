@@ -37,6 +37,7 @@ The rich PIDE features light up **automatically** the moment Isabelle is detecte
 ### ⚡ Works instantly — no Isabelle, Java, or setup required
 
 - **Syntax & semantic highlighting** for Isabelle commands, declarations, and symbols.
+- **Snippets** — tab-completable skeletons for the core constructs (`theory`, `lemma`, `theorem`, `fun`, `definition`, `datatype`, `locale`, `proof`, induction/cases proofs, …); the `theory` skeleton even defaults its name to the file name, as Isabelle requires.
 - **Offline symbol entry** — type `\<` and complete the full Isabelle symbol table (`\<forall>` → ∀, `\<Longrightarrow>` → ⟹, …) with glyph previews and ASCII abbreviations, with no prover or language server running.
 - **Symbol hover** — hover over any `\<...>` token *or* its rendered glyph (∀, ⟹, λ) to see the symbol name, Unicode code point, group, and the ASCII abbreviations Isabelle accepts.
 - **Symbol conversion** — `Isabelle: Convert Symbols to Unicode` / `to ASCII` rewrite `\<forall>` ↔ ∀ across the selection or whole file (lossless, offline) — paste an ASCII proof and render it, or normalize back to portable ASCII.

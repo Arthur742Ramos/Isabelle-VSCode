@@ -1,0 +1,223 @@
+{
+  "Theory file skeleton": {
+    "prefix": "theory",
+    "body": [
+      "theory ${1:${TM_FILENAME_BASE}}",
+      "  imports ${2:Main}",
+      "begin",
+      "",
+      "$0",
+      "",
+      "end"
+    ],
+    "description": "Isabelle theory file skeleton (theory name defaults to the file name, as Isabelle requires)."
+  },
+  "Section heading": {
+    "prefix": "section",
+    "body": "section \\<open>${1:Title}\\<close>$0",
+    "description": "Document section heading."
+  },
+  "Subsection heading": {
+    "prefix": "subsection",
+    "body": "subsection \\<open>${1:Title}\\<close>$0",
+    "description": "Document subsection heading."
+  },
+  "Subsubsection heading": {
+    "prefix": "subsubsection",
+    "body": "subsubsection \\<open>${1:Title}\\<close>$0",
+    "description": "Document subsubsection heading."
+  },
+  "Text block": {
+    "prefix": "text",
+    "body": "text \\<open>${1:prose}\\<close>$0",
+    "description": "Formal document text block."
+  },
+  "Lemma with Isar proof": {
+    "prefix": "lemma",
+    "body": [
+      "lemma ${1:name}:",
+      "  \"${2:P}\"",
+      "proof -",
+      "  $0",
+      "qed"
+    ],
+    "description": "Named lemma with a structured Isar proof."
+  },
+  "Lemma with one-line proof": {
+    "prefix": "lemmaby",
+    "body": [
+      "lemma ${1:name}: \"${2:P}\"",
+      "  by ${3:simp}$0"
+    ],
+    "description": "Named lemma discharged by a single proof method."
+  },
+  "Lemma with assumes/shows": {
+    "prefix": "lemmaas",
+    "body": [
+      "lemma ${1:name}:",
+      "  assumes \"${2:A}\"",
+      "  shows \"${3:B}\"",
+      "proof -",
+      "  $0",
+      "qed"
+    ],
+    "description": "Named lemma with assumes/shows and a structured proof."
+  },
+  "Theorem with Isar proof": {
+    "prefix": "theorem",
+    "body": [
+      "theorem ${1:name}:",
+      "  \"${2:P}\"",
+      "proof -",
+      "  $0",
+      "qed"
+    ],
+    "description": "Named theorem with a structured Isar proof."
+  },
+  "Corollary": {
+    "prefix": "corollary",
+    "body": [
+      "corollary ${1:name}: \"${2:P}\"",
+      "  by ${3:simp}$0"
+    ],
+    "description": "Named corollary discharged by a proof method."
+  },
+  "Definition": {
+    "prefix": "definition",
+    "body": [
+      "definition ${1:name} :: \"${2:typ}\" where",
+      "  \"${1:name} ${3:args} = ${4:rhs}\"$0"
+    ],
+    "description": "Constant definition with an explicit type."
+  },
+  "Abbreviation": {
+    "prefix": "abbreviation",
+    "body": [
+      "abbreviation ${1:name} :: \"${2:typ}\" where",
+      "  \"${1:name} ${3:args} = ${4:rhs}\"$0"
+    ],
+    "description": "Abbreviation (syntactic, no proof obligation)."
+  },
+  "Recursive function (fun)": {
+    "prefix": "fun",
+    "body": [
+      "fun ${1:name} :: \"${2:typ}\" where",
+      "  \"${1:name} ${3:pattern} = ${4:rhs}\"$0"
+    ],
+    "description": "Recursive function defined by pattern matching."
+  },
+  "Primitive recursion (primrec)": {
+    "prefix": "primrec",
+    "body": [
+      "primrec ${1:name} :: \"${2:typ}\" where",
+      "  \"${1:name} ${3:pattern} = ${4:rhs}\"$0"
+    ],
+    "description": "Primitive-recursive function definition."
+  },
+  "Datatype": {
+    "prefix": "datatype",
+    "body": [
+      "datatype ${1:'a} ${2:name} =",
+      "  ${3:Constructor1}",
+      "| ${4:Constructor2} \"${5:'a}\"$0"
+    ],
+    "description": "Algebraic datatype declaration."
+  },
+  "Record": {
+    "prefix": "record",
+    "body": [
+      "record ${1:name} =",
+      "  ${2:field1} :: \"${3:typ}\"",
+      "  ${4:field2} :: \"${5:typ}\"$0"
+    ],
+    "description": "Record type declaration."
+  },
+  "Inductive predicate": {
+    "prefix": "inductive",
+    "body": [
+      "inductive ${1:name} :: \"${2:typ}\" where",
+      "  ${3:rule1}: \"${4:premise} \\<Longrightarrow> ${5:conclusion}\"$0"
+    ],
+    "description": "Inductive predicate definition."
+  },
+  "Locale": {
+    "prefix": "locale",
+    "body": [
+      "locale ${1:name} =",
+      "  fixes ${2:f} :: \"${3:typ}\"",
+      "  assumes ${4:ax}: \"${5:P}\"",
+      "begin",
+      "",
+      "$0",
+      "",
+      "end"
+    ],
+    "description": "Locale with fixed parameters and assumptions."
+  },
+  "Context block": {
+    "prefix": "context",
+    "body": [
+      "context ${1:name}",
+      "begin",
+      "",
+      "$0",
+      "",
+      "end"
+    ],
+    "description": "Local context block."
+  },
+  "Structured proof block": {
+    "prefix": "proof",
+    "body": [
+      "proof -",
+      "  $0",
+      "qed"
+    ],
+    "description": "Structured Isar proof block."
+  },
+  "Proof by induction": {
+    "prefix": "proofinduct",
+    "body": [
+      "proof (induction ${1:x})",
+      "  case ${2:Nil}",
+      "  then show ?case $0",
+      "next",
+      "  case (${3:Cons} ${4:y ys})",
+      "  then show ?case sorry",
+      "qed"
+    ],
+    "description": "Proof by induction with case skeletons."
+  },
+  "Proof by cases": {
+    "prefix": "proofcases",
+    "body": [
+      "proof (cases \"${1:condition}\")",
+      "  case True",
+      "  then show ?thesis $0",
+      "next",
+      "  case False",
+      "  then show ?thesis sorry",
+      "qed"
+    ],
+    "description": "Proof by case distinction on a boolean condition."
+  },
+  "Obtain witness": {
+    "prefix": "obtain",
+    "body": "obtain ${1:x} where ${2:name}: \"${3:P x}\" $0",
+    "description": "Obtain a witness from an existential fact."
+  },
+  "Fix / assume / show": {
+    "prefix": "fixassume",
+    "body": [
+      "fix ${1:x}",
+      "assume ${2:asm}: \"${3:A}\"",
+      "show \"${4:B}\" $0"
+    ],
+    "description": "Isar fix/assume/show skeleton."
+  },
+  "Intermediate have step": {
+    "prefix": "have",
+    "body": "have ${1:name}: \"${2:P}\"\n  by ${3:simp}$0",
+    "description": "Intermediate proof step established by a method."
+  }
+}
