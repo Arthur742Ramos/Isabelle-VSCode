@@ -110,6 +110,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Fixed
 
+- Semantic highlighting no longer marks a word inside a quoted proposition as a
+  declaration name. `have "x = y"` and the anonymous `lemma "True"` previously
+  tinted the first word *inside* the quotes (`x`, `True`) as a declared name;
+  highlighting now stops at the opening `"`, and — matching the outline — also
+  finds the real name past a leading type parameter (`datatype 'a list` →
+  `list`) or `(in locale)` target.
 - Declaration names that follow type parameters or a locale target are now
   extracted for the outline, breadcrumbs, and go-to-definition. A leading type
   parameter (`datatype 'a list` → `list`), a type-parameter tuple
