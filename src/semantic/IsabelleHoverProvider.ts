@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { getCommandInfo } from "./isabelleSyntax";
-import { buildMethodHoverMarkdown, getMethodInfo, isMethodPosition } from "./proofMethods";
+import { buildMethodHoverMarkdown, getMethodInfo, isMethodArgumentLabel, isMethodPosition } from "./proofMethods";
 import {
   buildSymbolHoverMarkdown,
   findGlyphSpanAt,
@@ -54,10 +54,15 @@ export class IsabelleHoverProvider implements vscode.HoverProvider {
     }
 
     // 4. Cursor on a proof method (`simp`, `auto`, `induct`, …) in method
-    //    position — i.e. following `apply` / `by` / `proof` / `unfolding` on
-    //    the line — so a bare identifier in a term is not described as a method.
+    //    position — i.e. following `apply` / `by` / `proof` on the line — so a
+    //    bare identifier in a term is not described as a method. A name used as
+    //    an argument label (`induct rule: r`) is excluded.
     const method = getMethodInfo(word);
-    if (method && isMethodPosition(lineText, wordRange.start.character)) {
+    if (
+      method &&
+      isMethodPosition(lineText, wordRange.start.character) &&
+      !isMethodArgumentLabel(lineText, wordRange.end.character)
+    ) {
       return new vscode.Hover(new vscode.MarkdownString(buildMethodHoverMarkdown(method)), wordRange);
     }
 

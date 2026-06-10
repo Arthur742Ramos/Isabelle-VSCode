@@ -9,13 +9,14 @@ Semantic Versioning while the extension remains in preview.
 ### Added
 
 - Proof-method hovers. Hovering a proof method in method position — after
-  `apply`, `by`, `proof`, or `unfolding` — now explains what it does: `simp`,
-  `auto`, `blast`, `force`, `fastforce`, `induct`, `cases`, `rule`/`erule`/
-  `drule`, `metis`, `smt`, `arith`, and the rest of the core HOL method
-  vocabulary, each labelled by role (simplification, classical reasoning,
-  automation, induction, rule application, terminal, structural). The hover is
-  gated to method position so a bare identifier such as `rule` inside a term is
-  not mislabelled. Offline, no Isabelle required.
+  `apply`, `by`, or `proof` — now explains what it does: `simp`, `auto`,
+  `blast`, `force`, `fastforce`, `induct`, `cases`, `rule`/`erule`/`drule`,
+  `metis`, `smt`, `arith`, and the rest of the core HOL method vocabulary, each
+  labelled by role (simplification, classical reasoning, automation, induction,
+  rule application, terminal, structural). The hover is gated to method position
+  and skips argument labels (`induct rule: r`), so a bare identifier such as
+  `rule` in a term — or a modifier label — is not mislabelled. Offline, no
+  Isabelle required.
 - Theory Outline coverage for the broader specification vocabulary. The
   **Isabelle Theory Outline** tree now groups and shows type definitions
   (`typedef`, `typedecl`, `type_synonym`), (co)datatypes and (co)recursion

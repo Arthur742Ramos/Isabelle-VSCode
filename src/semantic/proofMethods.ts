@@ -135,16 +135,20 @@ export function buildMethodHoverMarkdown(method: IsabelleMethodInfo): string {
   return [`**Isabelle proof method** \`${method.name}\` — ${CATEGORY_LABELS[method.category]}`, "", method.description].join("\n");
 }
 
-// Outer-syntax keywords that introduce a method language fragment. A word is in
-// "method position" when one of these precedes it on the line (the method
-// follows `apply`, `by`, `proof`, or an `unfolding`/`using ... by` chain).
+// Outer-syntax keywords that are *immediately* followed by a proof method. A
+// word is in "method position" when one of these precedes it on the line.
+//
+// Deliberately restricted to keywords whose next token is a method: `apply`,
+// `apply_end`, `by`, and `proof`. Keywords such as `unfolding`, `using`, and
+// `supply` are NOT here — they introduce *fact* lists (`unfolding foo_def`,
+// `supply bar`), not methods, so treating the word after them as a method would
+// mislabel a fact name. (`unfolding f_def by simp` still works because the `by`
+// before `simp` is the introducer that matters.)
 const METHOD_INTRODUCERS: ReadonlySet<string> = new Set([
   "apply",
   "apply_end",
   "by",
-  "proof",
-  "unfolding",
-  "supply"
+  "proof"
 ]);
 
 const LEADING_WORD = /[A-Za-z_][A-Za-z0-9_']*/g;
@@ -152,14 +156,18 @@ const LEADING_WORD = /[A-Za-z_][A-Za-z0-9_']*/g;
 /**
  * Heuristic: is the word starting at UTF-16 offset `wordStart` in `lineText` in
  * *method position* — i.e. does a method-introducing keyword (`apply`, `by`,
- * `proof`, `unfolding`, …) occur earlier on the same line?
+ * `proof`, `apply_end`) occur earlier on the same line?
  *
  * This is deliberately conservative and line-local: it exists only to gate the
- * proof-method hover so a bare identifier such as `rule` or `cases` appearing
- * in a term is not described as a proof method. It does not attempt to parse
- * the inner method grammar. A method word that is *itself* an introducer
- * (`by simp` — `simp` follows `by`) is in context; the introducer word itself
- * is not (it is an outer-syntax command, handled separately).
+ * proof-method hover/completion so a bare identifier such as `rule` or `cases`
+ * appearing in a term is not described as a proof method. It does not attempt to
+ * parse the inner method grammar. A method word that is *itself* preceded by an
+ * introducer (`by simp` — `simp` follows `by`) is in context; the introducer
+ * word itself is not (it is an outer-syntax command, handled separately).
+ *
+ * See {@link isMethodArgumentLabel} for the complementary guard that rejects a
+ * method name used as an argument *label* (`induct rule: r` — `rule:` is not the
+ * `rule` method).
  */
 export function isMethodPosition(lineText: string, wordStart: number): boolean {
   LEADING_WORD.lastIndex = 0;
@@ -174,4 +182,23 @@ export function isMethodPosition(lineText: string, wordStart: number): boolean {
     }
   }
   return sawIntroducer;
+}
+
+/**
+ * Is the word ending at UTF-16 offset `wordEnd` immediately followed by `:` —
+ * i.e. used as a method *argument label* rather than as a method?
+ *
+ * Several method names double as argument labels inside another method's
+ * parentheses: `apply (induct rule: r)`, `apply (simp add: lemmas)`,
+ * `apply (auto simp: defs)`. There the leading word (`rule`, `add`, `simp`) is a
+ * modifier label for the enclosing method, not a method in its own right, so the
+ * method hover must not fire. Whitespace between the word and the colon (`rule
+ * :`) still counts as a label, matching Isabelle's lexer.
+ */
+export function isMethodArgumentLabel(lineText: string, wordEnd: number): boolean {
+  let index = wordEnd;
+  while (index < lineText.length && (lineText[index] === " " || lineText[index] === "\t")) {
+    index += 1;
+  }
+  return lineText[index] === ":";
 }

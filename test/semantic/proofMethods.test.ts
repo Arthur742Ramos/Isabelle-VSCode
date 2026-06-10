@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMethodHoverMarkdown,
   getMethodInfo,
+  isMethodArgumentLabel,
   isMethodPosition,
   isProofMethod,
   ISABELLE_METHODS
@@ -70,10 +71,12 @@ describe("isMethodPosition", () => {
   // Helper: position of the first occurrence of `word` in `line`.
   const at = (line: string, word: string): number => line.indexOf(word);
 
-  it("is true for a method following apply / by / proof / unfolding", () => {
+  it("is true for a method following apply / by / proof", () => {
     expect(isMethodPosition("  apply simp", at("  apply simp", "simp"))).toBe(true);
     expect(isMethodPosition("  by auto", at("  by auto", "auto"))).toBe(true);
     expect(isMethodPosition("proof induct", at("proof induct", "induct"))).toBe(true);
+    // `simp` follows the `by`, which is the introducer that matters even though
+    // the line also starts with `unfolding`.
     expect(
       isMethodPosition("  unfolding foo_def by simp", at("  unfolding foo_def by simp", "simp"))
     ).toBe(true);
@@ -91,11 +94,39 @@ describe("isMethodPosition", () => {
     expect(isMethodPosition("  by simp", at("  by simp", "by"))).toBe(false);
   });
 
+  it("does not treat fact-list keywords (unfolding / using / supply) as introducers", () => {
+    // `unfolding foo` and `supply bar` take *fact* names, not methods, so the
+    // word after them is not in method position.
+    expect(isMethodPosition("  unfolding simp", at("  unfolding simp", "simp"))).toBe(false);
+    expect(isMethodPosition("  supply simp", at("  supply simp", "simp"))).toBe(false);
+    expect(isMethodPosition("  using rule", at("  using rule", "rule"))).toBe(false);
+  });
+
   it("requires the introducer to come before the word, not after", () => {
     const line = "  simp_all by blast";
     // `simp_all` appears before `by`, so it is NOT yet in method position here.
     expect(isMethodPosition(line, at(line, "simp_all"))).toBe(false);
     // `blast` follows `by`, so it is.
     expect(isMethodPosition(line, at(line, "blast"))).toBe(true);
+  });
+});
+
+describe("isMethodArgumentLabel", () => {
+  const endOf = (line: string, word: string): number => line.indexOf(word) + word.length;
+
+  it("is true when the word is immediately followed by a colon", () => {
+    const line = "  apply (induct rule: xs.induct)";
+    expect(isMethodArgumentLabel(line, endOf(line, "rule"))).toBe(true);
+  });
+
+  it("is true with whitespace before the colon", () => {
+    const line = "  apply (simp add : defs)";
+    expect(isMethodArgumentLabel(line, endOf(line, "add"))).toBe(true);
+  });
+
+  it("is false for a method not used as a label", () => {
+    expect(isMethodArgumentLabel("  by rule", "  by rule".length)).toBe(false);
+    const line = "  apply (rule conjI)";
+    expect(isMethodArgumentLabel(line, endOf(line, "rule"))).toBe(false);
   });
 });
