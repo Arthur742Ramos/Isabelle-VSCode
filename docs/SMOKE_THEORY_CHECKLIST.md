@@ -6,6 +6,8 @@ This checklist exercises every Tier-2 capability the extension advertises agains
 
 ## Prerequisites
 
+> **M0 needs nothing.** The "Offline foundation" section below runs against `examples/Smoke.thy` with no Isabelle, no Java, and no language server — it is the one part of this checklist you can complete on a bare machine. Everything from M4 onward needs the Tier-2 runtime below.
+
 - Isabelle 2025-2 (or 2024+) on `PATH`, OR the `isabelle.executablePath` setting pointing at the launcher.
 - Java 21+ on `PATH`, OR a per-platform `.vsix` install (which bundles Temurin 21).
 - The extension installed from a recent `.vsix` (`npm run install:extension` or a GitHub Release asset).
@@ -89,6 +91,22 @@ The script resolves `examples/` to an absolute path before invoking Isabelle, wh
 ## Capability-by-capability checklist
 
 Tick each box as you verify. Open an issue with the `manual-verification` label if any step regresses.
+
+### M0 — Offline foundation (no Isabelle, Java, or LSP required)
+
+These features work the instant `Smoke.thy` opens, with **no prerequisites** — so this section is runnable on any machine, including one that has never seen Isabelle. To verify the offline path in isolation you can set `"isabelle.languageServer.enabled": false` and ignore any backend, but none of the steps below depend on that.
+
+- [ ] **Syntax highlighting.** Open `Smoke.thy`. Confirm commands (`theory`, `lemma`, `definition`, `by`) are colored as keywords, the declaration names (`conj_commute_smoke`, `identity_smoke`) stand out, and `\<...>` symbol tokens are tinted.
+- [ ] **Command hover.** Hover the word `lemma`. Confirm a hover describes it as an Isabelle command. Repeat on `definition` and `imports`.
+- [ ] **Proof-method hover.** Hover the `simp` in `add_zero_right_smoke`'s `by simp`. Confirm the hover labels it a **simplification method**. Hover the method after a `by`/`apply` elsewhere and confirm the role label matches.
+- [ ] **Proof-method completion.** On a new line inside a proof, type `apply ` and trigger completion (Ctrl-Space). Confirm methods (`simp`, `auto`, `induct`, …) are offered. Type `apply (induct ` and confirm methods are **not** offered there (argument position).
+- [ ] **Symbol hover & entry.** Hover the `\<Rightarrow>` in `identity_smoke` (or its rendered `⇒`). Confirm the hover shows the symbol name, code point, and abbreviations. Then type `\<lam` on a scratch line and confirm `\<lambda>` is offered by the offline symbol completion.
+- [ ] **Insert / convert symbols.** Run `Isabelle: Insert Symbol`, search `forall`, and insert `∀`. Select a line with `\<...>` tokens and run `Isabelle: Convert Symbols to Unicode`, then `… to ASCII`, confirming a lossless round-trip.
+- [ ] **Snippets.** On a blank line type `lemma` and accept the snippet; confirm the Isar skeleton expands. Repeat with a specification prefix such as `typedef`, `instantiation`, or `interpretation`.
+- [ ] **Folding.** Confirm the `theory … begin` header, the `proof … qed` block (if you add one), and multi-line comments each show a fold control in the gutter.
+- [ ] **Theory Outline.** Open the **Isabelle Theory Outline** view. Confirm `conj_commute_smoke`, `add_zero_right_smoke`, and `identity_smoke` appear grouped under their kinds (Lemmas / Definitions).
+- [ ] **Proof-gap audit.** Confirm the `sorry` in `conj_commute_smoke` is flagged in the Problems panel as a warning by `isabelle proof-gap`, with **no Isabelle process running**. Comment it out and confirm the warning clears.
+- [ ] **New theory scaffolding.** Run `Isabelle: New Theory File`, enter a name, and confirm a correctly-named `<Name>.thy` opens with a `theory … imports Main begin … end` header.
 
 ### M4 — PIDE document connection
 
