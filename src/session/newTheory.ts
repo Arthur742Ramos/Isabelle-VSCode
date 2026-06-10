@@ -7,11 +7,36 @@
  * helpers are `vscode`-free so they can be unit tested.
  */
 
+import { isCommandKeyword } from "../semantic/isabelleSyntax";
+
 /** A legal Isabelle theory/identifier name: a letter, then letters/digits/_/'. */
 export const THEORY_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_']*$/;
 
+// Reserved Isabelle keywords that match the identifier pattern but cannot name a
+// theory: Isabelle rejects `theory end`, `theory lemma`, etc. at load time. The
+// outer-syntax commands come from the shared command table (single source of
+// truth); these are the additional minor keywords that are not commands but are
+// still reserved in Isar.
+const RESERVED_NON_COMMAND_KEYWORDS = new Set([
+  "and",
+  "in",
+  "is",
+  "where",
+  "for",
+  "if",
+  "then",
+  "else",
+  "begin",
+  "end"
+]);
+
+/** Whether `name` is a reserved Isabelle keyword that cannot name a theory. */
+export function isReservedTheoryName(name: string): boolean {
+  return isCommandKeyword(name) || RESERVED_NON_COMMAND_KEYWORDS.has(name);
+}
+
 export function isValidTheoryName(name: string): boolean {
-  return THEORY_NAME_PATTERN.test(name);
+  return THEORY_NAME_PATTERN.test(name) && !isReservedTheoryName(name);
 }
 
 /**
@@ -35,6 +60,12 @@ export function sanitizeTheoryName(input: string): string | undefined {
   }
   if (!/^[A-Za-z]/.test(candidate)) {
     candidate = `T${candidate}`;
+  }
+  // A reserved keyword (`end`, `lemma`, …) is a legal identifier shape but
+  // cannot name a theory; salvage it with a `_thy` suffix rather than failing,
+  // since the input was otherwise usable.
+  if (isReservedTheoryName(candidate)) {
+    candidate = `${candidate}_thy`;
   }
   return isValidTheoryName(candidate) ? candidate : undefined;
 }

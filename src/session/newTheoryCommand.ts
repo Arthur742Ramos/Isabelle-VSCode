@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import {
   buildTheoryFileContent,
+  isReservedTheoryName,
   isValidTheoryName,
   sanitizeTheoryName,
   theoryFileName
@@ -29,6 +30,9 @@ export async function createNewTheoryFile(output: vscode.OutputChannel): Promise
       const trimmed = value.trim();
       if (trimmed.length === 0) {
         return "Enter a theory name.";
+      }
+      if (isReservedTheoryName(trimmed)) {
+        return `"${trimmed}" is a reserved Isabelle keyword and cannot be a theory name.`;
       }
       if (!isValidTheoryName(trimmed)) {
         return "A theory name must start with a letter and contain only letters, digits, underscores, or primes.";
