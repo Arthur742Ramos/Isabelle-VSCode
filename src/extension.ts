@@ -97,6 +97,7 @@ import { IsabelleDocumentLinkProvider } from "./semantic/IsabelleDocumentLinkPro
 import { IsabelleDocumentSymbolProvider } from "./semantic/IsabelleDocumentSymbolProvider";
 import { IsabelleFoldingRangeProvider } from "./semantic/IsabelleFoldingRangeProvider";
 import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
+import { IsabelleDocumentHighlightProvider } from "./semantic/IsabelleDocumentHighlightProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
 import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
 import { registerIsabelleSymbolCompletionProvider } from "./semantic/IsabelleSymbolCompletionProvider";
@@ -348,6 +349,10 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
       ISABELLE_SEMANTIC_TOKENS_LEGEND
     ),
     vscode.languages.registerHoverProvider({ language: "isabelle", scheme: "file" }, new IsabelleHoverProvider()),
+    vscode.languages.registerDocumentHighlightProvider(
+      { language: "isabelle", scheme: "file" },
+      new IsabelleDocumentHighlightProvider()
+    ),
     vscode.languages.registerDocumentLinkProvider(
       { language: "isabelle", scheme: "file" },
       new IsabelleDocumentLinkProvider(sessions)
