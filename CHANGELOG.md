@@ -8,6 +8,12 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Code folding for `begin … end` blocks. Locale, type-class, `instantiation`,
+  `context`, and `notepad` bodies now collapse to their opening line (nesting
+  aware), so a long instantiation or locale body folds away. The theory's own
+  `begin … end` is intentionally left unfolded — its preamble already folds via
+  the theory-header range. Comment/cartouche/string aware, like the rest of the
+  folding provider.
 - Specification snippets for the broader vocabulary. Tab-completable skeletons
   now cover `type_synonym`, `typedef`, `function` (with completeness +
   `lexicographic_order` termination), `primcorec`, `codatatype`,

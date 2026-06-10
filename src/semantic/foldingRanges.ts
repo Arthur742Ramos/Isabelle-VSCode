@@ -6,14 +6,17 @@
  * regardless of whether the optional Isabelle language server or the Scala
  * backend is running, and without a live Isabelle install.
  *
- * Four structural elements fold:
+ * Five structural elements fold:
  *   1. Multi-line block comments `(* ... *)` (nesting-aware).
  *   2. Structured Isar proofs (`proof ... qed`, nesting-aware).
- *   3. The document-heading hierarchy (`chapter` / `section` / `subsection` /
+ *   3. `begin ... end` blocks — locale / class / instantiation / context /
+ *      notepad bodies (nesting-aware). The outermost pair is the theory body
+ *      itself and is intentionally NOT folded (its preamble is covered by 5).
+ *   4. The document-heading hierarchy (`chapter` / `section` / `subsection` /
  *      `subsubsection` / `paragraph` / `subparagraph`): each heading folds the
  *      lines beneath it down to the next heading of the same or higher level
  *      (or the end of the theory body).
- *   4. The theory header (`theory ... begin`) when it spans multiple lines, so
+ *   5. The theory header (`theory ... begin`) when it spans multiple lines, so
  *      a long `imports` / `keywords` preamble can collapse to its `theory` line.
  *
  * Before looking for keywords the scanner masks the content of comments,
@@ -66,6 +69,7 @@ const HEADING_LEVELS: ReadonlyMap<string, number> = new Map([
 const FOLD_KEYWORDS: ReadonlySet<string> = new Set<string>([
   "theory",
   "begin",
+  "end",
   "imports",
   "proof",
   "qed",
@@ -277,6 +281,33 @@ export function computeIsabelleFoldingRanges(source: string): IsabelleFoldingRan
     } else if (token.word === "qed") {
       const startLine = proofStartLines.pop();
       if (startLine !== undefined) {
+        const endLine = offsetToLine(lineStarts, token.offset);
+        if (endLine > startLine) {
+          ranges.push({ start: startLine, end: endLine, kind: "region" });
+        }
+      }
+    }
+  }
+
+  // 2b. `begin … end` blocks (locale / class / instantiation / context /
+  //     notepad bodies). Pair each `begin` with its matching `end` via a stack.
+  //     The OUTERMOST pair is the theory body itself — folding the whole theory
+  //     body is unhelpful and its preamble is already covered by the header fold
+  //     (pass 4), so the first-opened `begin` is excluded from the result.
+  const beginStartLines: number[] = [];
+  let theoryBodyDepthMarked = false;
+  for (const token of tokens) {
+    if (token.word === "begin") {
+      beginStartLines.push(offsetToLine(lineStarts, token.offset));
+    } else if (token.word === "end") {
+      const startLine = beginStartLines.pop();
+      if (startLine !== undefined) {
+        const isOutermostTheoryBody = beginStartLines.length === 0 && !theoryBodyDepthMarked;
+        if (isOutermostTheoryBody) {
+          // This `end` closes the theory body; don't fold it.
+          theoryBodyDepthMarked = true;
+          continue;
+        }
         const endLine = offsetToLine(lineStarts, token.offset);
         if (endLine > startLine) {
           ranges.push({ start: startLine, end: endLine, kind: "region" });
