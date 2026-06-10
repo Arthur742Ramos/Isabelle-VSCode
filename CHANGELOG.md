@@ -8,6 +8,11 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Smart selection (Expand / Shrink Selection, `Alt/⌥+Shift+→`/`←`). Each expand
+  grows the selection through the Isabelle structure around the cursor:
+  identifier token → enclosing quoted term / cartouche → command span →
+  enclosing `proof … qed` or `begin … end` block → whole theory. Purely
+  lexical (comment/cartouche/string aware), offline, no Isabelle required.
 - Find All References (`Shift+F12`). Placing the cursor on an identifier and
   running "Find All References" now lists every whole-token, code-only use of
   that name across the open theories and the workspace's `.thy` files — the
