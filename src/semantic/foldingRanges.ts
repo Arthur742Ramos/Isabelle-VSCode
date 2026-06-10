@@ -290,24 +290,28 @@ export function computeIsabelleFoldingRanges(source: string): IsabelleFoldingRan
   }
 
   // 2b. `begin … end` blocks (locale / class / instantiation / context /
-  //     notepad bodies). Pair each `begin` with its matching `end` via a stack.
-  //     The OUTERMOST pair is the theory body itself — folding the whole theory
-  //     body is unhelpful and its preamble is already covered by the header fold
-  //     (pass 4), so the first-opened `begin` is excluded from the result.
+  //     notepad bodies). Pair each `begin` with its matching `end` via a stack
+  //     so nested blocks fold independently. The theory body's own
+  //     `begin … end` is NOT folded — folding the whole body is unhelpful and
+  //     its preamble is already covered by the header fold (pass 4). The theory
+  //     body's `begin` is identified precisely as the first `begin` that follows
+  //     the `theory` keyword, so a standalone `context`/`locale` fragment with
+  //     no theory header still folds.
+  const theoryTokenForBody = tokens.find((token) => token.word === "theory");
+  const theoryBodyBeginLine =
+    theoryTokenForBody !== undefined
+      ? tokens
+          .filter((token) => token.word === "begin" && token.offset > theoryTokenForBody.offset)
+          .map((token) => offsetToLine(lineStarts, token.offset))
+          .shift()
+      : undefined;
   const beginStartLines: number[] = [];
-  let theoryBodyDepthMarked = false;
   for (const token of tokens) {
     if (token.word === "begin") {
       beginStartLines.push(offsetToLine(lineStarts, token.offset));
     } else if (token.word === "end") {
       const startLine = beginStartLines.pop();
-      if (startLine !== undefined) {
-        const isOutermostTheoryBody = beginStartLines.length === 0 && !theoryBodyDepthMarked;
-        if (isOutermostTheoryBody) {
-          // This `end` closes the theory body; don't fold it.
-          theoryBodyDepthMarked = true;
-          continue;
-        }
+      if (startLine !== undefined && startLine !== theoryBodyBeginLine) {
         const endLine = offsetToLine(lineStarts, token.offset);
         if (endLine > startLine) {
           ranges.push({ start: startLine, end: endLine, kind: "region" });

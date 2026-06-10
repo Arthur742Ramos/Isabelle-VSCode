@@ -227,6 +227,20 @@ describe("computeIsabelleFoldingRanges — begin..end blocks", () => {
     expect(ranges.some((r) => r.kind === "region")).toBe(false);
   });
 
+  it("folds a standalone begin..end fragment with no theory header", () => {
+    // Without a `theory ... begin` header, the only begin..end pair is a real
+    // block (e.g. a snippet or an included fragment), so it must fold — the
+    // theory-body exclusion only applies to the begin that follows `theory`.
+    const source = [
+      "context fixes x begin", // 0
+      "  definition d where \"d = x\"", // 1
+      "  lemma l: True by simp", // 2
+      "end" // 3
+    ].join("\n");
+    const ranges = computeIsabelleFoldingRanges(source);
+    expect(hasRange(ranges, 0, 3, "region")).toBe(true);
+  });
+
   it("ignores begin/end keywords inside comments and strings", () => {
     const source = [
       "theory T", // 0
