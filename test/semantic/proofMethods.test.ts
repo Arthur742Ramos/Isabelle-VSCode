@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  allMethods,
   buildMethodHoverMarkdown,
+  findMethodCompletionContext,
   getMethodInfo,
   isMethodArgumentLabel,
   isMethodPosition,
@@ -128,5 +130,87 @@ describe("isMethodArgumentLabel", () => {
     expect(isMethodArgumentLabel("  by rule", "  by rule".length)).toBe(false);
     const line = "  apply (rule conjI)";
     expect(isMethodArgumentLabel(line, endOf(line, "rule"))).toBe(false);
+  });
+});
+
+describe("allMethods", () => {
+  it("returns the whole table with no duplicate names", () => {
+    const methods = allMethods();
+    expect(methods.length).toBe(ISABELLE_METHODS.size);
+    const names = methods.map((method) => method.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain("simp");
+    expect(names).toContain("induct");
+    expect(names).toContain("metis");
+  });
+});
+
+describe("findMethodCompletionContext", () => {
+  it("offers completion with a partial query immediately after an introducer", () => {
+    const line = "  apply sim";
+    expect(findMethodCompletionContext(line, line.length)).toEqual({
+      replaceStart: line.indexOf("sim"),
+      query: "sim"
+    });
+  });
+
+  it("offers completion with an empty query right after `by `", () => {
+    const line = "  by ";
+    expect(findMethodCompletionContext(line, line.length)).toEqual({
+      replaceStart: line.length,
+      query: ""
+    });
+  });
+
+  it("offers completion immediately after `apply (`", () => {
+    const line = "  apply (ind";
+    expect(findMethodCompletionContext(line, line.length)).toEqual({
+      replaceStart: line.indexOf("ind"),
+      query: "ind"
+    });
+  });
+
+  it("offers completion after a combinator delimiter (| , ;)", () => {
+    const altLine = "  apply (simp | au";
+    expect(findMethodCompletionContext(altLine, altLine.length)).toEqual({
+      replaceStart: altLine.indexOf("au"),
+      query: "au"
+    });
+    const seqLine = "  apply (rule, sim";
+    expect(findMethodCompletionContext(seqLine, seqLine.length)).toEqual({
+      replaceStart: seqLine.indexOf("sim"),
+      query: "sim"
+    });
+  });
+
+  it("does NOT offer completion in argument position (after a method's first token)", () => {
+    // `apply (induct xs` — `xs` is the induction variable, not a method.
+    const inductArg = "  apply (induct x";
+    expect(findMethodCompletionContext(inductArg, inductArg.length)).toBeUndefined();
+    // `apply (simp add: foo` — after the `add:` label a *fact* is expected.
+    const factArg = "  apply (simp add: fo";
+    expect(findMethodCompletionContext(factArg, factArg.length)).toBeUndefined();
+  });
+
+  it("does not offer completion outside method position", () => {
+    const haveLine = "  have foo: \"x = y\"";
+    expect(findMethodCompletionContext(haveLine, haveLine.length)).toBeUndefined();
+    expect(findMethodCompletionContext("lemma bar", 9)).toBeUndefined();
+    // `unfolding`/`using`/`supply` introduce facts, not methods.
+    const unfolding = "  unfolding fo";
+    expect(findMethodCompletionContext(unfolding, unfolding.length)).toBeUndefined();
+  });
+
+  it("does not offer completion inside a quoted inner-syntax string", () => {
+    const line = "  by simp \"foo ba";
+    expect(findMethodCompletionContext(line, line.length)).toBeUndefined();
+  });
+
+  it("resumes offering completion after a quoted string closes and a new `by`", () => {
+    const line = "  using \"x\" by au";
+    expect(findMethodCompletionContext(line, line.length)).toEqual({
+      replaceStart: line.indexOf("au"),
+      query: "au"
+    });
   });
 });

@@ -8,6 +8,15 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- Offline proof-method completion. When the cursor is where a proof *method
+  name* is expected — right after `apply`, `by`, or `proof`, or after a method
+  combinator (`(`, `,`, `|`, `;`) — VS Code now suggests the core HOL methods
+  (`simp`, `auto`, `blast`, `induct`, `rule`, `metis`, …) from the same curated
+  table that powers the method hover, each tagged with its role. The gate is
+  tight: it does not fire in argument position (the fact list of
+  `apply (simp add: …)`, the variable of `apply (induct …)`) or inside a quoted
+  term, so it never competes with ordinary identifier completion. No prover or
+  language server required.
 - Proof-method hovers. Hovering a proof method in method position — after
   `apply`, `by`, or `proof` — now explains what it does: `simp`, `auto`,
   `blast`, `force`, `fastforce`, `induct`, `cases`, `rule`/`erule`/`drule`,

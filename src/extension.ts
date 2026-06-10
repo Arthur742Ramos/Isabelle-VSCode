@@ -100,6 +100,7 @@ import { IsabelleHoverProvider } from "./semantic/IsabelleHoverProvider";
 import { PideAbbrevsCache } from "./semantic/PideAbbrevsCache";
 import { registerPideAbbrevsCompletionProvider } from "./semantic/PideAbbrevsCompletionProvider";
 import { registerIsabelleSymbolCompletionProvider } from "./semantic/IsabelleSymbolCompletionProvider";
+import { registerIsabelleMethodCompletionProvider } from "./semantic/IsabelleMethodCompletionProvider";
 import { convertIsabelleSymbols } from "./semantic/convertSymbolsCommand";
 import { insertIsabelleSymbol } from "./semantic/insertSymbolCommand";
 import {
@@ -365,6 +366,7 @@ export function activate(context: vscode.ExtensionContext): IsabellePideExtensio
     ),
     registerPideAbbrevsCompletionProvider(pideAbbrevsCache),
     registerIsabelleSymbolCompletionProvider(),
+    registerIsabelleMethodCompletionProvider(),
     vscode.window.registerTreeDataProvider("isabelle.sessions", sessionTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryGraph", theoryGraphTree),
     vscode.window.registerTreeDataProvider("isabelle.theoryOutline", theoryOutlineTree),
