@@ -8,6 +8,21 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **Recognises the full Pure diagnostic-command vocabulary.** The exploratory
+  and inspection commands `print_state`, `print_context`, `print_theory`,
+  `print_definitions`, `print_facts`, `print_cases`, `print_term_bindings`,
+  `print_simpset`, `print_methods`, `print_attributes`, `print_rules`,
+  `print_trans_rules`, `print_bundles`, `print_locales`, `print_interps`,
+  `print_options`, `print_codesetup`, `print_syntax`, `print_abbrevs`,
+  `print_commands`, `print_antiquotations`, `print_ML_antiquotations`,
+  `print_defn_rules`, the `thy_deps` / `thm_deps` / `locale_deps` / `class_deps`
+  dependency-graph views, `thm_oracles`, `unused_thms`, `help`, `welcome`, and
+  the `export_generated_files` / `compile_generated_files` /
+  `scala_build_generated_files` code-export commands are now highlighted as
+  commands, hovered with a one-line description, and parsed as command spans —
+  consistently across the TextMate grammar, the offline syntax layer, and the
+  Scala backend's command-span parser. Grounded in the Isabelle2025-2 `Pure.thy`
+  keyword table. Offline.
 - **TextMate grammar for `.thy` files.** Isabelle theories now have proper base
   syntax highlighting the instant they open — outer-syntax commands coloured by
   role (theory structure, specifications, goal statements, Isar proof steps,
