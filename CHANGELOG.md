@@ -8,6 +8,18 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **Recognises the Pure declaration / specification-command vocabulary.** Adds
+  `nonterminal`, `judgment`, `alias`, `type_alias`, `oracle`, `type_notation` /
+  `no_type_notation`, `syntax_consts` / `syntax_types` / `syntax_declaration`,
+  the four inner-syntax `*_translation` ML commands, `code_datatype`,
+  `adhoc_overloading` / `no_adhoc_overloading`, `local_setup`, `open_bundle`,
+  `overloading`, `generate_file`, `external_file`, `bibtex_file`, `ROOTS_file`,
+  and the program-extraction commands (`realizers`, `realizability`,
+  `extract_type`, `extract`). They are now highlighted, hovered, and parsed as
+  command spans (with `nonterminal` / `judgment` / `alias` / `type_alias` /
+  `oracle` recognised as name-declaring), across the TextMate grammar, the
+  offline syntax layer, and the Scala backend parser. Grounded in the
+  Isabelle2025-2 `Pure.thy` keyword table. Offline.
 - **Recognises the full Pure diagnostic-command vocabulary.** The exploratory
   and inspection commands `print_state`, `print_context`, `print_theory`,
   `print_definitions`, `print_facts`, `print_cases`, `print_term_bindings`,

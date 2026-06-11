@@ -199,11 +199,11 @@
     },
     "keywords-context": {
       "name": "keyword.control.context.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:instantiation|experiment|notepad|context|locale|class)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:instantiation|overloading|experiment|context|notepad|locale|class)(?![A-Za-z0-9_'])"
     },
     "keywords-declaration": {
       "name": "keyword.other.declaration.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:coinductive_set|inductive_set|coinductive|no_translations|translations|lift_definition|attribute_setup|simproc_setup|named_theorems|axiomatization|default_sort|method_setup|abbreviation|type_synonym|no_notation|hide_const|no_syntax|definition|declaration|inductive|primcorec|codatatype|fun_cases|notation|typedecl|hide_type|hide_fact|hide_class|primrec|function|datatype|typedef|theorems|declare|unbundle|syntax|record|consts|lemmas|setup|bundle|fun)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:typed_print_translation|parse_ast_translation|print_ast_translation|no_adhoc_overloading|syntax_declaration|adhoc_overloading|parse_translation|print_translation|no_type_notation|attribute_setup|coinductive_set|lift_definition|no_translations|axiomatization|named_theorems|code_datatype|external_file|generate_file|inductive_set|realizability|simproc_setup|syntax_consts|type_notation|abbreviation|default_sort|extract_type|method_setup|syntax_types|translations|type_synonym|bibtex_file|coinductive|declaration|local_setup|no_notation|nonterminal|open_bundle|ROOTS_file|codatatype|definition|hide_class|hide_const|type_alias|fun_cases|hide_fact|hide_type|inductive|no_syntax|primcorec|realizers|datatype|function|judgment|notation|theorems|typedecl|unbundle|declare|extract|primrec|typedef|bundle|consts|lemmas|oracle|record|syntax|alias|setup|fun)(?![A-Za-z0-9_'])"
     },
     "keywords-proof": {
       "name": "keyword.control.proof.isabelle",
