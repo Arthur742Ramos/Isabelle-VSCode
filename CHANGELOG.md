@@ -8,6 +8,15 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **Recognises HOL diagnostic and tool-configuration commands.** Adds `values`,
+  `find_unused_assms`, `nunchaku`, `test_code`, the `print_bnfs` /
+  `print_claset` / `print_induct_rules` / `print_coercions` / `print_record` /
+  `print_case_translations` / `print_quotients` / `print_quotconsts` /
+  `print_quot_maps` inspection commands, and the tool-configuration commands
+  `sledgehammer_params` / `nitpick_params` / `quickcheck_params` /
+  `nunchaku_params` / `quickcheck_generator`. Highlighted, hovered, and parsed as
+  command spans across the TextMate grammar, the offline syntax layer, and the
+  Scala backend parser. Grounded in the Isabelle2025-2 HOL sources. Offline.
 - **Recognises common HOL specification commands.** Adds the (co)datatype /
   BNF / corecursion / quotient / lifting / code-generation commands that real
   HOL developments use daily: `quotient_type`, `quotient_definition`,
