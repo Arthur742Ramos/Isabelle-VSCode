@@ -125,6 +125,9 @@ const COMMANDS: IsabelleCommandInfo[] = [
   { keyword: "quickcheck_params", description: "Sets default parameters for Quickcheck.", category: "declaration" },
   { keyword: "nunchaku_params", description: "Sets default parameters for Nunchaku.", category: "declaration" },
   { keyword: "quickcheck_generator", description: "Declares a custom Quickcheck data generator for a type.", category: "declaration" },
+  { keyword: "partial_function", description: "Defines a (possibly non-terminating) recursive function over a complete partial order.", category: "declaration", declaresName: true },
+  { keyword: "inductive_cases", description: "Derives case-analysis (elimination) rules for an inductive predicate.", category: "declaration", declaresName: true },
+  { keyword: "inductive_simps", description: "Derives simplification rules that unfold an inductive predicate.", category: "declaration", declaresName: true },
   // ── Goal statements ─────────────────────────────────────────────────────
   { keyword: "lemma", description: "States a named or anonymous lemma.", category: "statement", declaresName: true },
   { keyword: "theorem", description: "States a named or anonymous theorem.", category: "statement", declaresName: true },
@@ -141,6 +144,7 @@ const COMMANDS: IsabelleCommandInfo[] = [
   { keyword: "primcorecursive", description: "Defines a primitively corecursive function, with proof obligations.", category: "statement", declaresName: true },
   { keyword: "friend_of_corec", description: "Registers a function as a friend for the corecursion package.", category: "statement" },
   { keyword: "code_pred", description: "Sets up code generation for an inductive predicate (predicate compiler).", category: "statement" },
+  { keyword: "specification", description: "Introduces constants satisfying a loose specification, with a proof obligation.", category: "statement" },
   // ── Type classes & locales ──────────────────────────────────────────────
   { keyword: "locale", description: "Defines a locale.", category: "context", declaresName: true },
   { keyword: "experiment", description: "Opens an anonymous locale for throw-away development.", category: "context" },
