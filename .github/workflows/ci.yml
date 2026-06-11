@@ -42,8 +42,8 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
 
-      - name: Compile backend
-        run: npm run backend:compile
+      - name: Compile and test backend
+        run: npm run backend:test
 
   integration-tests:
     name: VS Code integration tests

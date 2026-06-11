@@ -114,7 +114,7 @@ npm run package:validate  # CI integrity check — builds the .vsix and verifies
 
 CI (`.github/workflows/ci.yml`) runs two parallel jobs on every PR:
 
-- **`validate`** — `npm run check`, `npm audit --audit-level=moderate`, and `npm run backend:compile` (with Java 21 + sbt).
+- **`validate`** — `npm run check`, `npm audit --audit-level=moderate`, and `npm run backend:test` (compile + the Scala suite, with Java 21 + sbt).
 - **`integration-tests`** — `xvfb-run npm run test:integration` on `ubuntu-latest` with a cached `.vscode-test/` download. Catches activation regressions and command-registration drift.
 
 You should reproduce both locally for anything non-trivial (`npm run test:all`).
