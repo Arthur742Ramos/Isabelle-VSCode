@@ -8,6 +8,18 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **Recognises common HOL specification commands.** Adds the (co)datatype /
+  BNF / corecursion / quotient / lifting / code-generation commands that real
+  HOL developments use daily: `quotient_type`, `quotient_definition`,
+  `setup_lifting`, `lifting_forget` / `lifting_update`, `lift_bnf`, `copy_bnf`,
+  `bnf`, `bnf_axiomatization`, `free_constructors`, `datatype_compat`,
+  `datatype_record`, `corec`, `corecursive`, `primcorecursive`,
+  `friend_of_corec`, `coinduction_upto`, `parametric_constant`, and `code_pred`.
+  Highlighted, hovered, and parsed as command spans across the TextMate grammar,
+  the offline syntax layer, and the Scala backend parser
+  (`datatype_record` / `corec` / `quotient_type` / `corecursive` /
+  `primcorecursive` recognised as name-declaring). Grounded in the Isabelle2025-2
+  HOL sources. Offline.
 - **Recognises the Pure proof-script and ML-command vocabulary.** Adds the
   apply-style goal-management commands `defer`, `prefer`, and `back`, and the
   Isabelle/ML and Standard ML commands `ML_command`, `ML_export`,
