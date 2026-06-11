@@ -38,7 +38,8 @@ For future release candidates, do not push a `v*` release tag until this table h
 
 ### Automated subset
 
-The manual-dispatch **Tier-2 smoke** workflow (`.github/workflows/tier2-smoke.yml`)
+The **Tier-2 smoke** workflow (`.github/workflows/tier2-smoke.yml`) — which runs
+weekly (Mondays 04:17 UTC) and on demand via `workflow_dispatch` —
 automates the deterministic subset of this checklist on GitHub-hosted Linux,
 Windows, and macOS runners:
 
