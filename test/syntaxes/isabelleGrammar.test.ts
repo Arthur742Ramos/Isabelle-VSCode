@@ -8,6 +8,7 @@ const root = resolve(__dirname, "..", "..");
 
 interface GrammarPattern {
   name?: string;
+  contentName?: string;
   match?: string;
   begin?: string;
   end?: string;
@@ -178,5 +179,33 @@ describe("Isabelle TextMate grammar manifest", () => {
     expect(grammar.repository["antiquotation"]?.begin).toContain("@\\{");
     expect(grammar.repository["type-variable"]?.match).toContain("'[A-Za-z_]");
     expect(grammar.repository["schematic-variable"]?.match).toContain("\\?[A-Za-z_]");
+  });
+
+  it("scopes document-text (text/section/…) cartouche bodies as documentation", () => {
+    const topIncludes = grammar.patterns.map((pattern) => pattern.include);
+    // Documentation patterns must precede the generic cartouche so a doc-command
+    // body wins over a plain cartouche string.
+    const docUnicode = topIncludes.indexOf("#documentation-unicode");
+    const docAscii = topIncludes.indexOf("#documentation-ascii");
+    const cartouche = topIncludes.indexOf("#cartouche");
+    expect(docUnicode).toBeGreaterThanOrEqual(0);
+    expect(docAscii).toBeGreaterThanOrEqual(0);
+    expect(docUnicode).toBeLessThan(cartouche);
+    expect(docAscii).toBeLessThan(cartouche);
+
+    for (const key of ["documentation-unicode", "documentation-ascii"]) {
+      const entry = grammar.repository[key];
+      expect(entry, `repository.${key} should exist`).toBeDefined();
+      expect(entry.contentName).toBe("comment.block.documentation.isabelle");
+      // The opening keyword is captured as a theory command, the cartouche open as punctuation.
+      expect(entry.beginCaptures?.["1"]?.name).toBe("keyword.control.theory.isabelle");
+      for (const heading of ["chapter", "section", "subsection", "text", "text_raw"]) {
+        expect(entry.begin, `${key} should open on "${heading}"`).toContain(heading);
+      }
+    }
+    expect(grammar.repository["documentation-unicode"]?.begin).toContain("\\x{2039}");
+    expect(grammar.repository["documentation-unicode"]?.end).toBe("\\x{203a}");
+    expect(grammar.repository["documentation-ascii"]?.begin).toContain("\\\\<open>");
+    expect(grammar.repository["documentation-ascii"]?.end).toBe("\\\\<close>");
   });
 });

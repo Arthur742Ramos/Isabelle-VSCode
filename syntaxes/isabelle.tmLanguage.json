@@ -5,6 +5,8 @@
   "fileTypes": ["thy"],
   "patterns": [
     { "include": "#comment" },
+    { "include": "#documentation-unicode" },
+    { "include": "#documentation-ascii" },
     { "include": "#cartouche" },
     { "include": "#cartouche-ascii" },
     { "include": "#string" },
@@ -38,6 +40,42 @@
       },
       "patterns": [
         { "include": "#comment" }
+      ]
+    },
+    "documentation-unicode": {
+      "begin": "(?<![A-Za-z0-9_'])(chapter|section|subsection|subsubsection|paragraph|subparagraph|text_raw|text|txt)(?![A-Za-z0-9_'])(\\s*)(\\x{2039})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.theory.isabelle" },
+        "3": { "name": "punctuation.definition.cartouche.begin.isabelle" }
+      },
+      "end": "\\x{203a}",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.end.isabelle" }
+      },
+      "contentName": "comment.block.documentation.isabelle",
+      "patterns": [
+        { "include": "#cartouche" },
+        { "include": "#cartouche-ascii" },
+        { "include": "#antiquotation" },
+        { "include": "#isabelle-symbol" }
+      ]
+    },
+    "documentation-ascii": {
+      "begin": "(?<![A-Za-z0-9_'])(chapter|section|subsection|subsubsection|paragraph|subparagraph|text_raw|text|txt)(?![A-Za-z0-9_'])(\\s*)(\\\\<open>)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.theory.isabelle" },
+        "3": { "name": "punctuation.definition.cartouche.begin.isabelle" }
+      },
+      "end": "\\\\<close>",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.end.isabelle" }
+      },
+      "contentName": "comment.block.documentation.isabelle",
+      "patterns": [
+        { "include": "#cartouche-ascii" },
+        { "include": "#cartouche" },
+        { "include": "#antiquotation" },
+        { "include": "#isabelle-symbol" }
       ]
     },
     "cartouche": {
