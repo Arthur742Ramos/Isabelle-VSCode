@@ -8,7 +8,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
-- **Recognises HOL diagnostic and tool-configuration commands.** Adds `values`,
+- **Document-text reads as prose.** The body of a document-markup command —
+  `chapter` / `section` / `subsection` / `subsubsection` / `paragraph` /
+  `subparagraph` / `text` / `txt` / `text_raw` — is now scoped as documentation
+  (comment-like) rather than as a generic cartouche string, so `text ‹…›` and
+  section headings render distinctly from inner-syntax cartouches, matching how
+  Isabelle/jEdit presents formal document text. `@{…}` antiquotations, `\<…>`
+  symbols, and nested cartouches inside the prose stay highlighted. Plain
+  cartouches elsewhere (e.g. `definition … where ‹…›`) are unaffected. Offline.
   `find_unused_assms`, `nunchaku`, `test_code`, the `print_bnfs` /
   `print_claset` / `print_induct_rules` / `print_coercions` / `print_record` /
   `print_case_translations` / `print_quotients` / `print_quotconsts` /
