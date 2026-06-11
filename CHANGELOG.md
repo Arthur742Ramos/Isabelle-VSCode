@@ -8,7 +8,15 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
-- **Document-text reads as prose.** The body of a document-markup command —
+- **Recognises `partial_function`, `inductive_cases`, `inductive_simps`, and
+  `specification`.** Adds these everyday HOL commands — `partial_function`
+  (recursive definitions over a complete partial order), `inductive_cases` /
+  `inductive_simps` (deriving elimination / simplification rules from inductive
+  predicates), and `specification` (loose constant specification with a proof
+  obligation). Highlighted, hovered, and parsed as command spans across the
+  TextMate grammar, the offline syntax layer, and the Scala backend (the first
+  three recognised as name-declaring). Grounded in the Isabelle2025-2 HOL
+  sources. Offline.
   `chapter` / `section` / `subsection` / `subsubsection` / `paragraph` /
   `subparagraph` / `text` / `txt` / `text_raw` — is now scoped as documentation
   (comment-like) rather than as a generic cartouche string, so `text ‹…›` and

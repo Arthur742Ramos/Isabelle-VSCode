@@ -233,7 +233,7 @@
     },
     "keywords-statement": {
       "name": "keyword.control.statement.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:global_interpretation|quotient_definition|free_constructors|friend_of_corec|primcorecursive|interpretation|schematic_goal|quotient_type|corecursive|proposition|termination|code_pred|corollary|sublocale|instance|lift_bnf|subclass|theorem|lemma|bnf)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:global_interpretation|quotient_definition|free_constructors|friend_of_corec|primcorecursive|interpretation|schematic_goal|quotient_type|specification|corecursive|proposition|termination|code_pred|corollary|sublocale|instance|lift_bnf|subclass|theorem|lemma|bnf)(?![A-Za-z0-9_'])"
     },
     "keywords-context": {
       "name": "keyword.control.context.isabelle",
@@ -241,7 +241,7 @@
     },
     "keywords-declaration": {
       "name": "keyword.other.declaration.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:typed_print_translation|parse_ast_translation|print_ast_translation|no_adhoc_overloading|quickcheck_generator|parametric_constant|sledgehammer_params|bnf_axiomatization|syntax_declaration|adhoc_overloading|parse_translation|print_translation|quickcheck_params|coinduction_upto|no_type_notation|attribute_setup|coinductive_set|datatype_compat|datatype_record|lift_definition|no_translations|nunchaku_params|axiomatization|lifting_forget|lifting_update|named_theorems|nitpick_params|code_datatype|external_file|generate_file|inductive_set|realizability|setup_lifting|simproc_setup|syntax_consts|type_notation|abbreviation|default_sort|extract_type|method_setup|syntax_types|translations|type_synonym|bibtex_file|coinductive|declaration|local_setup|no_notation|nonterminal|open_bundle|ROOTS_file|codatatype|definition|hide_class|hide_const|type_alias|fun_cases|hide_fact|hide_type|inductive|no_syntax|primcorec|realizers|copy_bnf|datatype|function|judgment|notation|theorems|typedecl|unbundle|declare|extract|primrec|typedef|bundle|consts|lemmas|oracle|record|syntax|alias|corec|setup|fun)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:typed_print_translation|parse_ast_translation|print_ast_translation|no_adhoc_overloading|quickcheck_generator|parametric_constant|sledgehammer_params|bnf_axiomatization|syntax_declaration|adhoc_overloading|parse_translation|print_translation|quickcheck_params|coinduction_upto|no_type_notation|partial_function|attribute_setup|coinductive_set|datatype_compat|datatype_record|inductive_cases|inductive_simps|lift_definition|no_translations|nunchaku_params|axiomatization|lifting_forget|lifting_update|named_theorems|nitpick_params|code_datatype|external_file|generate_file|inductive_set|realizability|setup_lifting|simproc_setup|syntax_consts|type_notation|abbreviation|default_sort|extract_type|method_setup|syntax_types|translations|type_synonym|bibtex_file|coinductive|declaration|local_setup|no_notation|nonterminal|open_bundle|ROOTS_file|codatatype|definition|hide_class|hide_const|type_alias|fun_cases|hide_fact|hide_type|inductive|no_syntax|primcorec|realizers|copy_bnf|datatype|function|judgment|notation|theorems|typedecl|unbundle|declare|extract|primrec|typedef|bundle|consts|lemmas|oracle|record|syntax|alias|corec|setup|fun)(?![A-Za-z0-9_'])"
     },
     "keywords-proof": {
       "name": "keyword.control.proof.isabelle",
