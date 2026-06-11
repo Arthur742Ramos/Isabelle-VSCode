@@ -8,6 +8,19 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **TextMate grammar for `.thy` files.** Isabelle theories now have proper base
+  syntax highlighting the instant they open — outer-syntax commands coloured by
+  role (theory structure, specifications, goal statements, Isar proof steps,
+  diagnostics, embedded ML), proof methods in method position (`by simp`,
+  `apply (induct … rule: …)`, `proof -`), inner-syntax `"…"` strings, nested
+  `(* … *)` comments, nested cartouches (both `‹…›` and `\<open>…\<close>`),
+  `\<…>` symbols, `@{…}` antiquotations, and schematic / type variables.
+  Previously highlighting came *only* from the semantic-token delta, so a theory
+  rendered as plain text until the provider ran — and stayed unhighlighted in
+  Markdown ` ```isabelle ` fences, diff views, hover previews, and the minimap.
+  The keyword and proof-method vocabulary is kept in lock-step with the canonical
+  `ISABELLE_COMMANDS` / `ISABELLE_METHODS` tables by a drift test
+  (`test/syntaxes/isabelleGrammar.test.ts`). Offline.
 - The outline / breadcrumb now **nests** declarations under their document
   heading: a `section`'s definitions and lemmas appear as its children, a
   `subsection` nests inside its `section`, and so on down the
