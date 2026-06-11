@@ -207,7 +207,7 @@
     },
     "keywords-proof": {
       "name": "keyword.control.proof.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:ultimately|interpret|including|unfolding|moreover|consider|presume|subgoal|finally|include|obtain|define|supply|assume|apply_end|guess|write|using|apply|hence|thus|note|from|with|then|have|show|fix|let|also|case|next|proof)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:ultimately|apply_end|including|interpret|unfolding|consider|moreover|finally|include|presume|subgoal|assume|define|obtain|prefer|supply|apply|defer|guess|hence|proof|using|write|also|back|case|from|have|next|note|show|then|thus|with|fix|let)(?![A-Za-z0-9_'])"
     },
     "keywords-proof-terminal": {
       "name": "keyword.control.proof.terminal.isabelle",
@@ -219,7 +219,7 @@
     },
     "keywords-ml": {
       "name": "keyword.other.ml.isabelle",
-      "match": "(?<![A-Za-z0-9_'])(?:ML_file|ML_val|ML_prf|ML)(?![A-Za-z0-9_'])"
+      "match": "(?<![A-Za-z0-9_'])(?:SML_file_no_debug|ML_file_no_debug|SML_file_debug|ML_file_debug|ML_command|SML_export|SML_import|ML_export|SML_file|ML_file|ML_prf|ML_val|ML)(?![A-Za-z0-9_'])"
     }
   }
 }

@@ -8,6 +8,14 @@ Semantic Versioning while the extension remains in preview.
 
 ### Added
 
+- **Recognises the Pure proof-script and ML-command vocabulary.** Adds the
+  apply-style goal-management commands `defer`, `prefer`, and `back`, and the
+  Isabelle/ML and Standard ML commands `ML_command`, `ML_export`,
+  `ML_file_debug` / `ML_file_no_debug`, and `SML_file` / `SML_file_debug` /
+  `SML_file_no_debug` / `SML_import` / `SML_export`. Highlighted, hovered, and
+  parsed as command spans across the TextMate grammar, the offline syntax layer,
+  and the Scala backend parser. This completes recognition of the Isabelle2025-2
+  `Pure.thy` outer-syntax command set. Offline.
 - **Recognises the Pure declaration / specification-command vocabulary.** Adds
   `nonterminal`, `judgment`, `alias`, `type_alias`, `oracle`, `type_notation` /
   `no_type_notation`, `syntax_consts` / `syntax_types` / `syntax_declaration`,

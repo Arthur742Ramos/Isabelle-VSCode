@@ -164,6 +164,9 @@ const COMMANDS: IsabelleCommandInfo[] = [
   { keyword: "moreover", description: "Accumulates facts for a calculation.", category: "proof" },
   { keyword: "ultimately", description: "Combines accumulated facts for a proof step.", category: "proof" },
   { keyword: "finally", description: "Finishes a calculation.", category: "proof" },
+  { keyword: "defer", description: "Moves the current subgoal to the end of the goal list.", category: "proof" },
+  { keyword: "prefer", description: "Moves the numbered subgoal to the front of the goal list.", category: "proof" },
+  { keyword: "back", description: "Backtracks to the previous proof state, enumerating alternative results.", category: "proof" },
   { keyword: "qed", description: "Completes an Isar proof.", category: "proofTerminal" },
   { keyword: "by", description: "Completes a proof with a proof method.", category: "proofTerminal" },
   { keyword: "done", description: "Completes an apply-style proof.", category: "proofTerminal" },
@@ -228,7 +231,16 @@ const COMMANDS: IsabelleCommandInfo[] = [
   { keyword: "ML", description: "Evaluates Isabelle/ML source in the theory context.", category: "ml" },
   { keyword: "ML_file", description: "Evaluates an Isabelle/ML source file.", category: "ml" },
   { keyword: "ML_val", description: "Evaluates an Isabelle/ML expression and prints the result.", category: "ml" },
-  { keyword: "ML_prf", description: "Evaluates Isabelle/ML source within a proof.", category: "ml" }
+  { keyword: "ML_prf", description: "Evaluates Isabelle/ML source within a proof.", category: "ml" },
+  { keyword: "ML_command", description: "Evaluates an Isabelle/ML expression as a diagnostic command.", category: "ml" },
+  { keyword: "ML_export", description: "Evaluates Isabelle/ML source and exports its bindings to the global context.", category: "ml" },
+  { keyword: "ML_file_debug", description: "Evaluates an Isabelle/ML source file with debugging enabled.", category: "ml" },
+  { keyword: "ML_file_no_debug", description: "Evaluates an Isabelle/ML source file with debugging disabled.", category: "ml" },
+  { keyword: "SML_file", description: "Evaluates a Standard ML source file.", category: "ml" },
+  { keyword: "SML_file_debug", description: "Evaluates a Standard ML source file with debugging enabled.", category: "ml" },
+  { keyword: "SML_file_no_debug", description: "Evaluates a Standard ML source file with debugging disabled.", category: "ml" },
+  { keyword: "SML_import", description: "Imports Standard ML bindings into the Isabelle/ML environment.", category: "ml" },
+  { keyword: "SML_export", description: "Exports Isabelle/ML bindings to the Standard ML environment.", category: "ml" }
 ];
 
 export const ISABELLE_COMMANDS: ReadonlyMap<string, IsabelleCommandInfo> = new Map(

@@ -264,6 +264,9 @@ object CommandSpanParser {
     "moreover",
     "ultimately",
     "finally",
+    "defer",
+    "prefer",
+    "back",
     "qed",
     "by",
     "done",
@@ -328,7 +331,16 @@ object CommandSpanParser {
     "ML",
     "ML_file",
     "ML_val",
-    "ML_prf"
+    "ML_prf",
+    "ML_command",
+    "ML_export",
+    "ML_file_debug",
+    "ML_file_no_debug",
+    "SML_file",
+    "SML_file_debug",
+    "SML_file_no_debug",
+    "SML_import",
+    "SML_export"
   )
 
   private val IgnoredNames = Set("fixes", "assumes", "shows", "where", "if", "for")
