@@ -122,6 +122,13 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "isabelle",
+        "scopeName": "source.isabelle",
+        "path": "./syntaxes/isabelle.tmLanguage.json"
+      }
+    ],
     "snippets": [
       {
         "language": "isabelle",

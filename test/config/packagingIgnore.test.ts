@@ -24,6 +24,7 @@ const REQUIRED_RUNTIME_FILES = [
   "out/extension.js",
   "package.json",
   "language-configuration.json",
+  "syntaxes/isabelle.tmLanguage.json",
   "media/icon.png",
   "media/walkthrough/open-theory.md",
   "examples/Smoke.thy"

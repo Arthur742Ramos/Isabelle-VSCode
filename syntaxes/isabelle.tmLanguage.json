@@ -1,0 +1,225 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Isabelle",
+  "scopeName": "source.isabelle",
+  "fileTypes": ["thy"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#cartouche" },
+    { "include": "#cartouche-ascii" },
+    { "include": "#string" },
+    { "include": "#antiquotation" },
+    { "include": "#method-block" },
+    { "include": "#method-bare" },
+    { "include": "#proof-dash" },
+    { "include": "#keywords-theory" },
+    { "include": "#keywords-statement" },
+    { "include": "#keywords-context" },
+    { "include": "#keywords-declaration" },
+    { "include": "#keywords-proof" },
+    { "include": "#keywords-proof-terminal" },
+    { "include": "#keywords-diagnostic" },
+    { "include": "#keywords-ml" },
+    { "include": "#isabelle-symbol" },
+    { "include": "#schematic-variable" },
+    { "include": "#type-variable" },
+    { "include": "#numeral" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.isabelle",
+      "begin": "\\(\\*",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.comment.begin.isabelle" }
+      },
+      "end": "\\*\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.comment.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#comment" }
+      ]
+    },
+    "cartouche": {
+      "name": "string.quoted.other.cartouche.isabelle",
+      "begin": "\\x{2039}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.begin.isabelle" }
+      },
+      "end": "\\x{203a}",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#cartouche" },
+        { "include": "#cartouche-ascii" },
+        { "include": "#antiquotation" },
+        { "include": "#isabelle-symbol" }
+      ]
+    },
+    "cartouche-ascii": {
+      "name": "string.quoted.other.cartouche.isabelle",
+      "begin": "\\\\<open>",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.begin.isabelle" }
+      },
+      "end": "\\\\<close>",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.cartouche.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#cartouche-ascii" },
+        { "include": "#cartouche" },
+        { "include": "#antiquotation" },
+        { "include": "#isabelle-symbol" }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.isabelle",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.isabelle" }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#antiquotation" },
+        { "include": "#isabelle-symbol" },
+        { "include": "#schematic-variable" },
+        { "include": "#type-variable" }
+      ]
+    },
+    "antiquotation": {
+      "name": "meta.antiquotation.isabelle",
+      "begin": "(@\\{)\\s*([a-z][a-z0-9_]*)?",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.antiquotation.begin.isabelle" },
+        "2": { "name": "keyword.other.antiquotation.isabelle" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.antiquotation.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#string" },
+        { "include": "#isabelle-symbol" },
+        { "include": "#schematic-variable" },
+        { "include": "#type-variable" }
+      ]
+    },
+    "isabelle-symbol": {
+      "name": "constant.character.isabelle-symbol.isabelle",
+      "match": "\\\\<\\^?[A-Za-z]+>"
+    },
+    "type-variable": {
+      "name": "storage.type.variable.isabelle",
+      "match": "(?<![A-Za-z0-9_'])'[A-Za-z_][A-Za-z0-9_']*"
+    },
+    "schematic-variable": {
+      "name": "variable.other.schematic.isabelle",
+      "match": "(?<![A-Za-z0-9_'])\\?[A-Za-z_][A-Za-z0-9_'.]*"
+    },
+    "numeral": {
+      "name": "constant.numeric.isabelle",
+      "match": "(?<![A-Za-z0-9_'])[0-9]+(?:\\.[0-9]+)?"
+    },
+    "proof-methods": {
+      "name": "support.function.method.isabelle",
+      "match": "(?<![A-Za-z0-9_'.])(?:unfold_locales|rule_format|presburger|raw_tactic|sledgehammer|fastforce|induct_tac|induction|bestsimp|case_tac|clarsimp|rule_tac|simp_all|standard|assumption|linarith|succeed|clarify|algebra|deepen|tactic|meson|metis|blast|force|arith|subst|erule|drule|frule|intro|rules|cases|induct|coinduct|unfold|fold|this|fact|safe|fast|best|slow|auto|simp|elim|rule|smt|fail)(?![A-Za-z0-9_'.])"
+    },
+    "method-modifier": {
+      "name": "entity.other.attribute-name.isabelle",
+      "match": "(?<![A-Za-z0-9_'])[a-z][a-zA-Z0-9_']*(?=\\s*:)"
+    },
+    "method-arguments": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#string" },
+        { "include": "#cartouche" },
+        { "include": "#cartouche-ascii" },
+        { "include": "#method-modifier" },
+        { "include": "#proof-methods" },
+        { "include": "#nested-parens" },
+        { "include": "#isabelle-symbol" },
+        { "include": "#schematic-variable" },
+        { "include": "#type-variable" },
+        { "include": "#numeral" }
+      ]
+    },
+    "nested-parens": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.group.begin.isabelle" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.group.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#method-arguments" }
+      ]
+    },
+    "method-block": {
+      "begin": "(?<![A-Za-z0-9_'])(apply|apply_end|by|proof)(?![A-Za-z0-9_'])\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.proof.isabelle" },
+        "2": { "name": "punctuation.section.group.begin.isabelle" }
+      },
+      "end": "(\\))",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.group.end.isabelle" }
+      },
+      "patterns": [
+        { "include": "#method-arguments" }
+      ]
+    },
+    "method-bare": {
+      "match": "(?<![A-Za-z0-9_'])(by|apply|apply_end)(?![A-Za-z0-9_'])(\\s+)([a-z][a-zA-Z0-9_']*)",
+      "captures": {
+        "1": { "name": "keyword.control.proof.isabelle" },
+        "3": { "name": "support.function.method.isabelle" }
+      }
+    },
+    "proof-dash": {
+      "match": "(?<![A-Za-z0-9_'])(proof)(?![A-Za-z0-9_'])(\\s+)(-)",
+      "captures": {
+        "1": { "name": "keyword.control.proof.isabelle" },
+        "3": { "name": "keyword.other.null-method.isabelle" }
+      }
+    },
+    "keywords-theory": {
+      "name": "keyword.control.theory.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:subsubsection|subparagraph|subsection|paragraph|text_raw|keywords|abbrevs|chapter|section|imports|theory|begin|text|txt|end)(?![A-Za-z0-9_'])"
+    },
+    "keywords-statement": {
+      "name": "keyword.control.statement.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:global_interpretation|interpretation|schematic_goal|proposition|termination|corollary|sublocale|subclass|instance|theorem|lemma)(?![A-Za-z0-9_'])"
+    },
+    "keywords-context": {
+      "name": "keyword.control.context.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:instantiation|experiment|notepad|context|locale|class)(?![A-Za-z0-9_'])"
+    },
+    "keywords-declaration": {
+      "name": "keyword.other.declaration.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:coinductive_set|inductive_set|coinductive|no_translations|translations|lift_definition|attribute_setup|simproc_setup|named_theorems|axiomatization|default_sort|method_setup|abbreviation|type_synonym|no_notation|hide_const|no_syntax|definition|declaration|inductive|primcorec|codatatype|fun_cases|notation|typedecl|hide_type|hide_fact|hide_class|primrec|function|datatype|typedef|theorems|declare|unbundle|syntax|record|consts|lemmas|setup|bundle|fun)(?![A-Za-z0-9_'])"
+    },
+    "keywords-proof": {
+      "name": "keyword.control.proof.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:ultimately|interpret|including|unfolding|moreover|consider|presume|subgoal|finally|include|obtain|define|supply|assume|apply_end|guess|write|using|apply|hence|thus|note|from|with|then|have|show|fix|let|also|case|next|proof)(?![A-Za-z0-9_'])"
+    },
+    "keywords-proof-terminal": {
+      "name": "keyword.control.proof.terminal.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:sorry|oops|done|qed|by)(?![A-Za-z0-9_'])"
+    },
+    "keywords-diagnostic": {
+      "name": "keyword.other.diagnostic.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:print_statement|print_theorems|print_classes|find_theorems|sledgehammer|print_locale|find_consts|solve_direct|export_code|quickcheck|full_prf|nitpick|value|term|prop|typ|thm|prf|try0|try)(?![A-Za-z0-9_'])"
+    },
+    "keywords-ml": {
+      "name": "keyword.other.ml.isabelle",
+      "match": "(?<![A-Za-z0-9_'])(?:ML_file|ML_val|ML_prf|ML)(?![A-Za-z0-9_'])"
+    }
+  }
+}
