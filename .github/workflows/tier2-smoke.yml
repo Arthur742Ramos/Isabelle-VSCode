@@ -1,12 +1,13 @@
 name: Tier-2 smoke
 
-# Manual, expensive end-to-end smoke lane for the parts of
+# Manual + scheduled, expensive end-to-end smoke lane for the parts of
 # docs/SMOKE_THEORY_CHECKLIST.md that can run without a human looking at the UI.
 # It installs a real Isabelle distribution, builds a universal VSIX, launches a
 # VS Code extension host against the extracted package, and runs the gated
-# integration smoke test against examples/Smoke.thy. Keep this off pull_request
-# until it proves stable: each matrix leg downloads roughly 1-2 GB of Isabelle
-# payload.
+# integration smoke test against examples/Smoke.thy. Kept off pull_request
+# because each matrix leg downloads roughly 1-2 GB of Isabelle payload; instead
+# it runs on a weekly schedule so prover-dependent regressions are caught
+# automatically, plus on-demand via workflow_dispatch.
 
 on:
   workflow_dispatch:
@@ -21,12 +22,17 @@ on:
         required: true
         default: false
         type: boolean
+  schedule:
+    # Weekly, Mondays 04:17 UTC (off the hour to avoid the cron stampede). The
+    # scheduled run uses the env defaults below (latest pinned Isabelle, no
+    # Sledgehammer) since `inputs` are absent outside workflow_dispatch.
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: tier2-smoke-${{ github.ref }}-${{ inputs.isabelle_version }}
+  group: tier2-smoke-${{ github.ref }}-${{ inputs.isabelle_version || 'Isabelle2025-2' }}
   cancel-in-progress: false
 
 jobs:
@@ -46,7 +52,7 @@ jobs:
             runner: macos-14
 
     env:
-      ISABELLE_VERSION: ${{ inputs.isabelle_version }}
+      ISABELLE_VERSION: ${{ inputs.isabelle_version || 'Isabelle2025-2' }}
       ISABELLE_VSCODE_TIER2_SMOKE: "1"
       ISABELLE_VSCODE_TIER2_SMOKE_SLEDGEHAMMER: ${{ inputs.run_sledgehammer && '1' || '0' }}
       ISABELLE_VSCODE_TIER2_HEAP_MB: "4096"
